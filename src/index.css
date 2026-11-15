@@ -1,0 +1,482 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* Premium, High-Contrast Dark Mode System */
+.dark {
+  /* Dynamic custom properties for transitions */
+  --bg-primary: #020617; /* Slate 950 */
+  --bg-secondary: #0b1329; /* Deep indigo dark */
+  --bg-tertiary: #111e3b; /* Medium deep blue */
+  --border-primary: #1e293b; /* Slate 800 */
+  --border-secondary: #334155; /* Slate 700 */
+  --text-primary: #f8fafc; /* Slate 50 */
+  --text-secondary: #e2e8f0; /* Slate 200 */
+  --text-muted: #cbd5e1; /* Slate 300 */
+}
+
+/* Base Body/HTML Dark mode overrides */
+.dark,
+.dark .min-h-screen {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+}
+
+/* Light mode unified subtle backgrounds */
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-50\/50,
+.bg-slate-100\/50,
+.bg-gray-50,
+.bg-gray-100 {
+  background-color: #f8fafc !important;
+}
+
+/* Non-standard indigo button helper for both light and dark modes */
+.bg-indigo-650 {
+  background-color: #4f46e5 !important;
+}
+.hover\:bg-indigo-750:hover {
+  background-color: #4338ca !important;
+}
+
+/* Dark Mode Surface & Container Background Mappings */
+.dark .bg-white {
+  background-color: #0b1329 !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/55,
+.dark .bg-slate-50\/60,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80 {
+  background-color: #070d1f !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-slate-100\/50,
+.dark .bg-slate-100\/80,
+.dark .bg-slate-105,
+.dark .bg-slate-150,
+.dark .bg-gray-100 {
+  background-color: #111c38 !important;
+}
+
+.dark .bg-slate-200,
+.dark .bg-slate-200\/50,
+.dark .bg-slate-200\/70,
+.dark .bg-slate-200\/80 {
+  background-color: #1e293b !important;
+}
+
+/* Dark Mode Gradient Overrides for Light Gradient Cards */
+.dark .from-white {
+  --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
+}
+.dark .to-slate-50 {
+  --tw-gradient-to: #0b1329 var(--tw-gradient-to-position) !important;
+}
+.dark .from-emerald-50 {
+  --tw-gradient-from: rgba(6, 78, 59, 0.45) var(--tw-gradient-from-position) !important;
+}
+.dark .to-teal-50 {
+  --tw-gradient-to: rgba(19, 78, 74, 0.45) var(--tw-gradient-to-position) !important;
+}
+
+/* Dark Mode Tinted Callout & Badge Backgrounds */
+.dark .bg-indigo-50,
+.dark .bg-indigo-50\/10,
+.dark .bg-indigo-50\/15,
+.dark .bg-indigo-50\/20,
+.dark .bg-indigo-50\/40,
+.dark .bg-indigo-50\/50,
+.dark .bg-indigo-100,
+.dark .bg-indigo-100\/30,
+.dark .bg-indigo-500\/10,
+.dark .bg-indigo-600\/10 {
+  background-color: rgba(99, 102, 241, 0.16) !important;
+}
+
+.dark .bg-blue-50,
+.dark .bg-blue-50\/40,
+.dark .bg-blue-50\/70,
+.dark .bg-blue-100,
+.dark .bg-blue-100\/70,
+.dark .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.16) !important;
+}
+
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/20,
+.dark .bg-emerald-50\/30,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/80,
+.dark .bg-emerald-100,
+.dark .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+}
+
+.dark .bg-teal-50,
+.dark .bg-teal-100 {
+  background-color: rgba(20, 184, 166, 0.16) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-50\/30,
+.dark .bg-amber-50\/40,
+.dark .bg-amber-50\/50,
+.dark .bg-amber-50\/60,
+.dark .bg-amber-50\/70,
+.dark .bg-amber-100,
+.dark .bg-amber-100\/70,
+.dark .bg-yellow-50,
+.dark .bg-orange-50\/30,
+.dark .bg-\[\#fffbeb\] {
+  background-color: rgba(245, 158, 11, 0.16) !important;
+}
+
+.dark .bg-rose-50,
+.dark .bg-rose-50\/20,
+.dark .bg-rose-50\/30,
+.dark .bg-rose-50\/40,
+.dark .bg-rose-50\/70,
+.dark .bg-rose-100,
+.dark .bg-rose-500\/10,
+.dark .bg-red-50,
+.dark .bg-pink-100 {
+  background-color: rgba(244, 63, 94, 0.16) !important;
+}
+
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: rgba(139, 92, 246, 0.16) !important;
+}
+
+/* Dark Mode Borders */
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/75,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/50,
+.dark .border-slate-250,
+.dark .border-slate-150,
+.dark .border-slate-100,
+.dark .border-gray-200,
+.dark .border-slate-300 {
+  border-color: #1e293b !important;
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+.dark .border-indigo-100,
+.dark .border-indigo-150,
+.dark .border-indigo-200 {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+
+.dark .border-blue-100,
+.dark .border-blue-200,
+.dark .border-blue-200\/50,
+.dark .border-blue-200\/60,
+.dark .border-blue-200\/80 {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+.dark .border-emerald-100,
+.dark .border-emerald-200,
+.dark .border-emerald-250,
+.dark .border-emerald-300 {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.dark .border-teal-100,
+.dark .border-teal-200 {
+  border-color: rgba(20, 184, 166, 0.35) !important;
+}
+
+.dark .border-amber-100,
+.dark .border-amber-200,
+.dark .border-amber-200\/50,
+.dark .border-amber-200\/70,
+.dark .border-amber-200\/80,
+.dark .border-amber-300,
+.dark .border-yellow-105,
+.dark .border-yellow-205,
+.dark .border-yellow-250,
+.dark .border-\[\#fef3c7\] {
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+.dark .border-rose-100,
+.dark .border-rose-200,
+.dark .border-rose-200\/70,
+.dark .border-rose-205,
+.dark .border-rose-300,
+.dark .border-red-100,
+.dark .border-red-200 {
+  border-color: rgba(244, 63, 94, 0.35) !important;
+}
+
+.dark .border-dashed {
+  border-color: #334155 !important;
+}
+
+/* ============================================================================
+   HIGH-CONTRAST DARK MODE TYPOGRAPHY SYSTEM
+   Ensures all primary, secondary, muted, and semantic text classes maintain
+   crisp contrast against dark backgrounds (#020617 / #0b1329 / #111c38).
+   ============================================================================ */
+
+/* Primary Headings & High-Emphasis Copy -> Crisp Slate-50 (#f8fafc) */
+.dark .text-slate-900,
+.dark .text-slate-880,
+.dark .text-slate-850,
+.dark .text-slate-800,
+.dark .text-slate-750,
+.dark .text-gray-900,
+.dark .text-gray-850,
+.dark .text-gray-800 {
+  color: #f8fafc !important;
+}
+
+/* Body Copy & Medium-Emphasis Labels -> Bright Slate-200 (#e2e8f0) */
+.dark .text-slate-705,
+.dark .text-slate-700,
+.dark .text-slate-650,
+.dark .text-slate-600,
+.dark .text-gray-700,
+.dark .text-gray-600 {
+  color: #e2e8f0 !important;
+}
+
+/* Subtitles, Captions & Secondary Metadata -> Legible Slate-300 (#cbd5e1) */
+.dark .text-slate-500,
+.dark .text-slate-450,
+.dark .text-slate-405,
+.dark .text-slate-400,
+.dark .text-slate-350,
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: #cbd5e1 !important;
+}
+
+/* Disabled / Muted Icon & Placeholder States -> Balanced Slate-400 (#94a3b8) */
+.dark .text-slate-300:not([class*="dark:text-"]) {
+  color: #94a3b8 !important;
+}
+
+/* Semantic Accent Text: Indigo -> Luminous Indigo-300 (#a5b4fc) */
+.dark .text-indigo-950,
+.dark .text-indigo-900,
+.dark .text-indigo-850,
+.dark .text-indigo-800,
+.dark .text-indigo-750,
+.dark .text-indigo-700,
+.dark .text-indigo-650,
+.dark .text-indigo-600,
+.dark .text-indigo-500,
+.dark .text-\[\#4f46e5\] {
+  color: #a5b4fc !important;
+}
+
+/* Semantic Accent Text: Blue & Sky -> Luminous Blue-300 (#93c5fd) */
+.dark .text-blue-950,
+.dark .text-blue-900,
+.dark .text-blue-800,
+.dark .text-blue-700,
+.dark .text-blue-600,
+.dark .text-blue-500 {
+  color: #93c5fd !important;
+}
+
+.dark .text-sky-600,
+.dark .text-sky-500 {
+  color: #7dd3fc !important;
+}
+
+/* Semantic Accent Text: Emerald & Green -> Luminous Emerald-300 (#6ee7b7) */
+.dark .text-emerald-950,
+.dark .text-emerald-900,
+.dark .text-emerald-800,
+.dark .text-emerald-700,
+.dark .text-emerald-600 {
+  color: #6ee7b7 !important;
+}
+
+/* Semantic Accent Text: Teal -> Luminous Teal-300 (#5eead4) */
+.dark .text-teal-900,
+.dark .text-teal-850,
+.dark .text-teal-800,
+.dark .text-teal-700,
+.dark .text-teal-600 {
+  color: #5eead4 !important;
+}
+
+/* Semantic Accent Text: Amber, Yellow & Orange -> Luminous Amber-300 (#fcd34d) */
+.dark .text-amber-950,
+.dark .text-amber-900,
+.dark .text-amber-800,
+.dark .text-amber-700,
+.dark .text-amber-600,
+.dark .text-yellow-700,
+.dark .text-yellow-600,
+.dark .text-\[\#b45309\],
+.dark .text-\[\#92400e\] {
+  color: #fcd34d !important;
+}
+
+/* Semantic Accent Text: Rose, Red & Pink -> Luminous Rose-300 (#fda4af) */
+.dark .text-rose-950,
+.dark .text-rose-900,
+.dark .text-rose-800,
+.dark .text-rose-700,
+.dark .text-rose-600,
+.dark .text-red-900,
+.dark .text-red-800,
+.dark .text-red-700,
+.dark .text-red-600,
+.dark .text-pink-700 {
+  color: #fda4af !important;
+}
+
+/* Semantic Accent Text: Violet -> Luminous Violet-300 (#c4b5fd) */
+.dark .text-violet-700,
+.dark .text-violet-600 {
+  color: #c4b5fd !important;
+}
+
+/* Preserve High-Contrast Dark Text on Solid Gold / Bright Emerald Buttons */
+.dark .bg-\[\#C9A84C\].text-slate-950,
+.dark .bg-emerald-500.text-slate-950,
+.dark .bg-emerald-500 .text-slate-900 {
+  color: #020617 !important;
+}
+
+/* Ensure Solid Dark Action Buttons Stand Out Against Dark Cards */
+.dark button.bg-slate-900 {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+}
+.dark button.bg-slate-900.text-emerald-400 {
+  color: #34d399 !important;
+}
+.dark button.bg-slate-900:hover {
+  background-color: #334155 !important;
+}
+
+/* SVG Chart Contrast in Dark Mode */
+.dark svg text[fill="#334155"],
+.dark svg text[fill="#64748b"] {
+  fill: #e2e8f0 !important;
+}
+.dark svg text[fill="#047857"] {
+  fill: #34d399 !important;
+}
+.dark svg text[fill="#b45309"] {
+  fill: #fbbf24 !important;
+}
+.dark svg line[stroke="#f1f5f9"] {
+  stroke: #1e293b !important;
+}
+
+/* Hover effects */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/50:hover,
+.dark .hover\:bg-slate-50\/80:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-105:hover,
+.dark .hover\:bg-slate-200:hover,
+.dark .hover\:bg-slate-200\/50:hover,
+.dark .hover\:bg-gray-50:hover {
+  background-color: #17254a !important;
+}
+
+.dark .hover\:text-slate-900:hover,
+.dark .hover\:text-slate-800:hover,
+.dark .hover\:text-slate-705:hover {
+  color: #ffffff !important;
+}
+
+.dark .hover\:border-emerald-200:hover {
+  border-color: #10b981 !important;
+}
+
+/* Sandbox form inputs & selects */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark select option {
+  background-color: #0b1329 !important;
+  color: #f8fafc !important;
+}
+
+.dark input:focus,
+.dark select:focus {
+  background-color: #020617 !important;
+  border-color: #3b82f6 !important;
+  outline: none;
+}
+
+/* Navigation lists & category menus */
+.dark .border-indigo-600 {
+  border-color: #818cf8 !important;
+}
+
+/* Custom shadow optimizations on dark canvas */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.6), 0 1px 2px -1px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dark .shadow-md,
+.dark .shadow-lg {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Animation utilities */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

@@ -1,0 +1,7280 @@
+import { useState, useEffect } from 'react';
+import {
+  BookOpen,
+  Award,
+  Trophy,
+  Timer,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Info,
+  RefreshCw,
+  Play,
+  ArrowRight,
+  ChevronRight,
+  ClipboardList,
+  BarChart2,
+  Calculator,
+  Bookmark,
+  BookmarkCheck,
+  Filter,
+  Clock,
+  ChevronLeft,
+  Lightbulb,
+  Check,
+  AlertTriangle,
+  HelpCircle,
+  LayoutDashboard,
+  FileText,
+  Save,
+  Search,
+  ExternalLink,
+  Sun,
+  Moon,
+  Download,
+  StickyNote,
+  Trash2,
+  X,
+  Copy,
+  Users,
+  Linkedin,
+  Instagram,
+  Mail,
+  Lock,
+  Menu,
+  CloudLightning,
+  Scale,
+  Sparkles
+} from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { chapters, caseScenarios, CaseScenario, Question, Chapter } from './scenariosData';
+import { generalMCQs, GeneralMCQ } from './generalMCQs';
+import { flashcards, Flashcard } from './flashcardData';
+import { setAChapters } from './setA/setAChapters';
+import { setACases } from './setA/setACases';
+import { setAMCQs } from './setA/setAMcqs';
+import { setAFlashcards } from './setA/setAFlashcards';
+import { SET_A_LEGAL_LIMITS } from './setA/setALegalLimits';
+// practACE official brand logo asset
+const practAceLogoImg = '/assets/aistudio/PractACE_Logo_fceba771.png';
+import ChapterVisualizer, { SetATimeLimitsChart, SetAMonetaryLimitsChart } from './components/ChapterVisualizer';
+import { HighlightedText, getPlainChapterName } from './components/HighlightedText';
+import SetALegalCalculators from './components/SetALegalCalculators';
+
+export interface BookmarkedQuestion {
+  id: string; // composite key: `${caseId}-${qId}` or `general-${qId}`
+  subject: 'setA' | 'setB';
+  type: 'case' | 'general';
+  chapterId: number;
+  chapterName: string;
+  caseId?: string;
+  caseTitle?: string;
+  questionId: string;
+  questionText: string;
+  options: { A: string; B: string; C: string; D: string };
+  correctOption: 'A' | 'B' | 'C' | 'D';
+  explanation: string;
+  examinerWarning?: string;
+  savedAt: number;
+}
+
+// Firebase core configuration & connection testing
+import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
+import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    console.warn("Gracefully logged non-blocking firebase connection status:", error);
+  }
+}
+
+
+interface FormulaDetail {
+  context: string;
+  derivation: string;
+  trigger: string;
+}
+
+const FORMULA_DETAILS: Record<string, FormulaDetail> = {
+  "Strategic Cost Gap Index (Conceptual Metric)": {
+    context: "Strategic Cost Management (SCM) design stage tool.",
+    derivation: "Divides the excess cost gap (Estimated Cost - Target Cost) by the Target Cost baseline. This indexes the relative scale of overrun to prioritize Value Engineering (VE) efforts across different products.",
+    trigger: "Trigger VE when Index > 0. A higher index indicates severe cost overruns that threaten commercial launch."
+  },
+  "Customer Value-to-Cost Focus Ratio": {
+    context: "Value Chain Analysis & Strategic Positioning.",
+    derivation: "Divides Customer Perceived Importance of an attribute by the percentage of Total Activity Costs allocated to that attribute. Helps find matching customer value to resource usage.",
+    trigger: "If Ratio < 1.0, the activity is over-engineered (costs exceed perceived value). If Ratio > 1.0, it is under-resourced."
+  },
+  "OEE (Overall Equipment Effectiveness)": {
+    context: "Total Productive Maintenance (TPM) performance optimization.",
+    derivation: "Multiplies Availability Rate (Uptime), Performance Rate (Speed), and Quality Rate (Yield). It combines all equipment losses into one unified metric.",
+    trigger: "World-class manufacturer benchmark target is > 85%. Helps identify which of the 6 Major Losses requires immediate engineering focus."
+  },
+  "OEE Availability Rate": {
+    context: "Uptime assessment and equipment breakdown tracking.",
+    derivation: "Compares Actual Operating Run Time to Planned Production Time (excluding planned breaks/scheduled maintenance).",
+    trigger: "Low rates indicate severe downtime losses from mechanical failure or slow setup adjustment times."
+  },
+  "OEE Performance (Speed) Rate": {
+    context: "Speed losses, minor stops, and equipment performance degradation.",
+    derivation: "Ideal Cycle Time per unit multiplied by the Total Units produced, divided by Actual Operating Run Time. Captures how close the machine ran to its theoretical design speed.",
+    trigger: "Low rates indicate issues with motor wear, improper tooling feed speeds, or minor frequent jams."
+  },
+  "OEE Quality (Yield) Rate": {
+    context: "Production precision and scrap control.",
+    derivation: "Good Units Produced (First-Time-Right) divided by Total Units Entered into process.",
+    trigger: "A lower rate indicates high rework costs, raw scrap, or machine calibration errors during warm-up."
+  },
+  "Throughput (T)": {
+    context: "Theory of Constraints (TOC) short-term operations management.",
+    derivation: "Sales Revenue minus Truly Variable Costs (typically strictly Direct Materials). Unlike absorption costing, standard labor and overheads are deemed operating expenses (fixed).",
+    trigger: "Maximize short-term contribution (T) to recover fixed corporate Operating Expenses on constraint resources."
+  },
+  "Throughput Accounting (TA) Ratio": {
+    context: "Syllabus standard for product viability under narrow capacity constraint bottlenecks (Goldratt's TOC).",
+    derivation: "Throughput Contribution per Bottleneck Minute divided by Factory Operating Cost (Labor + Overhead) per Bottleneck Minute.",
+    trigger: "Accept or prioritize products if TA Ratio > 1.0. If < 1.0, the product fails to recover its operating share of bottleneck capacity."
+  },
+  "Factory Cost per Bottleneck Minute/Hour": {
+    context: "Constraint operations pricing and hourly factory run-rate cost.",
+    derivation: "Total operating expenses of the factory (Direct labor, indirect wages, factory rent, depreciation, energy) divided by the total available bottleneck operating hours.",
+    trigger: "Budget rate used as the hurdle of operating efficiency for processing through the bottleneck asset."
+  },
+  "Digital Platform Take Rate": {
+    context: "Digital business model monetization efficiency.",
+    derivation: "Platform transaction commission revenue divided by the network's Gross Merchandise Value (GMV).",
+    trigger: "Typical aggregators target 10% - 25% depending on competitive moat and supplier fragmentations."
+  },
+  "Customer Acquisition Cost (CAC)": {
+    context: "Marketing investment efficiency analysis for digital platform and SaaS subscriptions.",
+    derivation: "Total sales, marketing, commissions, promotional, and onboarding expenses divided by the number of new Customers successfully acquired during that period.",
+    trigger: "Used combined with CLV to evaluate if marketing acquisition channels are economically sustainable."
+  },
+  "Customer Lifetime Value (CLV)": {
+    context: "Syllabus metric for subscriber base equity and valuation.",
+    derivation: "Derived by multiplying Average Revenue per Customer (ARPU) by Gross Profit Margin %, then dividing by the customer Churn Rate %.",
+    trigger: "Used to determine maximum customer acquisition budgets. High churn rates exponentially depress CLV."
+  },
+  "Customer Churn Rate (%)": {
+    context: "Ecosystem retention and subscription health.",
+    derivation: "Number of customers lost during a period divided by the starting customer base in that period, converted to a percentage.",
+    trigger: "Critical performance KPI. Reducing Churn matches the leverage of acquiring several new customers."
+  },
+  "CLV-to-CAC Ratio (Hurdle Rate)": {
+    context: "Platform economic health benchmark.",
+    derivation: "Customer Lifetime Value divided by Customer Acquisition Cost. Standard indicator of unit investment returns.",
+    trigger: "Sustainable platform models require a ratio of > 3.0 (or 3:1). A ratio of 1:1 indicates commercial failure."
+  },
+  "Target Cost": {
+    context: "Proactive design-phase cost reduction and market-driven engineering.",
+    derivation: "Target Market Selling Price minus Required Target Return Margin (derived from required Return on Sales or asset markup hurdles).",
+    trigger: "Forces product design engineers to design out costs *before* factory tooling is set up."
+  },
+  "Required Profit Margin": {
+    context: "Capital return requirements and investment hurdle mapping.",
+    derivation: "Determined applying corporate return objectives (e.g., Target Profit Margin on Sale Price, or cost markups) to secure investor capital preservation.",
+    trigger: "Derived from weighted cost of capital or segment payback expectations."
+  },
+  "Cost Gap": {
+    context: "Variance analysis during design phases.",
+    derivation: "Calculated as the Current Estimated Cost of Production minus the target allowable maximum cost limits.",
+    trigger: "Must be systematically closed to zero via Value Engineering (VE) and Value Analysis (VA) before mass production begins."
+  },
+  "Product Lifecycle Cost per Unit": {
+    context: "Whole-life asset evaluation covering design to disposal phases.",
+    derivation: "Sum of Upstream Costs (R&D, design, prototyping) + Midstream Costs (operations, material) + Downstream Costs (warranty, cleanups, disposal) divided by lifetime units sold.",
+    trigger: "Prevents short-sighted design choices that reduce manufacturing costs but multiply warranty or disposal expenses."
+  },
+  "Cost Reduction Index (CRI)": {
+    context: "Commercially viable target costing index.",
+    derivation: "Target Cost divided by Currently Estimated Cost of Production. Value of 1.0 represents exact hurdle achievement.",
+    trigger: "If CRI < 1.0, the current design is not viable and must undergo Value Engineering."
+  },
+  "MFCA Positive Product Cost Allocation": {
+    context: "ISO 14051 Material Flow Cost Accounting - Green manufacturing compliance.",
+    derivation: "Calculates total chemical/material, system labor, and energy inputs allocated strictly to the proportion of physical weight inside salable finished products.",
+    trigger: "Helps separate genuine product value-add from money spent creating waste streams."
+  },
+  "MFCA Negative Waste Cost Allocation": {
+    context: "Green costing and material wastage transparency.",
+    derivation: "Allocates a proportion of raw physical materials, system operating costs, and energy to the weight of physical scrap losses, water effluents, or emissions.",
+    trigger: "Exposes the hidden cost of waste: it's not just disposal fees, but the lost purchase and processing cost of wasted inputs."
+  },
+  "Minimum Contract Bid Pricing Floor": {
+    context: "Special non-routine contract pricing under Relevant Costing.",
+    derivation: "Aggregates Incremental Out-of-Pocket Variable Costs + Specific Fixed Costs (e.g. custom tool lease) + Opportunity Cost of diverted resources.",
+    trigger: "Represents the absolute economic break-even floor. Any price above this increases company profits."
+  },
+  "Scarce Resource Opportunity Cost per Unit": {
+    context: "Operating decision under capacity constraints (labor/input shortage).",
+    derivation: "Contribution margin lost from selling standard products on the open market, divided by the scarce resource units those products consume.",
+    trigger: "Charged as an incremental cost to any custom job asking to use the scarce bottleneck resources."
+  },
+  "Price Elasticity of Demand (Ep)": {
+    context: "Pricing strategy and market sensitivity analysis.",
+    derivation: "Percentage change in demand quantity divided by corresponding percentage change in unit price.",
+    trigger: "If |Ep| > 1, demand is elastic (price reductions grow revenue). If |Ep| < 1, demand is inelastic."
+  },
+  "Linear Demand Pricing Model": {
+    context: "Demand curves and price setting pricing model.",
+    derivation: "Price = a - bQ, where 'a' is the theoretical price when quantity requested is zero, and 'b' is the demand curve slope.",
+    trigger: "Provides mathematical foundation for identifying exact pricing sweet spots for profitability."
+  },
+  "Slope factor of demand curve (b)": {
+    context: "Quantifying demand price premium relationships.",
+    derivation: "Change in Price divided by Change in Quantity demanded between two pricing options.",
+    trigger: "Represents user willingness to pay relative to product quantity expansion."
+  },
+  "Marginal Revenue (MR) Equation": {
+    context: "Economic profit maximization framework.",
+    derivation: "Calculated as a - 2bQ. Found by taking the first derivative of the Total Revenue function with respect to Quantity.",
+    trigger: "Used in combination with Marginal Cost (MC) models. Profit is maximized where MR = MC."
+  },
+  "Profit Maximizing Quantity (Q)": {
+    context: "Industrial production output target.",
+    derivation: "Set MR = MC and solve for Q: (a - MC) / 2b.",
+    trigger: "The mathematically optimized output level that achieves peak corporate profit potential."
+  },
+  "Economic Value Added (EVA)": {
+    context: "Value-based management aligning manager actions with shareholder value.",
+    derivation: "Net Operating Profit After Tax (NOPAT) minus a capitalized Capital Charge (Capital Employed × WACC %).",
+    trigger: "Promotes capital discipline. A project is wealth-creative only if EVA is positive."
+  },
+  "Adjusted NOPAT (Net Operating Profit After Tax)": {
+    context: "Accounting adjustments required for true economic profits under Stern Stewart model.",
+    derivation: "Operating profits before interest but after tax, adding back capitalized strategic intangibles like R&D, brand build, and training.",
+    trigger: "Prevents managers from cutting R&D or marketing just to boost short-term earnings."
+  },
+  "Adjusted Capital Employed": {
+    context: "Adjusting book assets for capital-based returns.",
+    derivation: "Net assets (Equity + Debt) adjusted to add back capitalized R&D, brand development assets, and provision for warranties.",
+    trigger: "Establishes the true asset base invested by shareholders, including key intangible investments."
+  },
+  "Weighted Average Cost of Capital (WACC)": {
+    context: "Syllabus cost of corporate finance across debt and equity structures.",
+    derivation: "Weighted average of the cost of equity (Ke) and tax-adjusted cost of debt (Kd) based on the target capital structure.",
+    trigger: "Used as the absolute discount rate hurdle for capital budgeting and EVA capital charges."
+  },
+  "Residual Income (RI)": {
+    context: "Divisional performance evaluation and anti-suboptimization metric.",
+    derivation: "Divisional Operating Profit minus a cost of capital charge (Capital Employed × Corporate Hurdle Rate %).",
+    trigger: "Avoids the Suboptimization trap of ROI (where managers decline profitable expansion because it lowers their average ROI)."
+  },
+  "Return on Investment (ROI)": {
+    context: "Traditional divisional efficiency and capital yield percentage.",
+    derivation: "Divisional Operating Profits divided by the Divisional Capital Employed base, converted to a percentage.",
+    trigger: "Widely used but prone to Suboptimization. Managers might drop high-NPV projects if they are below current divisional ROI."
+  },
+  "Manufacturing Cycle Efficiency (MCE)": {
+    context: "Continuous process waste tracking under Lean manufacturing.",
+    derivation: "Value-Added Processing time divided by overall Manufacturing Cycle Lead Time (Process + Queue + Move + Inspect + Dwell times).",
+    trigger: "For most traditional batch operations, MCE is below 10%. Continuous improvement goals aim for > 50%."
+  },
+  "General Minimum Transfer Price Rule (Seller Floor)": {
+    context: "Internal pricing between autonomous divisions in a multi-segment group.",
+    derivation: "Selling Division's out-of-pocket Variable Costs plus the Opportunity Cost of sacrificing external sales.",
+    trigger: "Establishes the absolute supplier baseline that protects segment margins and divisional performance evaluation."
+  },
+  "Selling Division Opportunity Cost of Sacrificed Sales": {
+    context: "Opportunity charge for internal resource allocations.",
+    derivation: "External Retail Price minus Variable production and distribution costs, minus any Saved Logistics cost from trading internally.",
+    trigger: "Quantifies exactly what corporate profit is given up on the retail market by shifting units inside."
+  },
+  "General Maximum Transfer Price Rule (Buyer Ceiling)": {
+    context: "Buying division internal boundary condition.",
+    derivation: "The lesser of: the current alternative external open market price, or the buyer's Net Marginal Revenue (NMR) on the finished product.",
+    trigger: "Ensures the buying manager is never forced to import internally at a price that causes segment losses."
+  },
+  "Buyer Net Marginal Revenue (NMR)": {
+    context: "Internal buying division maximum financial capacity assessment.",
+    derivation: "Final Selling Price of finished product minus any variable costs incurred inside the buying division itself (packaging, assembly, labor).",
+    trigger: "Upper economic limit on component purchase price before divisional contribution becomes negative."
+  },
+  "Company Consolidated Profit Net Impact": {
+    context: "Group-wide financial optimization ignore transfer offsets.",
+    derivation: "Finished retail revenue minus cumulative variable costs of manufacturing across all intermediate segments.",
+    trigger: "Ensures corporate leadership guides overall congruence under capacity constraints."
+  },
+  "Material Price Variance (MPV)": {
+    context: "Standard Costing standard procurement efficiency KPI.",
+    derivation: "Actual Material Quantity Purchased multiplied by the rate difference: Standard Price per unit minus Actual Price per unit.",
+    trigger: "Enables procurement tracking. Helpful to identify if material quality shortcuts led to downstream factory waste."
+  },
+  "Material Usage Variance (MUV)": {
+    context: "Floor operations material conservation evaluation.",
+    derivation: "Standard Unit Price multiplied by the physical variance: Standard quantity allowed for actual output minus Actual quantity used.",
+    trigger: "Primary metric of scrap, spillages, and fabrication waste on the factory floor."
+  },
+  "Material Mix Variance (MMV)": {
+    context: "Standard Costing material mix proportion analysis.",
+    derivation: "Standard Price per unit multiplied by the variance: Revised standard quantity in the actual mix ratio minus Actual quantity used.",
+    trigger: "Isolates savings or deficits arising purely from switching to a cheaper or more expensive ratio of raw materials."
+  },
+  "Material Yield Variance (MYV)": {
+    context: "Recipe output yields extraction rating.",
+    derivation: "Standard Unit Price multiplied by the variance: Standard input quantity allowed minus Revised standard quantity in the actual mix.",
+    trigger: "Tracks chemical or conversion process yield losses when using standard mix recipes."
+  },
+  "Labor Efficiency Planning Variance": {
+    context: "Planning vs. Operational standard adjustments.",
+    derivation: "Standard Hourly Wage Rate multiplied by: Original Standard Hours minus Revised Standard Hours.",
+    trigger: "Locks in and isolates uncontrollable planning shifts (e.g., changes in law or retrospective union wage rules) to keep operations feedback fair."
+  },
+  "Labor Efficiency Operational Variance": {
+    context: "Operational labor performance of shift floor managers.",
+    derivation: "Standard Hourly Wage Rate multiplied by: Revised Standard Hours allowed for actual output minus Actual hours paid.",
+    trigger: "Accurate indicator of staff skill, shift pacing, and machine uptime influence on labor productivity."
+  },
+  "Sales Margin Mix Variance": {
+    context: "Sales mix strategic market planning variance.",
+    derivation: "Calculates the margin divergence that arises when products are sold in a ratio different from standard sales budget plans.",
+    trigger: "Helps marketing leaders analyze if pushing certain low-margin products has cannibalized high-margin sales."
+  },
+  "Sales Margin Quantity Variance": {
+    context: "Sales volume volume-based profit impact tracking.",
+    derivation: "Measures general segment profit increases due purely to total aggregate sales volumes changes, assuming the standard mix remains constant.",
+    trigger: "Standard metric highlighting marketing penetration and market share achievements."
+  },
+  "Fixed Overhead Standard Cost Variance": {
+    context: "OAs standard absorption costing variance.",
+    derivation: "Absorbed Fixed Overheads (Standard hours for actual output × FOAR) minus Actual Fixed Overheads incurred on the floor.",
+    trigger: "Primary indicator of under-absorption or over-absorption of monthly factory capacity overheads."
+  },
+  "Fixed Overhead Expenditure Variance": {
+    context: "Out-of-pocket fixed spending control.",
+    derivation: "Budgeted Fixed Overheads minus Actual Fixed Overheads spent during the period.",
+    trigger: "Indicates real cash overruns on rent, wages, insurance, or property taxes."
+  },
+  "Fixed Overhead Volume Variance": {
+    context: "Under/Over absorption due to physical production volume changes.",
+    derivation: "Standard FOAR multiplied by: Standard hours allowed for actual output minus Budgeted Hours.",
+    trigger: "Highlights volume losses. If production falls below capacity plans, overhead costs cannot be fully absorbed."
+  },
+  "Fixed Overhead Capacity Variance": {
+    context: "Asset utilization hours metrics.",
+    derivation: "Standard FOAR multiplied by: Actual operating hours worked minus original Budgeted Hours.",
+    trigger: "Tracks lost hours due to holidays, machine breakdowns, or labor shortages."
+  },
+  "Fixed Overhead Efficiency Variance": {
+    context: "Labor efficiency impacts on overhead absorption.",
+    derivation: "Standard FOAR multiplied by: Standard hours allowed for actual output minus Actual operating hours worked.",
+    trigger: "Identifies whether running the plant slower or faster than standard times led to over-absorbing or under-absorbing overheads."
+  },
+  "Fixed Overhead Calendar Variance": {
+    context: "Calendar days working variances.",
+    derivation: "Standard daily rate multiplied by the difference: Actual working days run minus budgeted days.",
+    trigger: "Traces overhead absorption variances caused by differences in working days during the month."
+  },
+  "COQ Conformance vs Non-Conformance Ratio": {
+    context: "Chapter 2 PAF Cost of Quality framework.",
+    derivation: "Divides COQ into Conformance (Prevention + Appraisal) and Non-Conformance (Internal + External Failures) categories to identify waste reduction opportunities.",
+    trigger: "World-class organizations aim to reduce Failure costs to near-zero while optimizing Prevention and Appraisal investments."
+  },
+  "Total Life Cycle Costing": {
+    context: "Chapter 4 life-cycle SCM calculations.",
+    derivation: "Aggregates all costs incurred throughout a product's life cycle from R&D, product design, testing, manufacturing, distribution, customer sales, servicing, through to recycling/disposal.",
+    trigger: "Enables long-term cost controls, ensuring that cheap product development does not lock in high warranty and disposal expenses."
+  },
+  "Price Elasticity of Demand (PED)": {
+    context: "Chapter 6 pricing sensitivity and elasticity rules.",
+    derivation: "Percentage change in quantity demanded divided by the percentage change in selling price.",
+    trigger: "If |PED| > 1.0, demand is elastic. Dropping prices will increase total revenues."
+  },
+  "DuPont Capital Return Analysis": {
+    context: "Chapter 7 divisional performance & DuPont deconstruction.",
+    derivation: "Return on Investment (ROI) is deconstructed as Net Profit Margin % (operating profitability) multiplied by Asset Turnover ratio (capital velocity).",
+    trigger: "Directly shows whether low returns are due to poor pricing/margins (profit margin) or sluggish asset utilization (capital turnover)."
+  },
+  "EVM Cost Performance Index (CPI)": {
+    context: "Chapter 11 Earned Value project health controls.",
+    derivation: "Earned Value (EV) divided by Actual Cost (AC) of work performed.",
+    trigger: "A CPI > 1.0 is favorable (under-budget), while a CPI < 1.0 is unfavorable (over-budget)."
+  },
+  "EVM Schedule Performance Index (SPI)": {
+    context: "Chapter 11 project timeline and speed tracking.",
+    derivation: "Earned Value (EV) divided by Planned Value (PV) of work scheduled.",
+    trigger: "An SPI > 1.0 is favorable (ahead of schedule), while an SPI < 1.0 is unfavorable (behind schedule)."
+  },
+  "EVM Project Estimate at Completion (EAC)": {
+    context: "Chapter 11 project forecasting and budget-run-rate expectations.",
+    derivation: "Calculates estimated ultimate cost of a project as Budget at Completion (BAC) divided by the Cost Performance Index (CPI).",
+    trigger: "Allows project managers to forecast prospective budget overruns and apply immediate cost remediation actions."
+  },
+  "Supplying Division Opportunity Cost": {
+    context: "Chapter 12 inter-divisional transfer boundary pricing.",
+    derivation: "Calculated as (Displaced External Sales × Contribution per External unit) / Total Units Transferred. This represents lost retail contribution.",
+    trigger: "Added to supplying divisional variable costs to determine the absolute minimum transfer pricing floor."
+  },
+  "Material Mix Variance": {
+    context: "Chapter 13 Advanced Standard Costing proportions evaluation.",
+    derivation: "Standard Unit Price multiplied by the change in input recipe: Revised Standard Quantity of inputs in actual mix proportions minus Actual quantity used.",
+    trigger: "Exposes whether switching to a cheaper ingredient blend has generated favorable purchase savings."
+  },
+  "Material Yield Variance": {
+    context: "Chapter 13 advanced materials conversion rate tracking.",
+    derivation: "Standard Unit Price multiplied by: Standard input allowed for actual output minus Revised standard input quantity in standard mix proportions.",
+    trigger: "Identifies whether process waste, shrinkage, scrap, or evaporation exceeded standard allowed recipes."
+  },
+  "Direct Labor Efficiency Variance": {
+    context: "Chapter 13 operational labor speed accountability.",
+    derivation: "Standard Hourly Wage Rate multiplied by: Standard hours allowed for actual output minus Actual hours worked.",
+    trigger: "Evaluating floor managers' scheduling and staffing skill. Unfavorable variances indicate labor idle time, poor tooling, or training gaps."
+  }
+};
+
+const getFormulaDetails = (name: string) => {
+  const combinedDetails: Record<string, FormulaDetail> = {
+    ...FORMULA_DETAILS,
+    ...SET_A_LEGAL_LIMITS
+  };
+  const normalizedKey = Object.keys(combinedDetails).find(
+    k => k.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(name.toLowerCase())
+  );
+  if (normalizedKey && combinedDetails[normalizedKey]) {
+    return combinedDetails[normalizedKey];
+  }
+  return {
+    context: "Core statutory provision or strategic formula mapped to the official ICAI CA Final SPOM curriculum.",
+    derivation: "Derived from the applicable section, rule, or operational baseline to evaluate compliance and decision thresholds.",
+    trigger: "Apply the statutory threshold, proviso, or performance benchmark to the facts of the case scenario."
+  };
+};
+
+export default function App() {
+  // Theme State (light / dark)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      return (saved as 'light' | 'dark') || 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  // Sync theme to HTML root element for tailwind v4 class-based dark mode
+  useEffect(() => {
+    try {
+      localStorage.setItem('theme', theme);
+      const root = window.document.documentElement;
+      if (theme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    } catch (e) {
+      console.error("Failed to sync theme class to document element", e);
+    }
+  }, [theme]);
+
+  // Test database connection gracefully in non-blocking effect
+  useEffect(() => {
+    testConnection();
+  }, []);
+
+  // Navigation State
+  const [activeSubject, setActiveSubject] = useState<'setA' | 'setB'>(() => {
+    try {
+      return (localStorage.getItem('spom_active_subject') as 'setA' | 'setB') || 'setB';
+    } catch (e) {
+      return 'setB';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('spom_active_subject', activeSubject);
+    } catch (e) {
+      console.error("Failed to persist activeSubject", e);
+    }
+  }, [activeSubject]);
+
+  // Active Curriculum Resolution based on Selected Subject (Set A vs Set B)
+  const currentChapters = activeSubject === 'setA' ? setAChapters : chapters;
+  const currentCaseScenarios = activeSubject === 'setA' ? setACases : caseScenarios;
+  const currentGeneralMCQs = activeSubject === 'setA' ? setAMCQs : generalMCQs;
+  const currentFlashcards = activeSubject === 'setA' ? setAFlashcards : flashcards;
+  const currentFormulaDetails = activeSubject === 'setA' ? SET_A_LEGAL_LIMITS : FORMULA_DETAILS;
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'practice' | 'mock' | 'sandbox' | 'revision'>('dashboard');
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [showMobileMenu, setShowMobileMenu] = useState<boolean>(false);
+  const [mcqProgressAnimate, setMcqProgressAnimate] = useState<number>(0);
+
+  // What's New (practACE Rebrand + Set A) Opening Modal State:
+  // Appears every time the user enters the app on initial load, and stays closed while running.
+  const [showSetAAnnouncement, setShowSetAAnnouncement] = useState<boolean>(true);
+
+  const handleCloseSetAAnnouncement = (switchToSetA = false) => {
+    setShowSetAAnnouncement(false);
+    if (switchToSetA) {
+      setActiveSubject('setA');
+    }
+    setActiveTab('dashboard');
+  };
+
+  const handleOpenPracticeForChapter = (chapterId: number, preferredSubTab?: 'cases' | 'general') => {
+    setSelectedChapterId(chapterId);
+    const chapCases = currentCaseScenarios.filter(cs => cs.chapterId === chapterId);
+    const chapMcqs = currentGeneralMCQs.filter(q => q.chapterId === chapterId);
+    const targetSubTab: 'cases' | 'general' =
+      preferredSubTab === 'general' && chapMcqs.length > 0
+        ? 'general'
+        : chapCases.length > 0
+        ? 'cases'
+        : 'general';
+    if (chapCases.length > 0) {
+      setSelectedCaseId(chapCases[0].id);
+      setCurrentQuestionIndex(0);
+    }
+    setSelectedOption(null);
+    setHasSubmittedPractice(false);
+    setShowExplanation(false);
+    setCurrentGeneralIndex(0);
+    setSelectedGeneralOption(null);
+    setHasSubmittedGeneral(false);
+    setPracticeSubTab(targetSubTab);
+    setActiveTab('practice');
+  };
+
+  // Revision Tab State
+  const [selectedRevisionChapterId, setSelectedRevisionChapterId] = useState<number>(1);
+  const [revisionSearchQuery, setRevisionSearchQuery] = useState<string>("");
+  const [copiedFormulaName, setCopiedFormulaName] = useState<string | null>(null);
+
+  // Formula Flashcard States
+  const [revisionSubView, setRevisionSubView] = useState<'study' | 'flashcards' | 'frameworks'>('study');
+  const [flashcardMode, setFlashcardMode] = useState<'drill' | 'quiz'>('drill');
+  const [currentFlashcardKey, setCurrentFlashcardKey] = useState<string>("");
+  const [isCardFlipped, setIsCardFlipped] = useState<boolean>(false);
+  const [flashcardPerformance, setFlashcardPerformance] = useState<Record<string, 'known' | 'learning'>>(() => {
+    try {
+      const saved = localStorage.getItem('flashcardPerformance');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Theoretical Framework Flashcard States
+  const [currentFrameworkCardIndex, setCurrentFrameworkCardIndex] = useState<number>(0);
+  const [isFrameworkCardFlipped, setIsFrameworkCardFlipped] = useState<boolean>(false);
+  const [frameworkCardAssessments, setFrameworkCardAssessments] = useState<Record<string, 'Hard' | 'Medium' | 'Mastered'>>(() => {
+    try {
+      const saved = localStorage.getItem('framework_card_assessments');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Persist framework card assessments to local storage
+  useEffect(() => {
+    localStorage.setItem('framework_card_assessments', JSON.stringify(frameworkCardAssessments));
+  }, [frameworkCardAssessments]);
+
+  const [quizQuestionType, setQuizQuestionType] = useState<'name-to-details' | 'details-to-name'>('details-to-name');
+  const [quizTargetKey, setQuizTargetKey] = useState<string>("");
+  const [quizOptions, setQuizOptions] = useState<string[]>([]);
+  const [quizSelectedOption, setQuizSelectedOption] = useState<number | null>(null);
+  const [quizIsSubmitted, setQuizIsSubmitted] = useState<boolean>(false);
+  const [quizCorrectOptionIndex, setQuizCorrectOptionIndex] = useState<number>(-1);
+  const [quizScore, setQuizScore] = useState<{ correct: number; total: number }>({ correct: 0, total: 0 });
+
+  // Set initial random flashcard key and reset when subject switches
+  useEffect(() => {
+    const keys = Object.keys(currentFormulaDetails);
+    if (keys.length > 0) {
+      if (!currentFlashcardKey || !currentFormulaDetails[currentFlashcardKey]) {
+        setCurrentFlashcardKey(keys[0]);
+        setIsCardFlipped(false);
+      }
+      if (!quizTargetKey || !currentFormulaDetails[quizTargetKey]) {
+        handleGenerateQuizQuestion();
+      }
+    }
+  }, [activeSubject, currentFlashcardKey, quizTargetKey, currentFormulaDetails]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('flashcardPerformance', JSON.stringify(flashcardPerformance));
+    } catch (e) {
+      console.error("Failed to save flashcard performance to localStorage", e);
+    }
+  }, [flashcardPerformance]);
+
+  const handleGenerateQuizQuestion = (type?: 'name-to-details' | 'details-to-name') => {
+    const keys = Object.keys(currentFormulaDetails);
+    if (keys.length === 0) return;
+    
+    // Pick question type
+    const chosenType = type || (Math.random() > 0.5 ? 'name-to-details' : 'details-to-name');
+    
+    // Pick random target formula key
+    const targetKey = keys[Math.floor(Math.random() * keys.length)];
+    
+    // Generate 3 unique distractors
+    const otherKeys = keys.filter(k => k !== targetKey);
+    const shuffledOtherKeys = [...otherKeys].sort(() => 0.5 - Math.random());
+    const selectedOtherKeys = shuffledOtherKeys.slice(0, 3);
+    
+    let optionsList: string[] = [];
+    if (chosenType === 'details-to-name') {
+      optionsList = [targetKey, ...selectedOtherKeys];
+    } else {
+      const targetDetails = currentFormulaDetails[targetKey];
+      const targetText = `Context: ${targetDetails.context}\nDerivation: ${targetDetails.derivation}\nDecision Rule: ${targetDetails.trigger}`;
+      
+      const distractorTexts = selectedOtherKeys.map(k => {
+        const d = currentFormulaDetails[k];
+        return `Context: ${d.context}\nDerivation: ${d.derivation}\nDecision Rule: ${d.trigger}`;
+      });
+      optionsList = [targetText, ...distractorTexts];
+    }
+    
+    // Shuffle options list
+    const shuffled = optionsList
+      .map((value) => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value);
+      
+    // Find correct index
+    let correctIdx = -1;
+    if (chosenType === 'details-to-name') {
+      correctIdx = shuffled.indexOf(targetKey);
+    } else {
+      const targetDetails = currentFormulaDetails[targetKey];
+      const targetText = `Context: ${targetDetails.context}\nDerivation: ${targetDetails.derivation}\nDecision Rule: ${targetDetails.trigger}`;
+      correctIdx = shuffled.indexOf(targetText);
+    }
+    
+    setQuizQuestionType(chosenType);
+    setQuizTargetKey(targetKey);
+    setQuizOptions(shuffled);
+    setQuizSelectedOption(null);
+    setQuizIsSubmitted(false);
+    setQuizCorrectOptionIndex(correctIdx);
+  };
+
+  // Generate quiz on revision sub-view activation
+  useEffect(() => {
+    if (revisionSubView === 'flashcards' && flashcardMode === 'quiz' && !quizTargetKey) {
+      handleGenerateQuizQuestion();
+    }
+  }, [revisionSubView, flashcardMode, quizTargetKey]);
+
+  // Disable right-click context menu across the entire application
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', handleContextMenu, true);
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu, true);
+    };
+  }, []);
+
+  // Study Practice State
+  const [selectedChapterId, setSelectedChapterId] = useState<number>(1);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>("case-01");
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+  const [selectedOption, setSelectedOption] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
+  const [hasSubmittedPractice, setHasSubmittedPractice] = useState<boolean>(false);
+  const [showExplanation, setShowExplanation] = useState<boolean>(false);
+
+  // Practice Sub-tab State: Cases, Standalone General MCQs, or Saved Questions Vault
+  const [practiceSubTab, setPracticeSubTab] = useState<'cases' | 'general' | 'saved'>('cases');
+  const [currentGeneralIndex, setCurrentGeneralIndex] = useState<number>(0);
+  const [selectedGeneralOption, setSelectedGeneralOption] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
+  const [hasSubmittedGeneral, setHasSubmittedGeneral] = useState<boolean>(false);
+
+  // Saved / Bookmarked Questions State & Filters
+  const [savedFilterType, setSavedFilterType] = useState<'all' | 'case' | 'general'>('all');
+  const [savedFilterStatus, setSavedFilterStatus] = useState<'all' | 'solved' | 'pending'>('all');
+  const [savedSearchQuery, setSavedSearchQuery] = useState<string>("");
+  const [expandedBookmarkKey, setExpandedBookmarkKey] = useState<string | null>(null);
+  
+  // Sticky Notes / Study Annotations State
+  const [caseNotes, setCaseNotes] = useState<Record<string, { text: string; color: string; lastUpdated: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('caseNotes');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Automatically save notes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('caseNotes', JSON.stringify(caseNotes));
+    } catch (e) {
+      console.error("Failed to save case annotations to localStorage", e);
+    }
+  }, [caseNotes]);
+
+  // Toggle state to collapse or expand sticky note pane in high-contrast practice view
+  const [showNotesPane, setShowNotesPane] = useState<boolean>(true);
+
+  // Persistent Global study notepad state
+  const [showGlobalNotepad, setShowGlobalNotepad] = useState<boolean>(() => {
+    return localStorage.getItem('show_global_notepad') === 'true';
+  });
+  const [globalNotepadText, setGlobalNotepadText] = useState<string>(() => {
+    return localStorage.getItem('global_notepad_text') || "";
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('show_global_notepad', String(showGlobalNotepad));
+  }, [showGlobalNotepad]);
+
+  useEffect(() => {
+    localStorage.setItem('global_notepad_text', globalNotepadText);
+  }, [globalNotepadText]);
+
+  const handleInsertTemplate = (template: string) => {
+    setGlobalNotepadText(prev => prev ? prev + "\n" + template : template);
+  };
+
+  // Quick Reference Floating Widget State
+  const [showQuickRef, setShowQuickRef] = useState<boolean>(false);
+  const [quickRefSearch, setQuickRefSearch] = useState<string>("");
+  const [quickRefCopiedName, setQuickRefCopiedName] = useState<string | null>(null);
+
+  const [practiceProgress, setPracticeProgress] = useState<Record<string, { answered: boolean; correct: boolean; score: number; selectedOption?: 'A' | 'B' | 'C' | 'D' }>>(() => {
+    try {
+      const saved = localStorage.getItem('practiceProgress');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Persist progress changes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('practiceProgress', JSON.stringify(practiceProgress));
+    } catch (e) {
+      console.error("Failed to save practice progress to localStorage", e);
+    }
+  }, [practiceProgress]);
+
+  // Saved / Bookmarked Practice Questions State
+  const [savedBookmarks, setSavedBookmarks] = useState<Record<string, BookmarkedQuestion>>(() => {
+    try {
+      const saved = localStorage.getItem('spom_saved_bookmarks_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('spom_saved_bookmarks_v1', JSON.stringify(savedBookmarks));
+    } catch (e) {
+      console.error("Failed to save bookmarks to localStorage", e);
+    }
+  }, [savedBookmarks]);
+
+  const toggleBookmarkQuestion = (item: {
+    key?: string;
+    id?: string;
+    subject: 'setA' | 'setB';
+    type: 'case' | 'general';
+    chapterId: number;
+    chapterName: string;
+    caseId?: string;
+    caseTitle?: string;
+    questionId: string;
+    questionText: string;
+    options: { A: string; B: string; C: string; D: string };
+    correctOption: 'A' | 'B' | 'C' | 'D';
+    explanation: string;
+    examinerWarning?: string;
+  }) => {
+    const bookmarkKey = item.key || item.id || '';
+    if (!bookmarkKey) return;
+    setSavedBookmarks(prev => {
+      const next = { ...prev };
+      if (next[bookmarkKey]) {
+        delete next[bookmarkKey];
+      } else {
+        next[bookmarkKey] = {
+          id: bookmarkKey,
+          subject: item.subject,
+          type: item.type,
+          chapterId: item.chapterId,
+          chapterName: item.chapterName,
+          caseId: item.caseId,
+          caseTitle: item.caseTitle,
+          questionId: item.questionId,
+          questionText: item.questionText,
+          options: item.options,
+          correctOption: item.correctOption,
+          explanation: item.explanation,
+          examinerWarning: item.examinerWarning,
+          savedAt: Date.now()
+        };
+      }
+      return next;
+    });
+  };
+
+  const isQuestionBookmarked = (key: string) => !!savedBookmarks[key];
+
+  // Firebase Authentication & Synchronization States
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState<boolean>(true);
+  const [cloudSyncing, setCloudSyncing] = useState<boolean>(false);
+
+  // Listen for Authentication state changes and merge/retrieve Cloud data
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setCloudSyncing(true);
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userDocRef);
+
+          if (!userSnap.exists()) {
+            // New cloud account: initialize profile and push local client state up to the cloud!
+            await setDoc(userDocRef, {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || '',
+              photoURL: user.photoURL || '',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            });
+
+            await setDoc(doc(db, 'users', user.uid, 'progress', 'practice'), {
+              userId: user.uid,
+              practiceProgress,
+              updatedAt: serverTimestamp()
+            });
+
+            await setDoc(doc(db, 'users', user.uid, 'progress', 'flashcards'), {
+              userId: user.uid,
+              flashcardPerformance,
+              frameworkCardAssessments,
+              updatedAt: serverTimestamp()
+            });
+
+            await setDoc(doc(db, 'users', user.uid, 'progress', 'notes'), {
+              userId: user.uid,
+              caseNotes,
+              globalNotepadText,
+              updatedAt: serverTimestamp()
+            });
+          } else {
+            // Existing cloud account: fetch student records to replace client-side state
+            const practiceRef = doc(db, 'users', user.uid, 'progress', 'practice');
+            const flashcardsRef = doc(db, 'users', user.uid, 'progress', 'flashcards');
+            const notesRef = doc(db, 'users', user.uid, 'progress', 'notes');
+
+            const [practiceSnap, flashcardsSnap, notesSnap] = await Promise.all([
+              getDoc(practiceRef),
+              getDoc(flashcardsRef),
+              getDoc(notesRef)
+            ]);
+
+            if (practiceSnap.exists()) {
+              const data = practiceSnap.data();
+              if (data && data.practiceProgress) {
+                setPracticeProgress(data.practiceProgress);
+              }
+            }
+            if (flashcardsSnap.exists()) {
+              const data = flashcardsSnap.data();
+              if (data) {
+                if (data.flashcardPerformance) {
+                  setFlashcardPerformance(data.flashcardPerformance);
+                }
+                if (data.frameworkCardAssessments) {
+                  setFrameworkCardAssessments(data.frameworkCardAssessments);
+                }
+              }
+            }
+            if (notesSnap.exists()) {
+              const data = notesSnap.data();
+              if (data) {
+                if (data.caseNotes) {
+                  setCaseNotes(data.caseNotes);
+                }
+                if (data.globalNotepadText) {
+                  setGlobalNotepadText(data.globalNotepadText);
+                }
+              }
+            }
+          }
+          setCurrentUser(user);
+        } catch (error) {
+          console.error("Cloud synchronisation failure: ", error);
+        } finally {
+          setIsFirebaseLoading(false);
+          setCloudSyncing(false);
+        }
+      } else {
+        setCurrentUser(null);
+        setIsFirebaseLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Sync state changes back up to the cloud securely (using 1s debounces to preserve quota)
+  // Practice Progress synchronization
+  useEffect(() => {
+    if (currentUser && !cloudSyncing) {
+      const upload = async () => {
+        const path = `users/${currentUser.uid}/progress/practice`;
+        try {
+          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'practice'), {
+            userId: currentUser.uid,
+            practiceProgress,
+            updatedAt: serverTimestamp()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, path);
+        }
+      };
+      const timer = setTimeout(upload, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [practiceProgress, currentUser, cloudSyncing]);
+
+  // Flashcards progress synchronization
+  useEffect(() => {
+    if (currentUser && !cloudSyncing) {
+      const upload = async () => {
+        const path = `users/${currentUser.uid}/progress/flashcards`;
+        try {
+          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'flashcards'), {
+            userId: currentUser.uid,
+            flashcardPerformance,
+            frameworkCardAssessments,
+            updatedAt: serverTimestamp()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, path);
+        }
+      };
+      const timer = setTimeout(upload, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [flashcardPerformance, frameworkCardAssessments, currentUser, cloudSyncing]);
+
+  // User Notes & Notebook synchronization
+  useEffect(() => {
+    if (currentUser && !cloudSyncing) {
+      const upload = async () => {
+        const path = `users/${currentUser.uid}/progress/notes`;
+        try {
+          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'notes'), {
+            userId: currentUser.uid,
+            caseNotes,
+            globalNotepadText,
+            updatedAt: serverTimestamp()
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, path);
+        }
+      };
+      const timer = setTimeout(upload, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [caseNotes, globalNotepadText, currentUser, cloudSyncing]);
+
+  // Sign in and out handlers
+  const handleSignIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error("Sign in failed: ", error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Sign out failed: ", error);
+    }
+  };
+
+  // Dynamic Progress Measurements for Current Subject
+  const currentQuestionIdSet = new Set<string>();
+  currentCaseScenarios.forEach(cs => cs.questions.forEach(q => currentQuestionIdSet.add(`${cs.id}-${q.id}`)));
+  currentGeneralMCQs.forEach(q => currentQuestionIdSet.add(`general-${q.id}`));
+
+  const totalCaseScenariosCount = currentCaseScenarios.length;
+  const totalCaseQuestionsCount = currentCaseScenarios.reduce((sum, cs) => sum + cs.questions.length, 0);
+  const totalGeneralMCQsCount = currentGeneralMCQs.length;
+  const totalAllQuestionsCount = totalCaseQuestionsCount + totalGeneralMCQsCount;
+
+  // Solved vs Pending breakdowns
+  const solvedCaseQuestionsCount = currentCaseScenarios.reduce((sum, cs) => 
+    sum + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length, 0);
+  const pendingCaseQuestionsCount = Math.max(0, totalCaseQuestionsCount - solvedCaseQuestionsCount);
+
+  const solvedGeneralMCQsCount = currentGeneralMCQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
+  const pendingGeneralMCQsCount = Math.max(0, totalGeneralMCQsCount - solvedGeneralMCQsCount);
+
+  const totalSolvedCount = solvedCaseQuestionsCount + solvedGeneralMCQsCount;
+  const totalPendingCount = Math.max(0, totalAllQuestionsCount - totalSolvedCount);
+
+  const completedCaseScenariosCount = currentCaseScenarios.filter(cs => 
+    cs.questions.length > 0 && cs.questions.every(q => practiceProgress[`${cs.id}-${q.id}`]?.answered)).length;
+  const pendingCaseScenariosCount = Math.max(0, totalCaseScenariosCount - completedCaseScenariosCount);
+
+  const totalPracticeQuestions = totalAllQuestionsCount;
+  const answeredPracticeQuestions = totalSolvedCount;
+  const practiceCompletionPercentage = totalAllQuestionsCount > 0 
+    ? Math.round((totalSolvedCount / totalAllQuestionsCount) * 100) 
+    : 0;
+
+  const totalCorrectPractice = Object.entries(practiceProgress)
+    .filter(([k, p]: any) => currentQuestionIdSet.has(k) && p && p.correct).length;
+  const totalIncorrectPractice = Math.max(0, totalSolvedCount - totalCorrectPractice);
+  const practiceAccuracyPercentage = totalSolvedCount > 0
+    ? Math.round((totalCorrectPractice / totalSolvedCount) * 100)
+    : 0;
+
+  const activeChaptersCount = currentChapters.filter(chap => {
+    const chapCases = currentCaseScenarios.filter(cs => cs.chapterId === chap.id);
+    return chapCases.some(cs => 
+      cs.questions.some(q => practiceProgress[`${cs.id}-${q.id}`]?.answered)
+    ) || currentGeneralMCQs.filter(q => q.chapterId === chap.id).some(q => practiceProgress[`general-${q.id}`]?.answered);
+  }).length;
+
+  const activeSubjectBookmarks: BookmarkedQuestion[] = (Object.values(savedBookmarks) as BookmarkedQuestion[]).filter(b => b.subject === activeSubject);
+  const activeSubjectBookmarksCount = activeSubjectBookmarks.length;
+
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      setMcqProgressAnimate(0);
+      const timer = setTimeout(() => {
+        setMcqProgressAnimate(practiceCompletionPercentage);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, practiceCompletionPercentage]);
+
+  // PDF Export Function for Study Companion Notes & Scenarios
+  const exportCaseToPDF = (caseObj: CaseScenario) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Page parameters
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+
+      let yPosition = 20;
+
+      // Helper function to add space and handle new pages
+      const checkPageBreak = (neededHeight: number) => {
+        if (yPosition + neededHeight > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 25; // Reset position with standard margin
+          // Draw standard small running header on later pages
+          doc.setFont("Helvetica", "oblique");
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184); // light Gray
+          doc.text("practACE — Plan. Revise. Analyse. Correct. Track. | ICAI SPOM Study Companion", margin, 12);
+          doc.setDrawColor(241, 245, 249);
+          doc.line(margin, 14, pageWidth - margin, 14);
+        }
+      };
+
+      // Draw main header (Page 1)
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(79, 70, 229); // indigo (600)
+      doc.text(`practACE — ICAI SPOM ${activeSubject === 'setA' ? 'Set A (Laws)' : 'Set B (SCMPE)'} Companion`, margin, yPosition);
+      yPosition += 8;
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // Slate-500
+      doc.text(`Generated on ${new Date().toLocaleDateString()} — Personal Study Notes & Analysis`, margin, yPosition);
+      
+      // Header rule
+      yPosition += 4;
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+
+      // TITLE OF CASE
+      checkPageBreak(15);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42); // slate-900
+      const titleText = doc.splitTextToSize(caseObj.title, contentWidth);
+      doc.text(titleText, margin, yPosition);
+      yPosition += (titleText.length * 6) + 4;
+
+      // CHAPTER DETAILS
+      checkPageBreak(8);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(16, 185, 129); // emerald
+      doc.text(`CHAPTER: ${caseObj.chapterName}`, margin, yPosition);
+      yPosition += 8;
+
+      // SECTION 1: SCENARIO TEXT
+      checkPageBreak(15);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text("CASE SCENARIO DETAILS", margin, yPosition);
+      yPosition += 6;
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(51, 65, 85); // slate-700
+      const splitScenarioLines = doc.splitTextToSize(caseObj.scenarioText, contentWidth);
+      
+      // Render scenario text lines
+      for (const line of splitScenarioLines) {
+        checkPageBreak(6);
+        doc.text(line, margin, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 10;
+
+      // SECTION 2: PERSONAL STUDY ANNOTATIONS (GLOBAL STUDY NOTEPAD)
+      const userNotes = globalNotepadText || "";
+      const notesTextToPrint = userNotes.trim() ? userNotes : "No study annotations added yet. Write your key formulas and exam strategies in the general Study Notepad panel!";
+      const splitNotes = doc.splitTextToSize(notesTextToPrint, contentWidth - 10);
+      
+      // Box height calculation
+      const neededBoxHeight = (splitNotes.length * 5) + 16;
+      checkPageBreak(neededBoxHeight + 10);
+      
+      doc.setDrawColor(253, 240, 185); // soft gold border
+      doc.setFillColor(255, 253, 241); // soft gold bg
+      doc.rect(margin - 2, yPosition - 4, contentWidth + 4, neededBoxHeight, "FD"); // Draw background
+
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(180, 83, 9); // gold dark
+      doc.text("📝 PERSONAL STUDY ANNOTATIONS & NOTES", margin, yPosition + 3);
+      yPosition += 10;
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(69, 26, 3); // brown dark
+      
+      for (const line of splitNotes) {
+        checkPageBreak(6);
+        doc.text(line, margin + 2, yPosition);
+        yPosition += 5;
+      }
+      yPosition += 15;
+
+      // SECTION 3: QUESTIONS & ANSWERS RECAP
+      checkPageBreak(20);
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("CASE STUDY MULTIPLE CHOICE QUESTIONS & RECONCILIATIONS", margin, yPosition);
+      yPosition += 8;
+
+      caseObj.questions.forEach((q, idx) => {
+        checkPageBreak(25);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        const qTextLines = doc.splitTextToSize(`Q${idx + 1}: ${q.questionText}`, contentWidth);
+        doc.text(qTextLines, margin, yPosition);
+        yPosition += (qTextLines.length * 5) + 3;
+
+        // Print options
+        Object.entries(q.options).forEach(([optKey, optVal]) => {
+          checkPageBreak(8);
+          doc.setFont("Helvetica", optKey === q.correctOption ? "bold" : "normal");
+          doc.setTextColor(optKey === q.correctOption ? 16 : 100, optKey === q.correctOption ? 185 : 116, optKey === q.correctOption ? 129 : 139); // emerald index vs slate
+          const optTextLines = doc.splitTextToSize(`[${optKey}] ${optVal}`, contentWidth - 6);
+          doc.text(optTextLines, margin + 4, yPosition);
+          yPosition += (optTextLines.length * 5) + 1;
+        });
+        yPosition += 3;
+
+        // Print Explanation
+        checkPageBreak(15);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text("CORRECT ANSWER & EXPLANATION DETAILS:", margin + 4, yPosition);
+        yPosition += 4;
+
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+        const expLines = doc.splitTextToSize(q.explanation, contentWidth - 10);
+        for (const line of expLines) {
+          checkPageBreak(5);
+          doc.text(line, margin + 6, yPosition);
+          yPosition += 4.5;
+        }
+        yPosition += 8;
+      });
+
+      // SAVE FILE
+      doc.save(`ICAI_SPOM_${caseObj.id.toUpperCase()}_Study_Module.pdf`);
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+      alert("Failed to generate PDF. Please verify and try again.");
+    }
+  };
+
+  // PDF Export for Revision summary notes & formula materials
+  const exportRevisionToPDF = (targetChapters: Chapter | Chapter[]) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+
+      let yPosition = 20;
+
+      const checkPageBreak = (neededHeight: number) => {
+        if (yPosition + neededHeight > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 25; // Reset position
+          doc.setFont("Helvetica", "oblique");
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184); // light slate-400
+          doc.text("practACE — Plan. Revise. Analyse. Correct. Track. | Concept & Formula Revision", margin, 12);
+          doc.setDrawColor(241, 245, 249);
+          doc.line(margin, 14, pageWidth - margin, 14);
+        }
+      };
+
+      // Draw Main Header (Page 1)
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(18);
+      if (activeSubject === 'setA') {
+        doc.setTextColor(37, 99, 235); // Blue (600)
+        doc.text("practACE — ICAI SPOM Set A: Corporate & Economic Laws Revision", margin, yPosition);
+      } else {
+        doc.setTextColor(16, 185, 129); // emerald (500)
+        doc.text("practACE — ICAI SPOM Set B: Revision Study Materials", margin, yPosition);
+      }
+      yPosition += 8;
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // slate-500
+      const descStr = Array.isArray(targetChapters) 
+        ? "Comprehensive Continuous Revision Deck of Formulas & Core Case Frameworks"
+        : `Topic Revision Compendium for ${targetChapters.name}`;
+      doc.text(`${descStr} — Created on ${new Date().toLocaleDateString()}`, margin, yPosition);
+
+      // Header rule
+      yPosition += 4;
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+
+      const items = Array.isArray(targetChapters) ? targetChapters : [targetChapters];
+
+      items.forEach((chap, idx) => {
+        if (idx > 0) {
+          // If exporting multiple chapters, start each on a new page
+          doc.addPage();
+          yPosition = 25;
+          doc.setFont("Helvetica", "oblique");
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          const subWatermark = activeSubject === 'setA' 
+            ? "practACE — ICAI SPOM Set-A Corporate & Economic Laws Revision"
+            : "practACE — ICAI SPOM Set-B Concept & Formula Revision";
+          doc.text(subWatermark, margin, 12);
+          doc.setDrawColor(241, 245, 249);
+          doc.line(margin, 14, pageWidth - margin, 14);
+        }
+
+        // CHAPTER TITLE CARD
+        checkPageBreak(25);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42); // slate-950
+        const chNameText = doc.splitTextToSize(chap.name, contentWidth);
+        doc.text(chNameText, margin, yPosition);
+        yPosition += (chNameText.length * 6) + 3;
+
+        // DESCRIPTION
+        checkPageBreak(15);
+        doc.setFont("Helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(100, 116, 139); // slate-500
+        const chDescText = doc.splitTextToSize(chap.description, contentWidth);
+        doc.text(chDescText, margin, yPosition);
+        yPosition += (chDescText.length * 5) + 8;
+
+        // SECTION 1: STUDY BULLETINS
+        if (chap.summaryNotes && chap.summaryNotes.length > 0) {
+          checkPageBreak(15);
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(79, 70, 229); // Indigo
+          doc.text("📖 CONCEPT SUMMARY & REVISION BULLETINS", margin, yPosition);
+          yPosition += 7;
+
+          chap.summaryNotes.forEach((sect) => {
+            checkPageBreak(12);
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(51, 65, 85); // Slate-700
+            const secTitleLines = doc.splitTextToSize(`• ${sect.title}`, contentWidth);
+            doc.text(secTitleLines, margin, yPosition);
+            yPosition += (secTitleLines.length * 5) + 2;
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(71, 85, 105); // Slate-600
+            sect.bullets.forEach((bullet) => {
+              checkPageBreak(12);
+              const bLines = doc.splitTextToSize(`- ${bullet}`, contentWidth - 8);
+              for (const line of bLines) {
+                checkPageBreak(5);
+                doc.text(line, margin + 4, yPosition);
+                yPosition += 4.5;
+              }
+              yPosition += 1.5;
+            });
+            yPosition += 2;
+          });
+          yPosition += 4;
+        }
+
+        // SECTION 2: THE FORMULA BOOK
+        if (chap.formulas && chap.formulas.length > 0) {
+          checkPageBreak(15);
+          doc.setFont("Helvetica", "bold");
+          doc.setFontSize(11);
+          doc.setTextColor(16, 185, 129); // Emerald
+          doc.text("🧮 PRACTICAL EXAM FORMULA MODULES", margin, yPosition);
+          yPosition += 7;
+
+          chap.formulas.forEach((item) => {
+            const fNameLines = doc.splitTextToSize(`Formula Name: ${item.name}`, contentWidth - 6);
+            const fExprLines = doc.splitTextToSize(`Equation: ${item.formula}`, contentWidth - 12);
+            const fDescLines = doc.splitTextToSize(`Audit Notes: ${item.description}`, contentWidth - 12);
+
+            const blockHeight = (fNameLines.length * 5) + (fExprLines.length * 5) + (fDescLines.length * 5) + 12;
+            checkPageBreak(blockHeight + 5);
+
+            // Shaded card back
+            doc.setFillColor(248, 250, 252); // slate 50
+            doc.setDrawColor(226, 232, 240); // slate 200
+            doc.rect(margin - 2, yPosition - 4, contentWidth + 4, blockHeight - 2, "FD");
+
+            doc.setFont("Helvetica", "bold");
+            doc.setFontSize(9.5);
+            doc.setTextColor(15, 23, 42);
+            doc.text(fNameLines, margin, yPosition);
+            yPosition += (fNameLines.length * 5) + 1.5;
+
+            doc.setFont("Courier-Bold", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(79, 70, 229); // Indigo for the formula
+            doc.text(fExprLines, margin + 4, yPosition);
+            yPosition += (fExprLines.length * 5) + 1.5;
+
+            doc.setFont("Helvetica", "normal");
+            doc.setFontSize(8.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text(fDescLines, margin + 4, yPosition);
+            yPosition += (fDescLines.length * 5) + 6;
+          });
+        }
+      });
+
+      // SAVE FILE
+      const nameSuffix = Array.isArray(targetChapters) ? "FULL_DECK" : `CHAP_${targetChapters.id}`;
+      const subjectPrefix = activeSubject === 'setA' ? 'ICAI_SPOM_SET_A_LAWS' : 'ICAI_SPOM_SET_B_SCMPE';
+      doc.save(`${subjectPrefix}_REVISION_${nameSuffix}.pdf`);
+    } catch (error) {
+      console.error("Revision PDF generation failed:", error);
+      alert("Failed to generate PDF. Please verify and try again.");
+    }
+  };
+
+  // Mock Exam State
+  const [examStarted, setExamStarted] = useState<boolean>(false);
+  const [examFinished, setExamFinished] = useState<boolean>(false);
+  const [mockQuestions, setMockQuestions] = useState<(Question & { caseTitle: string; caseText: string; chapterId: number; chapterName: string })[]>([]);
+  const [currentMockIndex, setCurrentMockIndex] = useState<number>(0);
+  const [mockAnswers, setMockAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D' | null>>({});
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<number, boolean>>({});
+  const [timeRemaining, setTimeRemaining] = useState<number>(1200); // 25 minutes default
+  const [totalMockQuestionsCount, setTotalMockQuestionsCount] = useState<number>(15);
+  const [mockScoreCard, setMockScoreCard] = useState<{ score: number; pct: number; categoryBreakdown: Record<string, { correct: number; total: number; chapterId: number }> } | null>(null);
+
+  // Sandbox Calculators State
+  const [sandboxType, setSandboxType] = useState<'pareto' | 'oee' | 'relevant' | 'target'>('pareto');
+
+  // Sandbox 1: Pareto Data (Precision Motors Case 32)
+  const [paretoDefects, setParetoDefects] = useState([
+    { id: "def-1", name: "Surface scratches", count: 110 },
+    { id: "def-2", name: "Rough edges (milling)", count: 70 },
+    { id: "def-3", name: "Uneven grinding", count: 60 },
+    { id: "def-4", name: "Color mismatch", count: 25 },
+    { id: "def-5", name: "Incorrect machining", count: 20 },
+    { id: "def-6", name: "Bolt hole misalignment", count: 10 },
+    { id: "def-7", name: "Oil stains", count: 5 }
+  ]);
+
+  // Sandbox 2: OEE Data (Sigma Manufacturing Case 46)
+  const [oeeParams, setOeeParams] = useState({
+    shiftHours: 9,
+    plannedBreaks: 75,
+    unplannedDowntime: 30,
+    idealSpeedPPM: 30,
+    totalOutput: 12240,
+    rejections: 240
+  });
+
+  // Sandbox 3: Relevant Costing Data (National Airlines Case 9)
+  const [airlineParams, setAirlineParams] = useState({
+    occupancy: 75,
+    ticketPrice: 25000,
+    variablePassengerCost: 15000,
+    crewSalaryFixed: 200000,
+    assistantCostPerFlight: 150000,
+    fuelCost: 250000,
+    overnightLayoverCost: 100000,
+    flightPromotion: 50000,
+    attributableInsuranceThird: 70000,
+    fixedInsuranceTwoThird: 140000,
+    groundHandlingAllocated: 70000,
+    aircraftDepreciationSunk: 75000,
+    hangarLeaseUnavoidable: 50000
+  });
+
+  // Sandbox 4: Target Costing Data (Cellwell Technologies Case 4)
+  const [targetParams, setTargetParams] = useState({
+    sellingPrice: 30000,
+    targetProfitPct: 25,
+    componentCost: 15000,
+    laborHours: 0.6,
+    laborRate: 5000,
+    toolingOverhead: 2500,
+    customMaterialNetKG: 0.45,
+    specialPlasticPricePerKG: 5000,
+    normalWastagePct: 10
+  });
+
+  // Select first case when chapter changes
+  useEffect(() => {
+    const chapterCases = currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId);
+    if (chapterCases.length > 0) {
+      setSelectedCaseId(chapterCases[0].id);
+      setCurrentQuestionIndex(0);
+      setSelectedOption(null);
+      setHasSubmittedPractice(false);
+      setShowExplanation(false);
+    }
+    setCurrentGeneralIndex(0);
+    setSelectedGeneralOption(null);
+    setHasSubmittedGeneral(false);
+  }, [selectedChapterId, activeSubject]);
+
+  // Reset chapter selection when activeSubject switches
+  useEffect(() => {
+    const defaultChap = activeSubject === 'setA' ? 101 : 1;
+    setSelectedChapterId(defaultChap);
+    setSelectedRevisionChapterId(defaultChap);
+    const firstCase = currentCaseScenarios.find(cs => cs.chapterId === defaultChap);
+    if (firstCase) {
+      setSelectedCaseId(firstCase.id);
+    }
+    setCurrentQuestionIndex(0);
+    setCurrentFrameworkCardIndex(0);
+    setIsFrameworkCardFlipped(false);
+    setSelectedOption(null);
+    setHasSubmittedPractice(false);
+    setShowExplanation(false);
+    setCurrentGeneralIndex(0);
+    setSelectedGeneralOption(null);
+    setHasSubmittedGeneral(false);
+  }, [activeSubject]);
+
+  // Handle Mock Exam Timer
+  useEffect(() => {
+    let timer: any;
+    if (examStarted && !examFinished && timeRemaining > 0) {
+      timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            handleFinishMockExam();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [examStarted, examFinished, timeRemaining]);
+
+  // Format Timer
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Start Mock Exam
+  const handleStartMockExam = () => {
+    // Collect all questions from current active curriculum pool
+    const pool: (Question & { caseTitle: string; caseText: string; chapterId: number; chapterName: string })[] = [];
+    currentCaseScenarios.forEach(cs => {
+      cs.questions.forEach(q => {
+        pool.push({
+          ...q,
+          caseTitle: cs.title,
+          caseText: cs.scenarioText,
+          chapterId: cs.chapterId,
+          chapterName: cs.chapterName
+        });
+      });
+    });
+
+    // Randomize and slice
+    const randomized = [...pool].sort(() => 0.5 - Math.random()).slice(0, Math.min(totalMockQuestionsCount, pool.length));
+    setMockQuestions(randomized);
+    setCurrentMockIndex(0);
+    const initialAnswers: Record<number, 'A' | 'B' | 'C' | 'D' | null> = {};
+    randomized.forEach((_, idx) => {
+      initialAnswers[idx] = null;
+    });
+    setMockAnswers(initialAnswers);
+    setFlaggedQuestions({});
+    setTimeRemaining(totalMockQuestionsCount * 60 + 300); // 1 minute per question + 5 minutes buffer
+    setExamStarted(true);
+    setExamFinished(false);
+    setMockScoreCard(null);
+  };
+
+  // Submit Mock Exam
+  const handleFinishMockExam = () => {
+    setExamFinished(true);
+    let correctCount = 0;
+    const categoryBreakdown: Record<string, { correct: number; total: number; chapterId: number }> = {};
+
+    mockQuestions.forEach((q, idx) => {
+      const userAnswer = mockAnswers[idx];
+      const isCorrect = userAnswer === q.correctOption;
+      if (isCorrect) correctCount++;
+
+      const partName = q.chapterName || `Chapter ${q.chapterId}`;
+      if (!categoryBreakdown[partName]) {
+        categoryBreakdown[partName] = {
+          correct: 0,
+          total: 0,
+          chapterId: q.chapterId || 1
+        };
+      }
+      categoryBreakdown[partName].total += 1;
+      if (isCorrect) {
+        categoryBreakdown[partName].correct += 1;
+      }
+    });
+
+    const scorePct = Math.round((correctCount / mockQuestions.length) * 100);
+    setMockScoreCard({
+      score: correctCount,
+      pct: scorePct,
+      categoryBreakdown
+    });
+  };
+
+  const selectedCase = currentCaseScenarios.find(cs => cs.id === selectedCaseId) || currentCaseScenarios[0];
+  const selectedChapterObj = currentChapters.find(chap => chap.id === selectedChapterId);
+  const currentQuestion = selectedCase?.questions[currentQuestionIndex];
+  const currentCaseIdx = selectedCase ? currentCaseScenarios.findIndex(cs => cs.id === selectedCase.id) : 0;
+
+  // General MCQ helpers
+  const [selectedGeneralTopic, setSelectedGeneralTopic] = useState<string>('ALL');
+  const allChapterMCQs = currentGeneralMCQs.filter(q => q.chapterId === selectedChapterId);
+  const chapterTopics = Array.from(new Set(allChapterMCQs.map(q => q.topic)));
+  const effectiveGeneralTopic = selectedGeneralTopic === 'ALL' || chapterTopics.includes(selectedGeneralTopic) ? selectedGeneralTopic : 'ALL';
+  const chapterMCQs = effectiveGeneralTopic === 'ALL'
+    ? allChapterMCQs
+    : allChapterMCQs.filter(q => q.topic === effectiveGeneralTopic);
+  const currentMCQ = chapterMCQs[currentGeneralIndex];
+
+  // Restore user answered state from practiceProgress upon switching question or case scenario
+  useEffect(() => {
+    if (selectedCase && currentQuestion) {
+      const progressKey = `${selectedCase.id}-${currentQuestion.id}`;
+      const saved = practiceProgress[progressKey];
+      if (saved && saved.answered) {
+        setSelectedOption(saved.selectedOption || null);
+        setHasSubmittedPractice(true);
+        setShowExplanation(true);
+      } else {
+        setSelectedOption(null);
+        setHasSubmittedPractice(false);
+        setShowExplanation(false);
+      }
+    }
+  }, [selectedCaseId, currentQuestionIndex]);
+
+  // Restore user answered state from practiceProgress upon switching general question
+  useEffect(() => {
+    if (currentMCQ) {
+      const progressKey = `general-${currentMCQ.id}`;
+      const saved = practiceProgress[progressKey];
+      if (saved && saved.answered) {
+        setSelectedGeneralOption(saved.selectedOption || null);
+        setHasSubmittedGeneral(true);
+      } else {
+        setSelectedGeneralOption(null);
+        setHasSubmittedGeneral(false);
+      }
+    }
+  }, [selectedChapterId, currentGeneralIndex, practiceSubTab, effectiveGeneralTopic]);
+
+  // Practice Mode Option Click to Validate Automatically
+  const handleOptionSelect = (opt: 'A' | 'B' | 'C' | 'D') => {
+    if (hasSubmittedPractice || !currentQuestion || !selectedCase) return;
+    
+    setSelectedOption(opt);
+    setHasSubmittedPractice(true);
+    setShowExplanation(true);
+
+    const isCorrect = opt === currentQuestion.correctOption;
+    const progressKey = `${selectedCase.id}-${currentQuestion.id}`;
+    
+    setPracticeProgress(prev => ({
+      ...prev,
+      [progressKey]: {
+        answered: true,
+        correct: isCorrect,
+        score: isCorrect ? 1 : 0,
+        selectedOption: opt
+      }
+    }));
+  };
+
+  // General MCQs Option Click to Validate Automatically
+  const handleGeneralOptionSelect = (opt: 'A' | 'B' | 'C' | 'D') => {
+    if (hasSubmittedGeneral || !currentMCQ) return;
+    
+    setSelectedGeneralOption(opt);
+    setHasSubmittedGeneral(true);
+
+    const isCorrect = opt === currentMCQ.correctOption;
+    const progressKey = `general-${currentMCQ.id}`;
+    
+    setPracticeProgress(prev => ({
+      ...prev,
+      [progressKey]: {
+        answered: true,
+        correct: isCorrect,
+        score: isCorrect ? 1 : 0,
+        selectedOption: opt
+      }
+    }));
+  };
+
+  // Safe Math helpers
+  const parseNum = (val: string | number): number => {
+    const num = Number(val);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Recalculate OEE
+  const calcOEE = () => {
+    const totalMinutes = parseNum(oeeParams.shiftHours) * 60;
+    const netAvailableMinutes = Math.max(0, totalMinutes - parseNum(oeeParams.plannedBreaks));
+    const netOperatingMinutes = Math.max(0, netAvailableMinutes - parseNum(oeeParams.unplannedDowntime));
+    
+    // designed ideal production
+    const idealSpeed = parseNum(oeeParams.idealSpeedPPM);
+    const totalOutputUnits = parseNum(oeeParams.totalOutput);
+    const idealOperatingMinutes = idealSpeed > 0 ? totalOutputUnits / idealSpeed : 0;
+    
+    // quality losses
+    const badUnits = parseNum(oeeParams.rejections);
+    const goodUnits = Math.max(0, totalOutputUnits - badUnits);
+    const lostOperatingMinutes = idealSpeed > 0 ? badUnits / idealSpeed : 0;
+
+    const availability = netOperatingMinutes > 0 && netAvailableMinutes > 0 ? (netOperatingMinutes / netAvailableMinutes) : 0;
+    const performance = netOperatingMinutes > 0 ? Math.min(1.0, idealOperatingMinutes / netOperatingMinutes) : 0;
+    const quality = totalOutputUnits > 0 ? (goodUnits / totalOutputUnits) : 0;
+    const overallOEE = availability * performance * quality;
+
+    // Calculate performance speed loss in minutes
+    const speedLossMinutes = Math.max(0, netOperatingMinutes - idealOperatingMinutes);
+
+    // 6 Major Losses partition breakdown calculations
+    const loss1_breakdowns = parseNum(oeeParams.unplannedDowntime) * 0.7; // 70% of unplanned downtime
+    const loss2_setups = parseNum(oeeParams.unplannedDowntime) * 0.3; // 30% of unplanned downtime
+    const loss3_idling = speedLossMinutes * 0.4; // 40% of speed loss minutes
+    const loss4_reducedSpeed = speedLossMinutes * 0.6; // 60% of speed loss minutes
+    const loss5_processDefects = badUnits * 0.8; // 80% of defective units
+    const loss6_startupLosses = badUnits * 0.2; // 20% of defective units
+
+    // OEE Attribution points impact (reconciles 100% of losses sequentially)
+    const availLossPointsTotal = (1.0 - availability) * 100;
+    const loss1_oee_impact = parseNum(oeeParams.unplannedDowntime) > 0 ? (loss1_breakdowns / parseNum(oeeParams.unplannedDowntime)) * availLossPointsTotal : 0;
+    const loss2_oee_impact = parseNum(oeeParams.unplannedDowntime) > 0 ? (loss2_setups / parseNum(oeeParams.unplannedDowntime)) * availLossPointsTotal : 0;
+
+    const perfLossPointsTotal = availability * (1.0 - performance) * 100;
+    const loss3_oee_impact = speedLossMinutes > 0 ? (loss3_idling / speedLossMinutes) * perfLossPointsTotal : 0;
+    const loss4_oee_impact = speedLossMinutes > 0 ? (loss4_reducedSpeed / speedLossMinutes) * perfLossPointsTotal : 0;
+
+    const qualLossPointsTotal = availability * performance * (1.0 - quality) * 100;
+    const loss5_oee_impact = badUnits > 0 ? (loss5_processDefects / badUnits) * qualLossPointsTotal : 0;
+    const loss6_oee_impact = badUnits > 0 ? (loss6_startupLosses / badUnits) * qualLossPointsTotal : 0;
+
+    return {
+      totalMinutes,
+      netAvailableMinutes,
+      netOperatingMinutes,
+      idealOperatingMinutes,
+      goodUnits,
+      lostOperatingMinutes,
+      availabilityPct: availability * 100,
+      performancePct: performance * 100,
+      qualityPct: quality * 100,
+      oeePct: overallOEE * 100,
+      losses: {
+        loss1: { name: "1. Equipment Breakdowns", amount: loss1_breakdowns, unitLabel: "mins", impact: loss1_oee_impact, category: "Availability Loss", color: "indigo" },
+        loss2: { name: "2. Setup & Adjustments", amount: loss2_setups, unitLabel: "mins", impact: loss2_oee_impact, category: "Availability Loss", color: "indigo" },
+        loss3: { name: "3. Idling & Minor Stops", amount: loss3_idling, unitLabel: "mins", impact: loss3_oee_impact, category: "Performance Loss", color: "violet" },
+        loss4: { name: "4. Reduced Operation Speed", amount: loss4_reducedSpeed, unitLabel: "mins", impact: loss4_oee_impact, category: "Performance Loss", color: "violet" },
+        loss5: { name: "5. Production Defects & Scrap", amount: loss5_processDefects, unitLabel: "units", impact: loss5_oee_impact, category: "Quality Loss", color: "emerald" },
+        loss6: { name: "6. Startup & Warmup Yield Losses", amount: loss6_startupLosses, unitLabel: "units", impact: loss6_oee_impact, category: "Quality Loss", color: "emerald" }
+      }
+    };
+  };
+
+  const oeeResults = calcOEE();
+
+  const [oeeAnimatedValues, setOeeAnimatedValues] = useState({
+    availabilityPct: 0,
+    performancePct: 0,
+    qualityPct: 0,
+  });
+
+  useEffect(() => {
+    if (activeTab === 'sandbox' && sandboxType === 'oee') {
+      const timer = setTimeout(() => {
+        setOeeAnimatedValues({
+          availabilityPct: oeeResults.availabilityPct,
+          performancePct: oeeResults.performancePct,
+          qualityPct: oeeResults.qualityPct,
+        });
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setOeeAnimatedValues({
+        availabilityPct: 0,
+        performancePct: 0,
+        qualityPct: 0,
+      });
+    }
+  }, [
+    activeTab,
+    sandboxType,
+    oeeResults.availabilityPct,
+    oeeResults.performancePct,
+    oeeResults.qualityPct,
+  ]);
+
+  // Recalculate Airline Relevant Costing
+  const calcAirlineCosts = () => {
+    const paxCount = parseNum(airlineParams.occupancy);
+    const revenue = paxCount * parseNum(airlineParams.ticketPrice);
+    const variableCost = paxCount * parseNum(airlineParams.variablePassengerCost);
+    const contributionMargin = revenue - variableCost;
+
+    // Relevant (avoidable) flight expenses
+    const relevantAssistant = parseNum(airlineParams.assistantCostPerFlight);
+    const relevantFuel = parseNum(airlineParams.fuelCost);
+    const relevantOvernight = parseNum(airlineParams.overnightLayoverCost);
+    const relevantPromotion = parseNum(airlineParams.flightPromotion);
+    const relevantInsurance = parseNum(airlineParams.attributableInsuranceThird);
+
+    const totalRelevantExpenses = relevantAssistant + relevantFuel + relevantOvernight + relevantPromotion + relevantInsurance;
+    const netContinuationGain = contributionMargin - totalRelevantExpenses;
+
+    // Sunk/allocated (irrelevant) expenses
+    const irrelevantCrew = parseNum(airlineParams.crewSalaryFixed);
+    const irrelevantGround = parseNum(airlineParams.groundHandlingAllocated);
+    const irrelevantDepreciation = parseNum(airlineParams.aircraftDepreciationSunk);
+    const irrelevantInsurance = parseNum(airlineParams.fixedInsuranceTwoThird);
+    const irrelevantHangar = parseNum(airlineParams.hangarLeaseUnavoidable);
+
+    const totalIrrelevantExpenses = irrelevantCrew + irrelevantGround + irrelevantDepreciation + irrelevantInsurance + irrelevantHangar;
+
+    return {
+      revenue,
+      variableCost,
+      contributionMargin,
+      totalRelevantExpenses,
+      netContinuationGain,
+      totalIrrelevantExpenses
+    };
+  };
+
+  const airlineResults = calcAirlineCosts();
+
+  // Recalculate Target Costing
+  const calcTargetCosting = () => {
+    const sp = parseNum(targetParams.sellingPrice);
+    const margin = sp * (parseNum(targetParams.targetProfitPct) / 100);
+    const targetCost = sp - margin;
+
+    // Actual cost components
+    const component = parseNum(targetParams.componentCost);
+    const labor = parseNum(targetParams.laborHours) * parseNum(targetParams.laborRate);
+    const overhead = parseNum(targetParams.toolingOverhead);
+    
+    // Customized other material standard quantity
+    const netKG = parseNum(targetParams.customMaterialNetKG);
+    const wastePct = parseNum(targetParams.normalWastagePct);
+    const grossKGRequired = wastePct < 100 ? (netKG / (1 - wastePct / 100)) : 0;
+    const materialCost = grossKGRequired * parseNum(targetParams.specialPlasticPricePerKG);
+
+    const totalActualCost = component + labor + overhead + materialCost;
+    const costGap = Math.max(0, totalActualCost - targetCost);
+
+    return {
+      targetProfit: margin,
+      targetCost,
+      laborCost: labor,
+      materialGrossKG: grossKGRequired,
+      materialCost,
+      totalActualCost,
+      costGap
+    };
+  };
+
+  const targetResults = calcTargetCosting();
+
+  // Recalculate Pareto Data Points
+  const calcParetoData = () => {
+    const sorted = [...paretoDefects].sort((a, b) => b.count - a.count);
+    const totalCount = sorted.reduce((sum, item) => sum + item.count, 0);
+    
+    let runningSum = 0;
+    const mapped = sorted.map(item => {
+      runningSum += item.count;
+      const pct = totalCount > 0 ? (item.count / totalCount) * 100 : 0;
+      const cumPct = totalCount > 0 ? (runningSum / totalCount) * 100 : 0;
+      return {
+        ...item,
+        pct: Number(pct.toFixed(2)),
+        cumPct: Number(cumPct.toFixed(2))
+      };
+    });
+
+    return {
+      totalCount,
+      defects: mapped
+    };
+  };
+
+  const paretoResults = calcParetoData();
+
+  // Get filtered chapters and cases based on search keyword
+  const filteredChapters = currentChapters.map(chap => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return {
+        chap,
+        matchesChap: true,
+        matchedCases: currentCaseScenarios.filter(cs => cs.chapterId === chap.id),
+        hasMatch: true
+      };
+    }
+
+    const matchesChap = chap.name.toLowerCase().includes(query) ||
+                        chap.description.toLowerCase().includes(query);
+    
+    const matchedCases = currentCaseScenarios.filter(cs => {
+      if (cs.chapterId !== chap.id) return false;
+      return cs.title.toLowerCase().includes(query) ||
+             cs.scenarioText.toLowerCase().includes(query) ||
+             cs.questions.some(q => 
+               q.questionText.toLowerCase().includes(query) || 
+               q.explanation.toLowerCase().includes(query) ||
+               Object.values(q.options).some(optText => optText.toLowerCase().includes(query))
+             );
+    });
+
+    return {
+      chap,
+      matchesChap,
+      matchedCases,
+      hasMatch: matchesChap || matchedCases.length > 0
+    };
+  }).filter(item => item.hasMatch);
+
+  return (
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
+    >
+      {/* Premium Corporate Top Navbar - Official practACE Branding with Set A / Set B Switcher */}
+      <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors duration-200 dark:bg-[#021027] dark:border-[#C9A84C]/30 relative">
+        {/* Left Side: practACE branding with logo & Subject Switcher */}
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className="relative h-[54px] sm:h-[64px] w-auto flex-shrink-0 select-none bg-[#021027] rounded-xl flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
+              title="practACE — Plan. Revise. Analyse. Correct. Track."
+            >
+              <img 
+                src={practAceLogoImg} 
+                alt="practACE — Plan. Revise. Analyse. Correct. Track." 
+                className="h-[54px] sm:h-[64px] w-auto object-contain ml-0 pl-0 transition-transform duration-200 group-hover:scale-[1.02]" 
+                referrerPolicy="no-referrer" 
+              />
+            </button>
+
+            {/* Persistent Set A / Set B Switcher */}
+            <div className="flex items-center bg-slate-950/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-700/80 shadow-inner">
+              <button
+                onClick={() => setActiveSubject('setA')}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all cursor-pointer ${
+                  activeSubject === 'setA'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+                title="SPOM Set A: Corporate and Economic Laws"
+              >
+                <BookOpen size={13} className={activeSubject === 'setA' ? 'text-white' : 'text-slate-400'} />
+                <span>Set A : Laws</span>
+              </button>
+
+              <button
+                onClick={() => setActiveSubject('setB')}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all cursor-pointer ${
+                  activeSubject === 'setB'
+                    ? 'bg-[#C9A84C] text-slate-950 shadow-md shadow-amber-500/20 ring-1 ring-amber-300'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+                title="SPOM Set B: Strategic Cost & Performance Management"
+              >
+                <Calculator size={13} className={activeSubject === 'setB' ? 'text-slate-950' : 'text-slate-400'} />
+                <span>Set B : SCMPE</span>
+              </button>
+            </div>
+
+            {/* What's New Trigger Button */}
+            <button
+              onClick={() => setShowSetAAnnouncement(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-lg transition-all cursor-pointer shadow-sm"
+              title="View What's New — practACE Rebrand & Set A Addition"
+            >
+              <Sparkles size={12} className="text-[#C9A84C]" />
+              <span>What's New</span>
+            </button>
+            
+            {/* Tagline divider & text - integrated on the left with logo, hidden under xl sizes (1280px) to prevent overlap */}
+            <div className="hidden xl:block h-6 w-[1px] bg-slate-800 self-center"></div>
+            <div className="hidden xl:flex flex-col text-left">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-slate-200 dark:text-slate-200 tracking-wide font-extrabold leading-tight">
+                  {activeSubject === 'setA' ? "SPOM Set A: Corporate & Economic Laws" : "SPOM Set B: Strategic Cost Management"}
+                </span>
+                <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none">
+                  Plan. Revise. Analyse. Correct. Track.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hamburger Menu & Theme Toggle UI for Mobile and Tablets (< md) */}
+          <div className="flex items-center gap-2 md:hidden">
+            {/* Theme Toggle for Mobile */}
+            <button
+              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
+            >
+              {theme === 'light' ? <Moon size={13} className="text-sky-400" /> : <Sun size={13} className="text-[#C9A84C]" />}
+            </button>
+
+            {/* Hamburger Button */}
+            <button
+              onClick={() => setShowMobileMenu(prev => !prev)}
+              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60"
+            >
+              {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation & Actions Container */}
+        <div className={`w-full md:w-auto md:flex flex-col md:flex-row items-center gap-4 ${showMobileMenu ? 'flex animate-fadeIn' : 'hidden md:flex'}`}>
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto pt-2 md:pt-0">
+            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-2 md:gap-4 w-full md:w-auto">
+              {[
+                { id: 'dashboard', label: 'Dashboard' },
+                { id: 'revision', label: 'Revision Deck' },
+                { id: 'practice', label: 'Practice Cases' },
+                { id: 'mock', label: 'SPOM Mock' },
+                { id: 'sandbox', label: 'Decision Calc' }
+              ].map(navItem => {
+                const isActive = activeTab === navItem.id;
+                return (
+                  <button
+                    key={navItem.id}
+                    onClick={() => {
+                       setActiveTab(navItem.id as any);
+                       setShowMobileMenu(false);
+                       if (navItem.id === 'dashboard' && examStarted) {
+                         setHasSubmittedPractice(false);
+                       }
+                    }}
+                    className={`group pb-1 px-2.5 text-xs sm:text-sm font-semibold tracking-wide transition-all relative cursor-pointer font-sans select-none ${
+                      isActive 
+                        ? 'text-[#C9A84C] font-black' 
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <span>{navItem.label}</span>
+                    {/* Golden Underline Indicator */}
+                    <span className={`absolute bottom-0 left-0 h-[2px] bg-[#C9A84C] rounded-full transition-all duration-300 ${
+                      isActive ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`} />
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-end border-t border-slate-800 pt-3 md:border-t-0 md:pt-0">
+              {/* Persistent Notepad Selector */}
+              <button
+                id="global-notepad-toggle"
+                onClick={() => {
+                  setShowGlobalNotepad(prev => !prev);
+                  setShowMobileMenu(false);
+                }}
+                className={`flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full transition-all border text-xs font-bold cursor-pointer active:scale-95 shrink-0 select-none ${
+                  showGlobalNotepad 
+                    ? 'bg-emerald-500/15 border-emerald-400/35 text-emerald-400 shadow-md shadow-emerald-500/5'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 hover:border-slate-650'
+                }`}
+                title="Open persistent study notepad for formula drafting"
+              >
+                <StickyNote size={13} className={showGlobalNotepad ? 'text-emerald-400' : 'text-slate-400'} />
+                <span>{showGlobalNotepad ? 'Notepad Open' : 'My Notepad'}</span>
+              </button>
+
+              {/* Official LinkedIn Link */}
+              <a
+                href="https://www.linkedin.com/company/pract-ace/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                title="Follow practACE on LinkedIn"
+              >
+                <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400" />
+                <span className="hidden lg:inline">LinkedIn</span>
+              </a>
+
+              {/* Official Discord Link */}
+              <a
+                href="https://discord.gg/buecjd45u"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                title="Join practACE Discord Community"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400"
+                >
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                </svg>
+                <span className="hidden lg:inline">Discord</span>
+              </a>
+
+              {/* Theme Switcher Icon (Desktop view) */}
+              <button
+                id="global-theme-toggle"
+                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                className="hidden md:flex items-center justify-center p-2 bg-slate-850 hover:bg-slate-750 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-705 text-xs font-bold cursor-pointer shrink-0 select-none"
+                title={theme === 'light' ? 'Switch to Dark Mode for study sessions' : 'Switch to Light Mode'}
+              >
+                {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
+              </button>
+
+              {/* Cloud Sync & Student Profile Widget */}
+              {isFirebaseLoading ? (
+                <div className="w-[160px] h-9 flex items-center justify-center gap-2 bg-slate-850/50 dark:bg-slate-800/50 border border-slate-700/60 rounded-full text-[11px] text-slate-400 font-sans select-none shrink-0 transition-all">
+                  <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-medium tracking-wide">Securing...</span>
+                </div>
+              ) : currentUser ? (
+                <div className="w-[160px] h-9 flex items-center bg-slate-850 dark:bg-slate-800 border border-slate-700/80 hover:border-[#C9A84C]/40 rounded-full pl-2 pr-2.5 py-1 select-none shadow-sm shadow-[#C9A84C]/5 transition-all shrink-0 hover:bg-slate-800/80">
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt="Student"
+                      referrerPolicy="no-referrer"
+                      className="w-6 h-6 rounded-full border border-[#C9A84C]/40 object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C9A84C] to-amber-600 border border-[#C9A84C]/40 flex items-center justify-center text-[10px] font-black text-slate-950 font-sans shadow-inner shrink-0">
+                      {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : (currentUser.email ? currentUser.email.slice(0, 2).toUpperCase() : 'ST')}
+                    </div>
+                  )}
+                  <div className="flex flex-col text-left leading-none ml-1.5 w-[70px] min-w-0">
+                    <span className="text-[10px] font-black tracking-wide text-slate-200 truncate">
+                      {currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Student')}
+                    </span>
+                    <span className="text-[8px] text-[#C9A84C] font-semibold flex items-center gap-1 mt-0.5 min-w-0 truncate">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${cloudSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                      <span className="truncate">{cloudSyncing ? 'Saving' : 'Synced'}</span>
+                    </span>
+                  </div>
+                  <div className="h-4 w-[1px] bg-slate-700/60 mx-1.5 shrink-0"></div>
+                  <button
+                    onClick={handleSignOut}
+                    className="text-[9px] font-black text-slate-400 hover:text-rose-400 transition-colors uppercase cursor-pointer py-0.5 tracking-wider active:scale-95 shrink-0"
+                    title="Sign Out"
+                  >
+                    Exit
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSignIn}
+                  className="w-[160px] h-9 flex items-center justify-center gap-1.5 px-3 bg-[#C9A84C] hover:bg-[#b0913e] rounded-full border border-[#C9A84C]/60 hover:dark:border-[#C9A84C] text-[11px] font-black uppercase tracking-wider select-none active:scale-95 transition-all text-center shadow-md shadow-[#C9A84C]/10 cursor-pointer text-slate-950 shrink-0"
+                  title="Sign in with Google to backup and synchronize your revision progress across devices"
+                >
+                  <CloudLightning size={12} className="text-slate-950" />
+                  <span>Sign In</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main and Notepad Dual Structure */}
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto min-h-0 relative">
+        <main className={`flex-1 flex flex-col p-4 sm:p-6 min-w-0 transition-all ${showGlobalNotepad ? 'lg:pr-3' : ''}`}>
+        
+        {/* TAB 1: PORTAL DASHBOARD */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Breadcrumb Path - practACE standard */}
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none tracking-wide">
+              <span className="font-bold text-slate-700 dark:text-slate-300">practACE Lounge</span>
+              <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 font-bold" />
+              <span className={activeSubject === 'setA' ? "text-blue-600 dark:text-blue-400 font-bold" : "text-sky-600 dark:text-sky-400"}>
+                {activeSubject === 'setA' ? "Corporate and Economic Laws (Set A)" : "Strategic Cost Management (SCMPE - Set B)"}
+              </span>
+            </div>
+
+            {/* Main Subject Prep Header - Classic Dark Panel with Gilded Borders */}
+            <div className="bg-white text-slate-800 dark:bg-[#0c1228] dark:text-white border border-slate-200 dark:border-[#1c243f] rounded-2xl p-6 shadow-md transition-all duration-200">
+              <div className="flex flex-col lg:flex-row justify-between items-center gap-6">
+                
+                {/* Left Side: Accuracy Circular Dial */}
+                <div className="flex flex-col items-center gap-2.5 shrink-0 justify-center w-full lg:w-auto">
+                  <div className="relative w-20 h-20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="34"
+                        className="stroke-slate-100 dark:stroke-[#171f3a]"
+                        strokeWidth="5"
+                        fill="transparent"
+                      />
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="34"
+                        className={`transition-all duration-700 ease-out ${activeSubject === 'setA' ? 'stroke-blue-500' : 'stroke-[#C9A84C]'}`}
+                        strokeWidth="5"
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 34}
+                        strokeDashoffset={2 * Math.PI * 34 * (1 - (practiceAccuracyPercentage || 0) / 100)}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center">
+                      <span className="text-[20px] font-black font-mono leading-none dark:text-white">{practiceAccuracyPercentage}%</span>
+                      <span className="text-[12px] tracking-wider text-slate-400 font-bold uppercase mt-1">ACC %</span>
+                    </div>
+                  </div>
+                  {/* Dynamic motivational micro-text */}
+                  <span className={`text-[12px] font-bold text-center max-w-[170px] leading-tight select-none ${activeSubject === 'setA' ? 'text-blue-500' : 'text-[#C9A84C]'}`}>
+                    {practiceAccuracyPercentage <= 40 ? "Keep pushing! You're getting there 💪" :
+                     practiceAccuracyPercentage <= 70 ? "Great momentum! Stay consistent 🔥" :
+                     practiceAccuracyPercentage <= 90 ? "Almost there! Final stretch ⚡" :
+                     "Vault mastered! You're ready 🏆"}
+                  </span>
+                </div>
+
+                {/* Center Core Title Information */}
+                <div className="flex-1 text-center lg:text-left space-y-1.5 min-w-0">
+                  <h2 className="text-[20px] font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+                    {activeSubject === 'setA' ? "Corporate and Economic Laws" : "Strategic Cost Management & Performance Evaluation"}
+                  </h2>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xl">
+                    {activeSubject === 'setA'
+                      ? "High-yield statutory revision, corporate governance cases, SEBI LODR rules, and IBC/FEMA thresholds."
+                      : (practiceAccuracyPercentage < 50 
+                          ? "Significant prep needed. Allocate more daily study hours to chapters and formulas immediately."
+                          : "Excellent progress! You are matching advanced Set-B performance thresholds. Continue with mocks.")
+                    }
+                  </p>
+                </div>
+
+                {/* Right Side: Enhanced Overview Stats Boxes */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 items-center justify-center w-full lg:w-auto">
+                  {/* Case Studies Card */}
+                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                    <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">
+                      {completedCaseScenariosCount} <span className="text-[11px] font-normal text-slate-400">/ {totalCaseScenariosCount}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Cases Solved</span>
+                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">{pendingCaseScenariosCount} Pending</span>
+                  </div>
+
+                  {/* Total MCQs Card */}
+                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                    <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">
+                      {totalSolvedCount} <span className="text-[11px] font-normal text-slate-400">/ {totalAllQuestionsCount}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">MCQs Solved</span>
+                    <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">{totalPendingCount} Pending</span>
+                  </div>
+
+                  {/* Accuracy Gauge Card */}
+                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                    <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">{practiceAccuracyPercentage}%</span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Accuracy</span>
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">{totalCorrectPractice}✓ • {totalIncorrectPractice}✗</span>
+                  </div>
+
+                  {/* Completion Rate Card */}
+                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                    <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">{practiceCompletionPercentage}%</span>
+                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Completion</span>
+                    <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{activeChaptersCount}/{currentChapters.length} Chaps</span>
+                  </div>
+
+                  {/* Saved Questions Vault Card */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('practice');
+                      setPracticeSubTab('saved');
+                    }}
+                    className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 text-center shadow-xs transition-all cursor-pointer group col-span-2 sm:col-span-1"
+                    title="View Bookmarked / Flagged Questions Vault"
+                  >
+                    <span className="text-[17px] sm:text-[19px] font-black font-mono text-amber-600 dark:text-amber-400 leading-none flex items-center gap-1 group-hover:scale-105 transition-transform">
+                      <Bookmark size={14} className="fill-amber-500 text-amber-500" />
+                      {activeSubjectBookmarksCount}
+                    </span>
+                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold mt-1 uppercase tracking-wide">Saved Qs</span>
+                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-0.5 group-hover:underline">Review Vault &rarr;</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 6-Card Custom Portal Grid (replicates design geometry and functionality) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              
+              {/* Card 1: MCQ Practice */}
+              <button
+                onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px] relative overflow-hidden"
+              >
+                <div className="space-y-2 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <BookOpen size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">MCQ Practice</h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    Chapter-wise and full-length practice sets
+                  </p>
+                  
+                  {/* Miniature progress bar modeled on screenshot */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
+                      <span>{answeredPracticeQuestions} practiced</span>
+                      <span>{practiceCompletionPercentage}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-[#171f3a] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#C9A84C] transition-all duration-1000 ease-out" 
+                        style={{ width: `${mcqProgressAnimate}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 pt-1.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~15 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Card 2: Questions Vault */}
+              <button
+                onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+              >
+                <div className="space-y-3 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <Award size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">Questions Vault</h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    {activeSubject === 'setA' 
+                      ? "Corporate Governance, Restructuring, IBC & FEMA case studies" 
+                      : "Past exam, RTP, MTP booklet case studies with answers"}
+                  </p>
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                    Browse {currentCaseScenarios.length} Detailed Case Studies →
+                  </span>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~20 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Card 3: Interactive Blueprints */}
+              <button
+                onClick={() => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); }}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+               >
+                <div className="space-y-3 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <Trophy size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                      {activeSubject === 'setA' ? "Statutory Blueprints" : "Concept Blueprints"}
+                    </h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    {activeSubject === 'setA'
+                      ? "Visual flowcharts of CIRP timelines, Fast-Track Mergers & Director quotas"
+                      : "Adjust variables to visualize Porter, OEE, and Transfer Pricing limits"}
+                  </p>
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                    {currentChapters.length} Chapters Interactive Maps →
+                  </span>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~10 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Card 4: Formula & Legal Flashcards */}
+              <button
+                onClick={() => { setActiveTab('revision'); setRevisionSubView('flashcards'); }}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+              >
+                <div className="space-y-3 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <ClipboardList size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                      {activeSubject === 'setA' ? "Statutory Flashcards" : "Formula Flashcards"}
+                    </h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    {activeSubject === 'setA'
+                      ? "Drill Section limits, voting percentages, penalty brackets & time limits"
+                      : "Learn core relevant costing rules, derivation & strategic models"}
+                  </p>
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                    Launch Cards & Active Quiz →
+                  </span>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~10 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Card 5: SPOM Mock Exam */}
+              <button
+                onClick={() => { setActiveTab('mock'); handleStartMockExam(); }}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+              >
+                <div className="space-y-3 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <Timer size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">SPOM Mock Exam</h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    Practice 100% compliant exam simulations under a live timer
+                  </p>
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                    Launch Timed Mock Simulator →
+                  </span>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~90 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+              {/* Card 6: Specialized Decision Tools */}
+              <button
+                onClick={() => setActiveTab('sandbox')}
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+              >
+                <div className="space-y-3 flex-1 pr-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
+                      <Calculator size={16} />
+                    </div>
+                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                      {activeSubject === 'setA' ? "Statutory Limits Calcs" : "Decision Calcs"}
+                    </h3>
+                  </div>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                    {activeSubject === 'setA'
+                      ? "Calculate CSR 2% spend, Board quotas, Sec 197 caps & IBC timelines"
+                      : "Calculate Transfer Price bounds, DuPont ROI, and Altman scores"}
+                  </p>
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                    4 Core Diagnostic Engines →
+                  </span>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                      ⏱️ ~15 mins
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+              </button>
+
+            </div>
+
+            {/* CURRICULUM RESOLUTION & SOLVED VS PENDING ANALYTICS */}
+            <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-5 sm:p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-blue-100/70 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                      <BarChart2 size={16} />
+                    </span>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                      Curriculum Mastery & Question Resolution Matrix
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    Live tracking of Case Studies, Standalone MCQs, and Pending questions across all {currentChapters.length} chapters ({activeSubject === 'setA' ? 'Corporate & Economic Laws' : 'SCMPE'}).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      setActiveTab('practice');
+                      setPracticeSubTab('saved');
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40 hover:bg-amber-100 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Bookmark size={13} className="fill-amber-500 text-amber-500" />
+                    <span>Saved Questions ({activeSubjectBookmarksCount})</span>
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Summary Stat Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Metric 1: Case Studies Breakdown */}
+                <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Case Studies Pool
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-mono">
+                      {totalCaseScenariosCount} Cases
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                      {completedCaseScenariosCount}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium font-sans">
+                      completed ({totalCaseScenariosCount > 0 ? Math.round((completedCaseScenariosCount / totalCaseScenariosCount) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <span>MCQs in Cases: <strong className="text-slate-800 dark:text-white font-mono">{solvedCaseQuestionsCount}/{totalCaseQuestionsCount}</strong></span>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold font-mono">{pendingCaseScenariosCount} pending</span>
+                  </div>
+                </div>
+
+                {/* Metric 2: Standalone General MCQs */}
+                <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Standalone MCQs
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono">
+                      {totalGeneralMCQsCount} MCQs
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                      {solvedGeneralMCQsCount}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium font-sans">
+                      solved ({totalGeneralMCQsCount > 0 ? Math.round((solvedGeneralMCQsCount / totalGeneralMCQsCount) * 100) : 0}%)
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                    <span>Pending: <strong className="text-blue-600 dark:text-blue-400 font-mono">{pendingGeneralMCQsCount}</strong></span>
+                    <span className="text-emerald-600 font-bold font-mono">
+                      {solvedGeneralMCQsCount > 0 
+                        ? Math.round((currentGeneralMCQs.filter(q => practiceProgress['general-' + q.id]?.correct).length / solvedGeneralMCQsCount) * 100) 
+                        : 0}% Acc
+                    </span>
+                  </div>
+                </div>
+
+                {/* Metric 3: Global Solved vs Pending */}
+                <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Overall Question Pool
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-mono">
+                      {totalAllQuestionsCount} Total Qs
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      {totalSolvedCount}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium font-sans">
+                      solved • <span className="font-bold text-amber-600 dark:text-amber-400">{totalPendingCount} pending</span>
+                    </span>
+                  </div>
+                  <div className="pt-1">
+                    <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      <div className="bg-emerald-500 h-full transition-all" style={{ width: `${practiceCompletionPercentage}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metric 4: Bookmarked Questions Vault */}
+                <div className="p-4 rounded-xl border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      Saved Revision Vault
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono">
+                      Flagged
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
+                      {activeSubjectBookmarksCount}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium font-sans">
+                      questions bookmarked
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between pt-1 border-t border-amber-200/50 dark:border-amber-900/30">
+                    <span>{activeSubjectBookmarks.filter(b => b.type === 'case').length} Cases • {activeSubjectBookmarks.filter(b => b.type === 'general').length} Standalone</span>
+                    <button
+                      onClick={() => {
+                        setActiveTab('practice');
+                        setPracticeSubTab('saved');
+                      }}
+                      className="text-amber-700 dark:text-amber-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Open &rarr;
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chapter-by-Chapter Solved vs Pending Matrix Table */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span>Chapter-Wise Resolution & Pending Tracking</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Showing all {currentChapters.length} Chapters with Full Names
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
+                  <div className="overflow-x-auto scrollbar-thin">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                          <th className="py-3 px-3.5 min-w-[240px]">Chapter Name (Full ICAI Syllabus)</th>
+                          <th className="py-3 px-3 text-center">Case Studies</th>
+                          <th className="py-3 px-3 text-center">Case MCQs</th>
+                          <th className="py-3 px-3 text-center">Standalone</th>
+                          <th className="py-3 px-3 text-center">Solved / Total</th>
+                          <th className="py-3 px-3 text-center min-w-[120px]">Progress</th>
+                          <th className="py-3 px-3 text-center">Status</th>
+                          <th className="py-3 px-3.5 text-right">Practice</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                        {currentChapters.map(chap => {
+                          const chapCases = currentCaseScenarios.filter(cs => cs.chapterId === chap.id);
+                          const chapTotalCases = chapCases.length;
+                          const chapCompletedCases = chapCases.filter(cs => 
+                            cs.questions.length > 0 && cs.questions.every(q => practiceProgress[`${cs.id}-${q.id}`]?.answered)
+                          ).length;
+
+                          const chapTotalCaseQs = chapCases.reduce((sum, cs) => sum + cs.questions.length, 0);
+                          const chapSolvedCaseQs = chapCases.reduce((sum, cs) => 
+                            sum + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length, 0);
+
+                          const chapGenMCQs = currentGeneralMCQs.filter(q => q.chapterId === chap.id);
+                          const chapTotalGenMCQs = chapGenMCQs.length;
+                          const chapSolvedGenMCQs = chapGenMCQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
+
+                          const chapTotalQuestions = chapTotalCaseQs + chapTotalGenMCQs;
+                          const chapTotalSolved = chapSolvedCaseQs + chapSolvedGenMCQs;
+                          const chapTotalPending = Math.max(0, chapTotalQuestions - chapTotalSolved);
+                          const chapPercent = chapTotalQuestions > 0 ? Math.round((chapTotalSolved / chapTotalQuestions) * 100) : 0;
+
+                          return (
+                            <tr key={chap.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                              <td className="py-3 px-3.5">
+                                <span className="font-bold text-slate-900 dark:text-white break-words whitespace-normal leading-snug block">
+                                  {getPlainChapterName(chap.name)}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600 dark:text-slate-300">
+                                {chapCompletedCases} / {chapTotalCases}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600 dark:text-slate-300">
+                                {chapSolvedCaseQs} / {chapTotalCaseQs}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600 dark:text-slate-300">
+                                {chapSolvedGenMCQs} / {chapTotalGenMCQs}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono">
+                                <strong className="text-slate-900 dark:text-white font-bold">{chapTotalSolved}</strong>
+                                <span className="text-slate-400"> / {chapTotalQuestions}</span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-500">
+                                    <span>{chapPercent}%</span>
+                                    <span>{chapTotalPending} left</span>
+                                  </div>
+                                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full transition-all ${chapPercent === 100 ? 'bg-emerald-500' : (activeSubject === 'setA' ? 'bg-blue-600' : 'bg-indigo-600')}`}
+                                      style={{ width: `${chapPercent}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                {chapPercent === 100 ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    <CheckCircle2 size={10} /> Completed
+                                  </span>
+                                ) : chapTotalSolved > 0 ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {chapTotalPending} Pending
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                    Not Started
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-3.5 text-right">
+                                <div className="inline-flex items-center gap-1.5 justify-end">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedRevisionChapterId(chap.id);
+                                      setRevisionSubView('study');
+                                      setActiveTab('revision');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 inline-flex items-center gap-1 transition-all cursor-pointer"
+                                    title={`Revise ${getPlainChapterName(chap.name)}`}
+                                  >
+                                    <span>Revise</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenPracticeForChapter(chap.id)}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 inline-flex items-center gap-1 transition-all cursor-pointer"
+                                    title={`Practice ${getPlainChapterName(chap.name)}`}
+                                  >
+                                    <span>Practice</span>
+                                    <ChevronRight size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Curriculum Breakdown */}
+            <div className="space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <BookOpen size={18} className="text-sky-500" /> Syllabus Chapters & Case Studies Map
+                </h3>
+              </div>
+              
+              {/* Premium Search and Filtering Deck */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="w-full sm:max-w-md relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                      <Search size={16} />
+                    </span>
+                    <input
+                      type="text"
+                      className="w-full pl-10 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
+                      placeholder="Search chapters, scenarios, questions, topics..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 font-bold text-xs"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div>
+                    {searchQuery ? (
+                      <span className="inline-block bg-indigo-50 text-indigo-700 font-extrabold text-[10px] sm:text-xs px-2.5 py-1.5 rounded-lg border border-indigo-100">
+                        Matches: {filteredChapters.length} {filteredChapters.length === 1 ? 'Chapter' : 'Chapters'} • {filteredChapters.reduce((acc, c) => acc + c.matchedCases.length, 0)} Cases
+                      </span>
+                    ) : (
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-bold tracking-wide italic">
+                        Type keyword to filter curriculum dynamically
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-150">
+                  <span className="text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 tracking-wider mr-1">
+                    Hot Topics:
+                  </span>
+                  {(activeSubject === 'setA' ? [
+                    "Independent Directors",
+                    "Managerial Remuneration",
+                    "Board Meetings",
+                    "Registered Valuer",
+                    "Nidhi Company",
+                    "NCLT & Special Courts",
+                    "XBRL & Ethics",
+                    "SEBI LODR & SAST",
+                    "FEMA LRS",
+                    "FCRA",
+                    "IBC CIRP"
+                  ] : [
+                    "Transfer Pricing",
+                    "Standard Costing",
+                    "OEE",
+                    "Pareto",
+                    "Relevant Costing",
+                    "Target Costing",
+                    "Balanced Scorecard",
+                    "Variance Analysis"
+                  ]).map(topic => (
+                    <button
+                      key={topic}
+                      onClick={() => setSearchQuery(topic)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
+                        searchQuery.toLowerCase() === topic.toLowerCase() 
+                        ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-150'
+                      }`}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredChapters.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredChapters.map(item => {
+                    const chap = item.chap;
+                    const chapCases = item.matchedCases;
+                    return (
+                      <div key={chap.id} className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
+                        {/* Chapter Header */}
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded font-mono ${activeSubject === 'setA' ? 'text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-950/60' : 'text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60'}`}>
+                              {activeSubject === 'setA' ? (chap.moduleCode || `CHAPTER ${chap.id - 100}`) : `PART ${chap.id}`}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                                {chapCases.length} {chapCases.length === 1 ? 'Case' : 'Cases'}
+                              </span>
+                            </div>
+                          </div>
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white break-words whitespace-normal leading-snug" title={getPlainChapterName(chap.name)}>
+                            {getPlainChapterName(chap.name)}
+                          </h4>
+                        </div>
+
+                        {/* TOP SECTION: List of Case Studies (placed directly from the top) */}
+                        <div className="p-4 space-y-2.5 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
+                              <FileText size={12} className={activeSubject === 'setA' ? 'text-blue-500' : 'text-indigo-500'} />
+                              <span>Case Studies {searchQuery && `(${chapCases.length})`}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 italic">Click to launch</span>
+                          </div>
+
+                          {chapCases.length > 0 ? (
+                            <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin">
+                              {chapCases.map((cs, idx) => (
+                                <button
+                                  key={cs.id}
+                                  onClick={() => {
+                                    setSelectedChapterId(chap.id);
+                                    setSelectedCaseId(cs.id);
+                                    setCurrentQuestionIndex(0);
+                                    setActiveTab('practice');
+                                  }}
+                                  className="w-full text-left p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 hover:border-blue-300 dark:hover:border-blue-600 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 flex items-start justify-between gap-2 group transition-all cursor-pointer"
+                                  title={cs.title}
+                                >
+                                  <div className="flex items-start gap-2 min-w-0 pr-1 flex-1">
+                                    <span className="w-5 h-5 flex-shrink-0 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center font-mono mt-0.5">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="break-words whitespace-normal text-[11px] font-medium leading-snug flex-1">{cs.title.replace(/.*:\s*/, "")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+                                    <span className="text-[9px] font-bold text-slate-400 font-mono hidden sm:inline">{cs.questions.length} Qs</span>
+                                    <ChevronRight size={13} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic py-2">No matching booklet cases found in this chapter.</p>
+                          )}
+                        </div>
+
+                        {/* BOTTOM SECTION: Chapter Description & Quick Flow Links */}
+                        <div className="px-4 py-3 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                            {chap.description}
+                          </p>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/80">
+                            <button
+                              onClick={() => {
+                                setSelectedRevisionChapterId(chap.id);
+                                setRevisionSubView('study');
+                                setActiveTab('revision');
+                              }}
+                              className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <BookOpen size={11} />
+                              <span>Explore Revision Deck</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenPracticeForChapter(chap.id)}
+                              className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>Practice Cases</span>
+                              <ArrowRight size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                  <AlertTriangle size={36} className="mx-auto text-amber-500 mb-3" />
+                  <h4 className="text-sm font-extrabold text-slate-800">No matching chapters or cases</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                    We couldn't find any SCM-PE SPOM material matching "{searchQuery}". Try refining your keywords or clicking one of the hot topic tiles!
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="px-4 py-2 bg-indigo-600 text-white text-xs font-extrabold rounded-xl shadow-md hover:bg-indigo-500 transition-all"
+                  >
+                    Reset Filter Query
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: INTERACTIVE PRACTICE COMPANION */}
+        {activeTab === 'practice' && (
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+            {/* Left Column - Side Chapter & Case Selector (col-span-3) */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
+                <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1">
+                  <ClipboardList size={12} /> Select Chapter ({activeSubject === 'setA' ? 'Set A' : 'Set B'})
+                </h3>
+                <div className="space-y-1.5 flex flex-col max-h-[340px] overflow-y-auto scrollbar-thin">
+                  {currentChapters.map(chap => (
+                    <button
+                      key={chap.id}
+                      onClick={() => {
+                        setSelectedChapterId(chap.id);
+                        setCurrentGeneralIndex(0);
+                        setSelectedGeneralOption(null);
+                        setHasSubmittedGeneral(false);
+                        const firstCase = currentCaseScenarios.find(cs => cs.chapterId === chap.id);
+                        if (firstCase) {
+                          setSelectedCaseId(firstCase.id);
+                          setCurrentQuestionIndex(0);
+                          setSelectedOption(null);
+                          setHasSubmittedPractice(false);
+                          setShowExplanation(false);
+                        }
+                      }}
+                      className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-start justify-between gap-2 ${selectedChapterId === chap.id ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-md' : 'bg-indigo-600 text-white shadow-md') : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    >
+                      <span className="break-words whitespace-normal leading-snug flex-1">{getPlainChapterName(chap.name)}</span>
+                      <ChevronRight size={14} className={`flex-shrink-0 mt-0.5 ${selectedChapterId === chap.id ? 'text-white' : 'text-slate-400'}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sub-tab selection: Cases vs General vs Saved */}
+              <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-1 shadow-2xs">
+                <button
+                  onClick={() => setPracticeSubTab('cases')}
+                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'cases' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                  <FileText size={12} />
+                  <span>Cases</span>
+                </button>
+                <button
+                  onClick={() => setPracticeSubTab('general')}
+                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'general' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                >
+                  <HelpCircle size={12} />
+                  <span>MCQs</span>
+                </button>
+                <button
+                  onClick={() => setPracticeSubTab('saved')}
+                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'saved' ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+                  title="View Saved / Flagged Questions"
+                >
+                  <Bookmark size={12} className={practiceSubTab === 'saved' || activeSubjectBookmarksCount > 0 ? "text-amber-500 fill-amber-500" : ""} />
+                  <span>Saved ({activeSubjectBookmarksCount})</span>
+                </button>
+              </div>
+
+              {/* Dynamic sidebar content based on sub-tab */}
+              {practiceSubTab === 'cases' ? (
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
+                      Cases in Chapter
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).length} Available
+                    </span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-[360px] pr-1 scrollbar-thin">
+                    {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).map(cs => (
+                      <button
+                        key={cs.id}
+                        onClick={() => {
+                          setSelectedCaseId(cs.id);
+                          setCurrentQuestionIndex(0);
+                          setSelectedOption(null);
+                          setHasSubmittedPractice(false);
+                          setShowExplanation(false);
+                        }}
+                        className={`w-full text-left p-3 text-xs rounded-xl border transition-all ${selectedCaseId === cs.id ? (activeSubject === 'setA' ? 'border-blue-500 bg-blue-500/10 text-blue-900 dark:text-blue-300 font-bold' : 'border-emerald-400 bg-emerald-500/10 text-emerald-950 font-bold') : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'}`}
+                      >
+                        <span className="break-words whitespace-normal leading-snug">{cs.title}</span>
+                      </button>
+                    ))}
+                    {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).length === 0 && (
+                      <p className="text-xs text-slate-400 italic text-center py-4">No cases in this chapter.</p>
+                    )}
+                  </div>
+                </div>
+              ) : practiceSubTab === 'general' ? (
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+                        Filter by Topic
+                      </span>
+                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 font-mono">
+                        {chapterTopics.length} Topics
+                      </span>
+                    </div>
+                    <select
+                      value={effectiveGeneralTopic}
+                      onChange={(e) => {
+                        setSelectedGeneralTopic(e.target.value);
+                        setCurrentGeneralIndex(0);
+                        setSelectedGeneralOption(null);
+                        setHasSubmittedGeneral(false);
+                      }}
+                      className="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="ALL">All Topics in Chapter ({allChapterMCQs.length} MCQs)</option>
+                      {chapterTopics.map((topic) => {
+                        const topicCount = allChapterMCQs.filter(q => q.topic === topic).length;
+                        return (
+                          <option key={topic} value={topic}>
+                            {topic} ({topicCount})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
+                        Questions ({chapterMCQs.length})
+                      </h3>
+                      {effectiveGeneralTopic !== 'ALL' && (
+                        <button
+                          onClick={() => {
+                            setSelectedGeneralTopic('ALL');
+                            setCurrentGeneralIndex(0);
+                            setSelectedGeneralOption(null);
+                            setHasSubmittedGeneral(false);
+                          }}
+                          className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Show All
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 overflow-y-auto max-h-[320px] scrollbar-thin">
+                      {chapterMCQs.map((q, idx) => {
+                        const qProg = practiceProgress[`general-${q.id}`];
+                        return (
+                          <button
+                            key={q.id}
+                            onClick={() => {
+                              setCurrentGeneralIndex(idx);
+                              setSelectedGeneralOption(null);
+                              setHasSubmittedGeneral(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs rounded-xl border transition-all flex items-start justify-between gap-2 ${currentGeneralIndex === idx ? (activeSubject === 'setA' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-300 font-bold' : 'border-indigo-455 bg-indigo-50 text-indigo-950 font-bold') : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'}`}
+                          >
+                            <span className="break-words whitespace-normal leading-snug flex-1">Q {idx + 1}: {q.topic}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ml-1 flex-shrink-0 mt-0.5 ${qProg?.answered ? (qProg.correct ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300') : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                              {qProg?.answered ? (qProg.correct ? '✓' : '✗') : 'MCQ'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {chapterMCQs.length === 0 && (
+                        <p className="text-xs text-slate-400 italic text-center py-4">No general questions in this chapter.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                      <Bookmark size={13} className="text-amber-500 fill-amber-500" />
+                      <span>Saved Vault</span>
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-mono">
+                      {activeSubjectBookmarksCount} Flagged
+                    </span>
+                  </div>
+
+                  {/* Filter by Type */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <Filter size={11} /> Source Filter
+                    </span>
+                    <div className="grid grid-cols-1 gap-1">
+                      <button
+                        onClick={() => setSavedFilterType('all')}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          savedFilterType === 'all'
+                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>All Saved MCQs</span>
+                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.length}</span>
+                      </button>
+                      <button
+                        onClick={() => setSavedFilterType('case')}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          savedFilterType === 'case'
+                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>From Case Scenarios</span>
+                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.filter(b => b.type === 'case').length}</span>
+                      </button>
+                      <button
+                        onClick={() => setSavedFilterType('general')}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          savedFilterType === 'general'
+                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span>From Standalone MCQs</span>
+                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.filter(b => b.type === 'general').length}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter by Status */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <Clock size={11} /> Status Filter
+                    </span>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        onClick={() => setSavedFilterStatus('all')}
+                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          savedFilterStatus === 'all'
+                            ? 'bg-slate-900 text-white dark:bg-slate-700'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setSavedFilterStatus('solved')}
+                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          savedFilterStatus === 'solved'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
+                        }`}
+                      >
+                        Solved
+                      </button>
+                      <button
+                        onClick={() => setSavedFilterStatus('pending')}
+                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          savedFilterStatus === 'pending'
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
+                        }`}
+                      >
+                        Pending
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    <p className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      <Info size={11} /> Pro Revision Tip
+                    </p>
+                    Save complex numericals and legal exceptions here to drill repeatedly before your exam.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column - Split Case Reading and Question Answering / General MCQs / Saved Questions (col-span-9) */}
+            <div className={practiceSubTab === 'saved' ? "lg:col-span-9 space-y-4 min-h-[500px]" : "lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]"}>
+              {practiceSubTab === 'saved' ? (
+                <div className="space-y-4">
+                  {/* Top Control Bar: Search and Quick Stats */}
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                    <div className="relative flex-1">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                        <Search size={15} />
+                      </span>
+                      <input
+                        type="text"
+                        value={savedSearchQuery}
+                        onChange={(e) => setSavedSearchQuery(e.target.value)}
+                        placeholder="Search saved questions, legal sections, terms, case names..."
+                        className="w-full pl-9 pr-12 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                      />
+                      {savedSearchQuery && (
+                        <button
+                          onClick={() => setSavedSearchQuery("")}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs font-bold px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                        {
+                          activeSubjectBookmarks.filter(item => {
+                            if (savedFilterType !== 'all' && item.type !== savedFilterType) return false;
+                            const isAns = !!practiceProgress[item.id]?.answered;
+                            if (savedFilterStatus === 'solved' && !isAns) return false;
+                            if (savedFilterStatus === 'pending' && isAns) return false;
+                            if (savedSearchQuery.trim()) {
+                              const q = savedSearchQuery.toLowerCase();
+                              const matchText = (item.questionText || "").toLowerCase().includes(q);
+                              const matchExp = (item.explanation || "").toLowerCase().includes(q);
+                              const matchChap = (item.chapterName || "").toLowerCase().includes(q);
+                              const matchCase = (item.caseTitle || "").toLowerCase().includes(q);
+                              if (!matchText && !matchExp && !matchChap && !matchCase) return false;
+                            }
+                            return true;
+                          }).length
+                        } of {activeSubjectBookmarksCount} Saved
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* List of Saved Questions */}
+                  {(() => {
+                    const filteredSaved = activeSubjectBookmarks.filter(item => {
+                      if (savedFilterType !== 'all' && item.type !== savedFilterType) return false;
+                      const isAns = !!practiceProgress[item.id]?.answered;
+                      if (savedFilterStatus === 'solved' && !isAns) return false;
+                      if (savedFilterStatus === 'pending' && isAns) return false;
+                      if (savedSearchQuery.trim()) {
+                        const q = savedSearchQuery.toLowerCase();
+                        const matchText = (item.questionText || "").toLowerCase().includes(q);
+                        const matchExp = (item.explanation || "").toLowerCase().includes(q);
+                        const matchChap = (item.chapterName || "").toLowerCase().includes(q);
+                        const matchCase = (item.caseTitle || "").toLowerCase().includes(q);
+                        if (!matchText && !matchExp && !matchChap && !matchCase) return false;
+                      }
+                      return true;
+                    });
+
+                    if (filteredSaved.length === 0) {
+                      return (
+                        <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center space-y-4 shadow-sm">
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center border border-amber-200/50">
+                            <Bookmark size={28} />
+                          </div>
+                          <div className="max-w-md mx-auto space-y-1.5">
+                            <h3 className="text-base font-bold text-slate-800 dark:text-white">
+                              {activeSubjectBookmarksCount === 0
+                                ? `No Saved Questions in ${activeSubject === 'setA' ? 'Set A (Law)' : 'Set B (SCMPE)'} Yet`
+                                : "No Bookmarked Questions Match Your Filter"}
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                              {activeSubjectBookmarksCount === 0
+                                ? "While solving Case Studies or General MCQs in the Practice tab, click the 'Save MCQ' (Bookmark) icon on any question to add it to your high-yield revision vault."
+                                : "Try clearing your search query or switching your source/status filters in the sidebar."}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-center gap-3 pt-2">
+                            <button
+                              onClick={() => setPracticeSubTab('cases')}
+                              className="px-4 py-2 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
+                            >
+                              Explore Case Studies
+                            </button>
+                            <button
+                              onClick={() => setPracticeSubTab('general')}
+                              className="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all cursor-pointer"
+                            >
+                              Practice General MCQs
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {filteredSaved.map((item, idx) => {
+                          const prog = practiceProgress[item.id];
+                          const isExpanded = expandedBookmarkKey === item.id;
+                          return (
+                            <div
+                              key={item.id}
+                              className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-5 shadow-sm space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all"
+                            >
+                              {/* Card Header with Fully Wrapped Chapter and Case Names */}
+                              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                <div className="space-y-1.5 flex-1 pr-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[10px] font-mono font-extrabold uppercase px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+                                      {activeSubject === 'setA' ? `CH ${item.chapterId - 100}` : `PART ${item.chapterId}`}
+                                    </span>
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                      {item.type === 'case' ? 'Case Study MCQ' : 'Standalone Practice MCQ'}
+                                    </span>
+
+                                    {/* Resolution Status Pill */}
+                                    {prog?.answered ? (
+                                      prog.correct ? (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                                          <CheckCircle2 size={11} className="text-emerald-600" /> Solved Correct
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 flex items-center gap-1">
+                                          <XCircle size={11} className="text-rose-600" /> Solved Incorrect
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 flex items-center gap-1">
+                                        <Clock size={11} className="text-amber-600" /> Pending Resolution
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Completely Visible Wrapped Chapter & Case Study Names */}
+                                  <div className="space-y-0.5 pt-1">
+                                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 break-words whitespace-normal leading-snug">
+                                      {item.chapterName}
+                                    </h4>
+                                    {item.caseTitle && (
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 break-words whitespace-normal leading-snug font-medium">
+                                        <span className="font-bold text-indigo-600 dark:text-indigo-400">Case Study:</span> {item.caseTitle}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 self-end sm:self-start flex-shrink-0 pt-1">
+                                  {/* Launch into context button */}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedChapterId(item.chapterId);
+                                      if (item.type === 'case' && item.caseId) {
+                                        setSelectedCaseId(item.caseId);
+                                        const cs = currentCaseScenarios.find(c => c.id === item.caseId);
+                                        if (cs) {
+                                          const qIdx = cs.questions.findIndex(q => q.id === item.questionId);
+                                          setCurrentQuestionIndex(qIdx >= 0 ? qIdx : 0);
+                                        }
+                                        setPracticeSubTab('cases');
+                                      } else {
+                                        const qIdx = currentGeneralMCQs
+                                          .filter(q => q.chapterId === item.chapterId)
+                                          .findIndex(q => q.id === item.questionId);
+                                        setCurrentGeneralIndex(qIdx >= 0 ? qIdx : 0);
+                                        setPracticeSubTab('general');
+                                      }
+                                      setSelectedOption(null);
+                                      setSelectedGeneralOption(null);
+                                      setHasSubmittedPractice(false);
+                                      setHasSubmittedGeneral(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 flex items-center gap-1 transition-all cursor-pointer border border-blue-200/60 dark:border-blue-900/40"
+                                    title="Open and practice in full testing environment"
+                                  >
+                                    <span>Practice in Context</span>
+                                    <ChevronRight size={13} />
+                                  </button>
+
+                                  {/* Remove Bookmark button */}
+                                  <button
+                                    onClick={() => toggleBookmarkQuestion(item)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer border border-transparent hover:border-rose-200"
+                                    title="Remove this bookmark"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Question Text with Clean Spacing & Full Text Wrap */}
+                              <div className="space-y-3">
+                                <div className="flex items-start gap-2.5">
+                                  <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-black flex items-center justify-center flex-shrink-0 mt-0.5 font-mono">
+                                    {idx + 1}
+                                  </span>
+                                  <p className="text-sm font-bold text-slate-900 dark:text-white leading-relaxed break-words whitespace-normal">
+                                    {item.questionText}
+                                  </p>
+                                </div>
+
+                                {/* Options 2-column or list */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pl-7">
+                                  {(Object.keys(item.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                                    const isCorrectOpt = opt === item.correctOption;
+                                    const isUserSelected = prog?.selectedOption === opt;
+                                    let optClass = "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300";
+                                    
+                                    if (isExpanded || prog?.answered) {
+                                      if (isCorrectOpt) {
+                                        optClass = "border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-bold ring-1 ring-emerald-500/30";
+                                      } else if (isUserSelected && !isCorrectOpt) {
+                                        optClass = "border-rose-400 bg-rose-50/70 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 line-through opacity-75";
+                                      }
+                                    }
+
+                                    return (
+                                      <div
+                                        key={opt}
+                                        className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 transition-all ${optClass}`}
+                                      >
+                                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${
+                                          (isExpanded || prog?.answered) && isCorrectOpt
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                        }`}>
+                                          {opt}
+                                        </span>
+                                        <span className="leading-tight flex-1 break-words whitespace-normal">{item.options[opt]}</span>
+                                        {(isExpanded || prog?.answered) && isCorrectOpt && (
+                                          <Check size={13} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Toggle Explanation Accordion */}
+                              <div className="pt-1 pl-7">
+                                <button
+                                  onClick={() => setExpandedBookmarkKey(isExpanded ? null : item.id)}
+                                  className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Lightbulb size={13} />
+                                  <span>{isExpanded ? "Hide Solution Breakdown & Traps" : "Reveal Statutory Solution Breakdown & Pitfalls"}</span>
+                                </button>
+
+                                {isExpanded && (
+                                  <div className="mt-3 space-y-2.5 animate-fadeIn">
+                                    <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40 rounded-xl p-3.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line break-words">
+                                      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-black text-[11px] uppercase tracking-wider mb-1.5">
+                                        <CheckCircle2 size={12} /> Correct Option {item.correctOption} — Statutory Basis & Reasoning
+                                      </div>
+                                      <HighlightedText text={item.explanation} boldPrefix={false} />
+                                    </div>
+
+                                    {item.examinerWarning && (
+                                      <div className="bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/70 dark:border-rose-900/40 rounded-xl p-3 text-xs text-rose-800 dark:text-rose-300 leading-relaxed break-words">
+                                        <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400 font-black text-[10px] uppercase tracking-wider mb-1">
+                                          <AlertTriangle size={12} /> Examiner's Warning & Pitfalls
+                                        </div>
+                                        <HighlightedText text={item.examinerWarning} boldPrefix={false} />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : practiceSubTab === 'cases' ? (
+                selectedCase ? (
+                <>
+                  {/* Column 1: Case Detail Reading */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
+                      <div className="flex-1 pr-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
+                          Reference Case scenario
+                        </span>
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1 break-words whitespace-normal leading-snug" title={selectedCase.title}>
+                          {selectedCase.title}
+                        </h2>
+                      </div>
+                      
+                      {/* Active Actions: Sticky Note Toggle & Study PDF Export */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-4">
+                        <button
+                          onClick={() => setShowGlobalNotepad(prev => !prev)}
+                          className={`p-2 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all ${
+                            showGlobalNotepad 
+                              ? 'bg-emerald-50 border-emerald-250 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900 dark:text-emerald-400' 
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400'
+                          }`}
+                          title={showGlobalNotepad ? "Hide Persistent Study Notepad" : "Show Persistent Study Notepad"}
+                        >
+                          <StickyNote size={14} />
+                          <span className="hidden sm:inline">{showGlobalNotepad ? "Hide Notepad" : "Open Notepad"}</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => exportCaseToPDF(selectedCase)}
+                          className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 hover:border-indigo-800 flex items-center gap-1.5 text-xs font-bold transition-all shadow-sm active:scale-98"
+                          title="Export Case Scenario & Notes as PDF"
+                        >
+                          <Download size={14} />
+                          <span className="hidden sm:inline">Export PDF</span>
+                        </button>
+                      </div>
+                    </div>
+                    {/* Scenario Text */}
+                    <div className="flex-1 overflow-y-auto text-slate-600 text-sm leading-relaxed whitespace-pre-line pr-2 scrollbar-thin">
+                      <HighlightedText text={selectedCase.scenarioText} boldPrefix={false} />
+                    </div>
+              
+                    {/* Case Navigation Footer */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs mt-3 select-none">
+                      <button
+                        disabled={currentCaseIdx <= 0}
+                        onClick={() => {
+                          if (currentCaseIdx > 0) {
+                            const prevCase = currentCaseScenarios[currentCaseIdx - 1];
+                            setSelectedChapterId(prevCase.chapterId);
+                            setSelectedCaseId(prevCase.id);
+                            setCurrentQuestionIndex(0);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }
+                        }}
+                        className={`px-3 py-2 rounded-xl font-extrabold flex items-center gap-1 transition-all ${currentCaseIdx <= 0 ? 'text-slate-300 bg-slate-50 cursor-not-allowed border border-slate-100' : (activeSubject === 'setA' ? 'text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 active:scale-98' : 'text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-98')}`}
+                        title="Go to Previous Case Study"
+                      >
+                        <ChevronLeft size={14} /> Prev Case
+                      </button>
+                      
+                      <span className="text-slate-400 font-extrabold font-mono text-[10px] text-center hidden sm:inline">
+                        CASE {currentCaseIdx + 1} OF {currentCaseScenarios.length}
+                      </span>
+                      
+                      <button
+                        disabled={currentCaseIdx >= currentCaseScenarios.length - 1 || currentCaseIdx === -1}
+                        onClick={() => {
+                          if (currentCaseIdx !== -1 && currentCaseIdx < currentCaseScenarios.length - 1) {
+                            const nextCase = currentCaseScenarios[currentCaseIdx + 1];
+                            setSelectedChapterId(nextCase.chapterId);
+                            setSelectedCaseId(nextCase.id);
+                            setCurrentQuestionIndex(0);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }
+                        }}
+                        className={`px-3 py-2 rounded-xl font-extrabold flex items-center gap-1 transition-all ${currentCaseIdx >= currentCaseScenarios.length - 1 || currentCaseIdx === -1 ? 'text-slate-300 bg-slate-50 cursor-not-allowed border border-slate-100' : (activeSubject === 'setA' ? 'text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 active:scale-98' : 'text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-98')}`}
+                        title="Go to Next Case Study"
+                      >
+                        Next Case <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Column 2: Question & Options Answer */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          disabled={currentQuestionIndex === 0}
+                          onClick={() => {
+                            setCurrentQuestionIndex(prev => prev - 1);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }}
+                          className={`p-1.5 rounded-lg transition-all ${currentQuestionIndex === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
+                          title="Previous Question"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <span className="text-xs font-extrabold text-slate-500 capitalize bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                          Q {currentQuestionIndex + 1} / {selectedCase.questions.length}
+                        </span>
+                        <button
+                          disabled={currentQuestionIndex === selectedCase.questions.length - 1}
+                          onClick={() => {
+                            setCurrentQuestionIndex(prev => prev + 1);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }}
+                          className={`p-1.5 rounded-lg transition-all ${currentQuestionIndex === selectedCase.questions.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
+                          title="Next Question"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex gap-1 items-center">
+                          {selectedCase.questions.map((_, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                setCurrentQuestionIndex(idx);
+                                setSelectedOption(null);
+                                setHasSubmittedPractice(false);
+                                setShowExplanation(false);
+                              }}
+                              className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${currentQuestionIndex === idx ? 'bg-indigo-600 text-white shadow font-extrabold scale-110' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`}
+                              title={`Go to Question ${idx + 1}`}
+                            >
+                              {idx + 1}
+                            </button>
+                          ))}
+                        </div>
+
+                        {currentQuestion && (
+                          <button
+                            onClick={() => {
+                              const qKey = `${selectedCase.id}-${currentQuestion.id}`;
+                              toggleBookmarkQuestion({
+                                key: qKey,
+                                subject: activeSubject,
+                                type: 'case',
+                                chapterId: selectedCase.chapterId,
+                                chapterName: currentChapters.find(c => c.id === selectedCase.chapterId)?.name || `Chapter ${selectedCase.chapterId}`,
+                                caseId: selectedCase.id,
+                                caseTitle: selectedCase.title,
+                                questionId: currentQuestion.id,
+                                questionText: currentQuestion.questionText,
+                                options: currentQuestion.options,
+                                correctOption: currentQuestion.correctOption,
+                                explanation: currentQuestion.explanation,
+                                examinerWarning: currentQuestion.examinerWarning
+                              });
+                            }}
+                            className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                              isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`)
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50/50'
+                            }`}
+                            title={isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Remove Bookmark" : "Save this Question for Later Revision"}
+                          >
+                            <Bookmark size={13} className={isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "fill-white" : ""} />
+                            <span className="hidden sm:inline font-mono text-[11px]">{isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Saved" : "Save MCQ"}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {currentQuestion ? (
+                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1">
+                        <div className="space-y-4">
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug break-words whitespace-normal">
+                            {currentQuestion.questionText}
+                          </h3>
+
+                          {/* Options */}
+                          <div className="space-y-2.5 pt-2">
+                            {(Object.keys(currentQuestion.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const isSelected = selectedOption === opt;
+                              const isCorrect = opt === currentQuestion.correctOption;
+                              
+                              let buttonClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
+                              let iconEl = <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-500 bg-slate-50">{opt}</div>;
+
+                              if (isSelected) {
+                                buttonClass = "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-950";
+                                iconEl = <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">{opt}</div>;
+                              }
+
+                              if (hasSubmittedPractice) {
+                                if (isCorrect) {
+                                  buttonClass = "border-emerald-500 bg-emerald-500/10 text-emerald-900 font-semibold";
+                                  iconEl = <CheckCircle2 className="text-emerald-600 fill-emerald-100" size={20} />;
+                                } else if (isSelected) {
+                                  buttonClass = "border-rose-500 bg-rose-500/10 text-rose-900 font-semibold";
+                                  iconEl = <XCircle className="text-rose-600 fill-rose-100" size={20} />;
+                                } else {
+                                  buttonClass = "border-slate-100 bg-slate-50/50 opacity-60";
+                                }
+                              }
+
+                              return (
+                                <button
+                                  key={opt}
+                                  disabled={hasSubmittedPractice}
+                                  onClick={() => handleOptionSelect(opt)}
+                                  className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all ${buttonClass}`}
+                                >
+                                  {iconEl}
+                                  <span className="flex-1 mt-0.5 leading-tight">{currentQuestion.options[opt]}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Action buttons or Explanation */}
+                        <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
+                          {!hasSubmittedPractice ? (
+                            <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl p-3.5 text-center text-xs font-bold flex items-center justify-center gap-2">
+                              <Info size={14} className="text-indigo-500 animate-bounce" /> Select any option above to instantly submit and validate.
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* Explanation accordian box */}
+                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-inner">
+                                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
+                                  <Lightbulb size={14} /> Calculation & Concept Breakdown
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                                  <HighlightedText text={currentQuestion.explanation} boldPrefix={false} />
+                                </p>
+                              </div>
+
+                              {currentQuestion.examinerWarning && (
+                                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 shadow-sm animate-fadeIn">
+                                  <div className="flex items-center gap-2 text-rose-700 font-black text-xs uppercase tracking-wider mb-1.5 font-mono">
+                                    <AlertTriangle size={14} className="text-rose-600" /> Examiner's Warning & Pitfalls
+                                  </div>
+                                  <p className="text-xs text-rose-800 leading-relaxed font-semibold font-sans">
+                                    <HighlightedText text={currentQuestion.examinerWarning} boldPrefix={false} />
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="flex w-full">
+                                {currentQuestionIndex < selectedCase.questions.length - 1 ? (
+                                  <button
+                                    onClick={() => {
+                                      setCurrentQuestionIndex(prev => prev + 1);
+                                      setSelectedOption(null);
+                                      setHasSubmittedPractice(false);
+                                      setShowExplanation(false);
+                                    }}
+                                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow transition-all active:scale-98"
+                                  >
+                                    Next Question <ChevronRight size={14} />
+                                  </button>
+                                ) : (
+                                  <div className="w-full bg-teal-50 text-teal-800 p-3 rounded-xl border border-teal-200 text-center font-bold text-xs flex items-center justify-center gap-1 select-none animate-bounce">
+                                    🎉 Case Solved Perfectly!
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-12 text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
+                  <BookOpen size={48} className="mx-auto text-slate-400 mb-3" />
+                  <p className="text-slate-500 font-bold">Please select a case study to practice.</p>
+                </div>
+              )) : (
+                <>
+                  {/* General MCQ Split: Concept review on the left, Questions on the right */}
+                  {/* Left Column: Chapter Review Summary Notes */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4f46e5] bg-indigo-50 px-2.5 py-1 rounded">
+                          Chapter Concept Review
+                        </span>
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1 break-words whitespace-normal leading-snug" title={getPlainChapterName(selectedChapterObj?.name)}>
+                          {getPlainChapterName(selectedChapterObj?.name) || "Concept Review"}
+                        </h2>
+                      </div>
+                    </div>
+                    {/* Notes List */}
+                    <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin space-y-4">
+                      {selectedChapterObj?.summaryNotes && selectedChapterObj.summaryNotes.length > 0 ? (
+                        selectedChapterObj.summaryNotes.map((section, sIdx) => (
+                          <div key={sIdx} className="bg-slate-50/55 rounded-xl p-4 border border-slate-100">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 mb-2.5 flex items-center gap-1.5">
+                              <span className="w-1.5 h-3 bg-indigo-600 rounded-sm inline-block"></span>
+                              {section.title}
+                            </h4>
+                            <ul className="space-y-1.5">
+                              {section.bullets.map((b, bIdx) => (
+                                <li key={bIdx} className="text-xs text-slate-600 leading-relaxed pl-3 border-l border-slate-200 font-medium font-sans break-words whitespace-normal">
+                                  <HighlightedText text={b} />
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-slate-400 italic text-center py-10">No summary notes available for this chapter.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: General MCQ Question & Options Answer */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                      <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1 flex-shrink-0">
+                        <button
+                          disabled={currentGeneralIndex === 0}
+                          onClick={() => {
+                            setCurrentGeneralIndex(prev => prev - 1);
+                            setSelectedGeneralOption(null);
+                            setHasSubmittedGeneral(false);
+                          }}
+                          className={`p-1 rounded-lg transition-all ${currentGeneralIndex === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
+                          title="Previous Question"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <span className="text-[10px] font-extrabold text-slate-500 capitalize bg-slate-100 px-2 py-0.5 rounded whitespace-nowrap">
+                          G-MCQ {currentGeneralIndex + 1} / {chapterMCQs.length}
+                        </span>
+                        <button
+                          disabled={currentGeneralIndex === chapterMCQs.length - 1}
+                          onClick={() => {
+                            setCurrentGeneralIndex(prev => prev + 1);
+                            setSelectedGeneralOption(null);
+                            setHasSubmittedGeneral(false);
+                          }}
+                          className={`p-1 rounded-lg transition-all ${currentGeneralIndex === chapterMCQs.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
+                          title="Next Question"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+
+                      {/* Difficulty, Topic Badge, and Bookmark Button in Right Corner */}
+                      {currentMCQ && (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-[9px] uppercase font-mono font-bold bg-slate-100 border border-slate-200/50 text-slate-750 px-1.5 py-0.5 rounded break-words" title={currentMCQ.topic}>
+                            {currentMCQ.topic}
+                          </span>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded whitespace-nowrap ${
+                            currentMCQ.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            currentMCQ.difficulty === 'Moderate' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                            'bg-rose-50 text-rose-700 border border-rose-100'
+                          }`}>
+                            {currentMCQ.difficulty}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const qKey = `general-${currentMCQ.id}`;
+                              toggleBookmarkQuestion({
+                                key: qKey,
+                                subject: activeSubject,
+                                type: 'general',
+                                chapterId: currentMCQ.chapterId,
+                                chapterName: currentChapters.find(c => c.id === currentMCQ.chapterId)?.name || `Chapter ${currentMCQ.chapterId}`,
+                                questionId: currentMCQ.id,
+                                questionText: currentMCQ.questionText,
+                                options: currentMCQ.options,
+                                correctOption: currentMCQ.correctOption,
+                                explanation: currentMCQ.explanation,
+                                examinerWarning: currentMCQ.examinerWarning
+                              });
+                            }}
+                            className={`p-1 sm:px-2 sm:py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border ${
+                              isQuestionBookmarked(`general-${currentMCQ.id}`)
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50/50'
+                            }`}
+                            title={isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Remove Bookmark" : "Save this Question for Later Revision"}
+                          >
+                            <Bookmark size={12} className={isQuestionBookmarked(`general-${currentMCQ.id}`) ? "fill-white" : ""} />
+                            <span className="hidden sm:inline font-mono text-[10px]">{isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Saved" : "Save MCQ"}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {currentMCQ ? (
+                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1 font-sans">
+                        <div className="space-y-4">
+                          <h3 className="text-base font-bold text-slate-900 leading-snug break-words whitespace-normal">
+                            {currentMCQ.questionText}
+                          </h3>
+
+                          {/* Options */}
+                          <div className="space-y-2.5 pt-2">
+                            {(Object.keys(currentMCQ.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const isSelected = selectedGeneralOption === opt;
+                              const isCorrect = opt === currentMCQ.correctOption;
+                              
+                              let buttonClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
+                              let iconEl = <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-500">{opt}</div>;
+
+                              if (isSelected) {
+                                buttonClass = "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-950";
+                                iconEl = <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">{opt}</div>;
+                              }
+
+                              if (hasSubmittedGeneral) {
+                                if (isCorrect) {
+                                  buttonClass = "border-emerald-500 bg-emerald-500/10 text-emerald-950 font-semibold";
+                                  iconEl = <CheckCircle2 className="text-emerald-600 fill-emerald-100" size={20} />;
+                                } else if (isSelected) {
+                                  buttonClass = "border-rose-500 bg-rose-500/10 text-rose-950 font-semibold";
+                                  iconEl = <XCircle className="text-rose-600 fill-rose-100" size={20} />;
+                                } else {
+                                  buttonClass = "border-slate-100 bg-slate-50/50 opacity-60";
+                                }
+                              }
+
+                              return (
+                                <button
+                                  key={opt}
+                                  disabled={hasSubmittedGeneral}
+                                  onClick={() => handleGeneralOptionSelect(opt)}
+                                  className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all ${buttonClass}`}
+                                >
+                                  {iconEl}
+                                  <span className="flex-1 mt-0.5 leading-tight">{currentMCQ.options[opt]}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Action buttons or Explanation */}
+                        <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
+                          {!hasSubmittedGeneral ? (
+                            <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl p-3.5 text-center text-xs font-bold flex items-center justify-center gap-2">
+                              <Info size={14} className="text-indigo-500 animate-bounce" /> Select any option above to instantly submit and validate.
+                            </div>
+                          ) : (
+                            <div className="space-y-4 font-sans">
+                              {/* Explanation box */}
+                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-inner overflow-y-auto max-h-[160px] scrollbar-thin">
+                                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
+                                  <Lightbulb size={14} /> Correct Option {currentMCQ.correctOption} — Explanation
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line font-medium">
+                                  <HighlightedText text={currentMCQ.explanation} boldPrefix={false} />
+                                </p>
+                              </div>
+
+                              {currentMCQ.examinerWarning && (
+                                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 shadow-sm animate-fadeIn">
+                                  <div className="flex items-center gap-2 text-rose-700 font-black text-xs uppercase tracking-wider mb-1.5 font-mono">
+                                    <AlertTriangle size={14} className="text-rose-600" /> Examiner's Trap & Common Pitfalls
+                                  </div>
+                                  <p className="text-xs text-rose-800 leading-relaxed font-semibold font-sans">
+                                    <HighlightedText text={currentMCQ.examinerWarning} boldPrefix={false} />
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="flex w-full">
+                                {currentGeneralIndex < chapterMCQs.length - 1 ? (
+                                  <button
+                                    onClick={() => {
+                                      setCurrentGeneralIndex(prev => prev + 1);
+                                      setSelectedGeneralOption(null);
+                                      setHasSubmittedGeneral(false);
+                                    }}
+                                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow transition-all active:scale-98"
+                                  >
+                                    Next Question <ChevronRight size={14} />
+                                  </button>
+                                ) : (
+                                  <div className="w-full bg-teal-50 text-teal-850 p-3 rounded-xl border border-teal-200 text-center font-bold text-xs flex items-center justify-center gap-1 select-none animate-bounce">
+                                    🎉 Chapter MCQ Deck Solved!
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col justify-center items-center text-slate-400">
+                        <HelpCircle size={40} className="text-slate-300 mb-3" />
+                        <p className="text-xs italic font-medium">No General MCQs loaded for this chapter yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Quick Reference Floating Widget */}
+            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
+              {showQuickRef && (
+                <div 
+                  className="w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[460px] overflow-hidden transition-all duration-300 transform scale-100 origin-bottom-right"
+                  style={{ boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                >
+                  {/* Widget Header */}
+                  <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 align-middle">
+                        <Calculator size={15} className="text-emerald-400" />
+                        <h4 className="text-xs font-extrabold uppercase tracking-widest text-emerald-400 font-mono">
+                          Formula Quick Ref
+                        </h4>
+                      </div>
+                      <h3 className="text-[11px] font-semibold text-slate-300 leading-tight mt-1 truncate max-w-[240px]" title={getPlainChapterName(selectedChapterObj?.name)}>
+                        {getPlainChapterName(selectedChapterObj?.name) || "Current Chapter"}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setShowQuickRef(false)}
+                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                      title="Hide Reference Widget"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="p-3 bg-slate-50 border-b border-slate-100 relative">
+                    <div className="absolute left-6 top-5 text-slate-400">
+                      <Search size={13} />
+                    </div>
+                    <input
+                      type="text"
+                      value={quickRefSearch}
+                      onChange={(e) => setQuickRefSearch(e.target.value)}
+                      placeholder="Search formulas or keywords..."
+                      className="w-full pl-8 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 font-sans"
+                    />
+                    {quickRefSearch && (
+                      <button
+                        onClick={() => setQuickRefSearch("")}
+                        className="absolute right-6 top-4.5 text-slate-400 hover:text-slate-650 cursor-pointer"
+                        title="Clear search query"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Formulas List */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 max-h-[280px] bg-white scrollbar-thin">
+                    {(selectedChapterObj?.formulas || []).filter(f => {
+                      const query = quickRefSearch.toLowerCase().trim();
+                      if (!query) return true;
+                      return (
+                        f.name.toLowerCase().includes(query) ||
+                        f.formula.toLowerCase().includes(query) ||
+                        f.description.toLowerCase().includes(query)
+                      );
+                    }).length > 0 ? (
+                      (selectedChapterObj?.formulas || []).filter(f => {
+                        const query = quickRefSearch.toLowerCase().trim();
+                        if (!query) return true;
+                        return (
+                          f.name.toLowerCase().includes(query) ||
+                          f.formula.toLowerCase().includes(query) ||
+                          f.description.toLowerCase().includes(query)
+                        );
+                      }).map((f, idx) => {
+                        const isCopied = quickRefCopiedName === f.name;
+                        return (
+                          <div 
+                            key={idx} 
+                            className="p-3 bg-slate-50/70 border border-slate-100 rounded-xl hover:bg-indigo-50/15 hover:border-indigo-100 transition-all group"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-xs font-extrabold text-slate-800 leading-tight">
+                                {f.name}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  try {
+                                    navigator.clipboard.writeText(f.formula);
+                                    setQuickRefCopiedName(f.name);
+                                    setTimeout(() => setQuickRefCopiedName(null), 2000);
+                                  } catch (err) {
+                                    console.error("Copy failed", err);
+                                  }
+                                }}
+                                className={`p-1 rounded-md border transition-all cursor-pointer ${
+                                  isCopied 
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 opacity-100' 
+                                    : 'bg-white border-slate-200 text-slate-400 hover:text-indigo-650 hover:border-indigo-150 shadow-2xs md:opacity-0 group-hover:opacity-100 focus:opacity-100'
+                                }`}
+                                title={isCopied ? "Copied!" : "Copy Formula to Clipboard"}
+                              >
+                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                              </button>
+                            </div>
+
+                            {/* Equation body */}
+                            <div className="font-mono text-[10px] font-bold text-indigo-700 bg-indigo-50/40 p-2 rounded-lg border border-indigo-100/30 mt-1.5 select-all leading-normal">
+                              {f.formula}
+                            </div>
+
+                            {/* Description */}
+                            <p className="text-[11px] text-slate-500 mt-1.5 leading-normal font-medium">
+                              {f.description}
+                            </p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <Calculator size={24} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-xs italic font-medium">No formulas found.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Widget Footer */}
+                  <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                    <span>Formulas in Chapter: {(selectedChapterObj?.formulas || []).length}</span>
+                    <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold text-[9px]">SCM SPE</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Action Button (FAB) */}
+              <button
+                onClick={() => setShowQuickRef(prev => !prev)}
+                className={`py-3 px-4 rounded-full shadow-lg flex items-center gap-2 cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 text-xs font-black select-none border ${
+                  showQuickRef 
+                    ? 'bg-rose-600 border-rose-700 text-white hover:bg-rose-700 shadow-rose-200' 
+                    : 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800 hover:shadow-indigo-100'
+                }`}
+                title={showQuickRef ? "Close Formulas Widget" : "Show Quick Reference Formulas"}
+              >
+                <Calculator size={15} className={`${showQuickRef ? 'animate-pulse' : ''}`} />
+                <span>{showQuickRef ? "Close Formulas" : "Quick Reference"}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* REVISION TAB: Revision Notes & Formula Revision Deck */}
+        {activeTab === 'revision' && (
+          <div className="space-y-6 flex-1 flex flex-col mb-6">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-md relative overflow-hidden">
+              <div className="absolute right-0 bottom-0 top-0 opacity-10 flex items-center pr-10">
+                <Bookmark size={150} className="text-emerald-400" />
+              </div>
+              <div className="relative z-10 max-w-3xl">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                  Formula & Concept Revision Companion
+                </h2>
+              </div>
+            </div>
+
+            {/* Sub-view Navigation Tabs */}
+            <div className="flex border-b border-slate-200 gap-2 sm:gap-6 pb-0 px-2 overflow-x-auto scrollbar-none">
+              <button
+                id="tab-concept-reader"
+                onClick={() => setRevisionSubView('study')}
+                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                  revisionSubView === 'study'
+                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <BookOpen size={15} />
+                Concept & Formula Reader
+              </button>
+              <button
+                id="tab-formula-flashcards"
+                onClick={() => {
+                  setRevisionSubView('flashcards');
+                  const keys = Object.keys(currentFormulaDetails);
+                  if (keys.length > 0 && (!currentFlashcardKey || !currentFormulaDetails[currentFlashcardKey])) {
+                    setCurrentFlashcardKey(keys[0]);
+                  }
+                  if (!quizTargetKey || !currentFormulaDetails[quizTargetKey]) {
+                    handleGenerateQuizQuestion();
+                  }
+                }}
+                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                  revisionSubView === 'flashcards'
+                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Calculator size={15} />
+                {activeSubject === 'setA' ? 'Statutory Limit & Formula Flashcards' : 'Formula Flashcards & Quizzes'}
+              </button>
+              <button
+                id="tab-framework-flashcards"
+                onClick={() => {
+                  setRevisionSubView('frameworks');
+                  setCurrentFrameworkCardIndex(0);
+                  setIsFrameworkCardFlipped(false);
+                }}
+                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                  revisionSubView === 'frameworks'
+                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Award size={15} className="text-amber-500" />
+                ⚡ Theoretical Frameworks Deck
+              </button>
+
+              <button
+                onClick={() => {
+                  const targetChapId = selectedRevisionChapterId > 0 ? selectedRevisionChapterId : (currentChapters[0]?.id || (activeSubject === 'setA' ? 101 : 1));
+                  handleOpenPracticeForChapter(targetChapId, 'cases');
+                }}
+                className="ml-auto pb-2.5 px-3 py-1.5 mb-1 text-xs font-extrabold rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                title="Ready to solve problems? Switch to Practice Cases for this Set"
+              >
+                <span>Go to Practice Cases</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {revisionSubView === 'study' ? (
+              <>
+                {/* Quick Indicators / Search Bar */}
+                <div id="revision-search-bar-container" className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex flex-wrap gap-4 items-center text-xs text-slate-500 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <Bookmark size={12} className="text-indigo-600" /> {currentChapters.length} Chapters
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Calculator size={12} className="text-emerald-600" /> Key Formulas & Thresholds
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Lightbulb size={12} className="text-amber-600" /> Detailed Concept Bullets
+                    </span>
+                  </div>
+
+                  {/* Advanced Search Bar */}
+                  <div className="w-full md:w-96 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Search size={16} />
+                    </div>
+                    <input
+                      id="input-revision-search"
+                      type="text"
+                      placeholder="Query formulas or summary notes..."
+                      value={revisionSearchQuery}
+                      onChange={(e) => setRevisionSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-slate-50/50"
+                    />
+                    {revisionSearchQuery && (
+                      <button
+                        onClick={() => setRevisionSearchQuery("")}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 text-xs font-semibold"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1">
+                  
+                  {/* Sidebar: Navigation tabs */}
+                  <div className="lg:col-span-3 space-y-2 bg-white rounded-2xl border border-slate-200 p-3 shadow-sm lg:sticky lg:top-4">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-3 pb-1 pt-2">Topics List</p>
+                    
+                    {/* 'All Chapters' Tab Toggle */}
+                    <button
+                      onClick={() => setSelectedRevisionChapterId(-1)}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl transition-all font-semibold text-xs border flex items-center justify-between ${selectedRevisionChapterId === -1 ? 'bg-slate-900 border-slate-900 text-emerald-400 shadow-md' : 'bg-transparent hover:bg-slate-50 border-transparent text-slate-600 hover:text-slate-900'}`}
+                    >
+                      <span className="truncate">📋 View Continuous Revision Deck</span>
+                      <ChevronRight size={14} className="opacity-60" />
+                    </button>
+
+                    {activeSubject === 'setA' && (
+                      <div className="space-y-1.5 pt-1">
+                        <button
+                          onClick={() => setSelectedRevisionChapterId(-101)}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl transition-all font-bold text-xs border flex items-center justify-between ${
+                            selectedRevisionChapterId === -101
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                              : 'bg-blue-50/60 hover:bg-blue-100/70 border-blue-200 text-blue-900'
+                          }`}
+                        >
+                          <span className="truncate">⏱️ Set-A Time Limits Chart</span>
+                          <ChevronRight size={14} className="opacity-70 shrink-0" />
+                        </button>
+                        <button
+                          onClick={() => setSelectedRevisionChapterId(-102)}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl transition-all font-bold text-xs border flex items-center justify-between ${
+                            selectedRevisionChapterId === -102
+                              ? 'bg-amber-600 border-amber-600 text-white shadow-sm'
+                              : 'bg-amber-50/60 hover:bg-amber-100/70 border-amber-200 text-amber-900'
+                          }`}
+                        >
+                          <span className="truncate">💰 Set-A Monetary Limits Chart</span>
+                          <ChevronRight size={14} className="opacity-70 shrink-0" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="border-t border-slate-100 my-2"></div>
+
+                    {currentChapters.map((chap) => (
+                      <button
+                        key={chap.id}
+                        onClick={() => setSelectedRevisionChapterId(chap.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl transition-all font-bold text-xs border ${selectedRevisionChapterId === chap.id ? (activeSubject === 'setA' ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-slate-900 dark:text-blue-300 shadow-sm font-extrabold' : 'bg-emerald-50 border-emerald-100 text-slate-900 shadow-sm font-extrabold') : 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-900'}`}
+                      >
+                        <div className="flex items-start gap-2 justify-between">
+                          <span className="break-words whitespace-normal leading-snug flex-1">{getPlainChapterName(chap.name)}</span>
+                          {selectedRevisionChapterId === chap.id && (
+                            <div className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${activeSubject === 'setA' ? 'bg-blue-500' : 'bg-emerald-500'}`}></div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+
+                    <div className="border-t border-slate-100 dark:border-slate-800 my-2 pt-2">
+                      <button
+                        onClick={() => exportRevisionToPDF(currentChapters)}
+                        className={`w-full text-center px-3 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all border shadow-sm flex items-center justify-center gap-1.5 cursor-pointer text-white ${
+                          activeSubject === 'setA' 
+                            ? 'border-blue-500 bg-blue-600 hover:bg-blue-700' 
+                            : 'border-emerald-200 bg-emerald-500 hover:bg-emerald-600'
+                        }`}
+                        title="Download complete revision deck as PDF"
+                      >
+                        <Download size={13} className="animate-pulse" />
+                        <span>Export All ({activeSubject === 'setA' ? 'Set A' : 'Set B'}) PDF</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Main Workspace showing matching results or active chapter */}
+                  <div className="lg:col-span-9 space-y-6">
+                    {activeSubject === 'setA' && (selectedRevisionChapterId === -101 || selectedRevisionChapterId === -1) && (
+                      <SetATimeLimitsChart searchQuery={revisionSearchQuery} />
+                    )}
+
+                    {activeSubject === 'setA' && (selectedRevisionChapterId === -102 || selectedRevisionChapterId === -1) && (
+                      <SetAMonetaryLimitsChart searchQuery={revisionSearchQuery} />
+                    )}
+
+                    {/* Search Filtering Algorithm */}
+                    {(() => {
+                      if (activeSubject === 'setA' && (selectedRevisionChapterId === -101 || selectedRevisionChapterId === -102)) {
+                        return null;
+                      }
+
+                      const queryTerm = revisionSearchQuery.toLowerCase().trim();
+                      
+                      // Filter Chapters
+                      const matchData = currentChapters.map((chap) => {
+                        // Check if chapter matches
+                        const notesMatches = (chap.summaryNotes || []).filter(note => 
+                          note.title.toLowerCase().includes(queryTerm) || 
+                          note.bullets.some(b => b.toLowerCase().includes(queryTerm))
+                        );
+
+                        const formulaMatches = (chap.formulas || []).filter(f => 
+                          f.name.toLowerCase().includes(queryTerm) || 
+                          f.formula.toLowerCase().includes(queryTerm) || 
+                          f.description.toLowerCase().includes(queryTerm)
+                        );
+
+                        const isChapterActive = selectedRevisionChapterId === -1 || selectedRevisionChapterId === chap.id;
+
+                        const hasMatches = queryTerm ? (notesMatches.length > 0 || formulaMatches.length > 0 || chap.name.toLowerCase().includes(queryTerm)) : true;
+
+                        return {
+                          chap,
+                          notesMatches: queryTerm ? notesMatches : (chap.summaryNotes || []),
+                          formulaMatches: queryTerm ? formulaMatches : (chap.formulas || []),
+                          isChapterActive,
+                          hasMatches
+                        };
+                      }).filter(c => c.isChapterActive && c.hasMatches);
+
+                      if (matchData.length === 0) {
+                        return (
+                          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200">
+                            <AlertCircle className="mx-auto text-slate-400 mb-2" size={40} />
+                            <h4 className="font-bold text-slate-700">No matching summary notes or formulas found</h4>
+                            <p className="text-xs text-slate-400 mt-1">Try query elements like "149", "230", "OEE", "Transfer Pricing", or select another chapter.</p>
+                          </div>
+                        );
+                      }
+
+                      return matchData.map(({ chap, notesMatches, formulaMatches }) => (
+                        <div key={chap.id} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6 animate-fadeIn">
+                          
+                          {/* Chapter Title */}
+                          <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="text-left">
+                              <h3 className="font-black text-lg text-slate-900 leading-snug text-left">
+                                {getPlainChapterName(chap.name)}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap self-start sm:self-center flex-shrink-0">
+                              <button
+                                onClick={() => handleOpenPracticeForChapter(chap.id, 'cases')}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all cursor-pointer"
+                                title={`Practice Case Studies & MCQs for ${getPlainChapterName(chap.name)}`}
+                              >
+                                <span>Practice Cases</span>
+                                <ArrowRight size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleOpenPracticeForChapter(chap.id, 'general')}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer"
+                                title={`Practice Topic MCQs for ${getPlainChapterName(chap.name)}`}
+                              >
+                                <span>Topic MCQs</span>
+                                <ArrowRight size={12} />
+                              </button>
+                              <button
+                                onClick={() => exportRevisionToPDF(chap)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer"
+                                title="Export this Chapter's Notes & Formulas as PDF"
+                              >
+                                <Download size={12} />
+                                <span>Export PDF</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Dynamic Concept Visualizer & Illustration Lab */}
+                          <ChapterVisualizer chapterId={chap.id} chapterName={chap.name} searchQuery={revisionSearchQuery} />
+
+                          {/* Summary Notes Subsection */}
+                          {notesMatches.length > 0 && (
+                            <div className="space-y-4">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-l-2 border-indigo-400 pl-2">
+                                <BookOpen size={13} /> Concept Summary & Revision Bulletins
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {notesMatches.map((note, idx) => (
+                                  <div key={idx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-indigo-150 transition-all space-y-2 text-left">
+                                    <h5 className="font-bold text-xs text-slate-880 flex items-center gap-1.5">
+                                      <Lightbulb size={13} className="text-amber-500 flex-shrink-0" /> {note.title}
+                                    </h5>
+                                    <ul className="space-y-1.5 pl-4 list-disc text-slate-600 text-xs leading-relaxed">
+                                      {note.bullets.map((bullet, bIndex) => {
+                                        // Highlight if matches query
+                                        const isHighlight = queryTerm && bullet.toLowerCase().includes(queryTerm);
+                                        return (
+                                          <li key={bIndex} className={isHighlight ? "bg-amber-100/70 dark:bg-amber-500/20 p-1 rounded font-medium text-amber-950 dark:text-amber-200" : ""}>
+                                            <HighlightedText text={bullet} searchQuery={revisionSearchQuery} />
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Formulas Block Subsection */}
+                          {formulaMatches.length > 0 && (
+                            <div className="space-y-4 pt-2">
+                              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 border-l-2 border-emerald-400 pl-2">
+                                <Calculator size={13} /> Key SCM Mathematical Formulas
+                              </h4>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {formulaMatches.map((f, idx) => {
+                                  const handleCopyText = (formulaText: string, formulaName: string) => {
+                                    try {
+                                      navigator.clipboard.writeText(formulaText);
+                                      setCopiedFormulaName(formulaName);
+                                      setTimeout(() => setCopiedFormulaName(null), 2000);
+                                    } catch (err) {
+                                      console.error("Copy failed", err);
+                                    }
+                                  };
+
+                                  const isJustCopied = copiedFormulaName === f.name;
+                                  const details = getFormulaDetails(f.name);
+
+                                  return (
+                                    <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-all hover:border-emerald-200 flex flex-col justify-between space-y-3 text-left hover:z-30 relative duration-200">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <h5 className="font-extrabold text-xs text-slate-800 truncate pr-2" title={f.name}>
+                                            {f.name}
+                                          </h5>
+                                          
+                                          {/* Interactive Hover Insights Trigger & Tooltip */}
+                                          <div className="relative group/tooltip shrink-0">
+                                            <span className="text-[10px] bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 font-black px-2 py-0.5 rounded-full transition-colors flex items-center gap-1 cursor-help border border-slate-200 hover:border-emerald-200">
+                                              <Info size={11} className="text-emerald-500 animate-pulse shrink-0" />
+                                              Insights
+                                            </span>
+                                            
+                                            {/* Floating interactive tooltip card */}
+                                            <div className="absolute right-0 bottom-full mb-2 w-80 bg-slate-900 border border-slate-800 text-slate-100 rounded-xl shadow-2xl p-3.5 z-50 pointer-events-none group-hover/tooltip:pointer-events-auto opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-1 translate-y-2 transition-all duration-300 scale-95 group-hover/tooltip:scale-100 leading-normal flex flex-col space-y-2.5">
+                                              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                                <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                                                  <BookOpen size={12} className="text-emerald-400" /> High-Yield Syllabus Focus
+                                                </span>
+                                                <span className="text-[9px] font-mono text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                                                  SCM-PE Exam
+                                                </span>
+                                              </div>
+
+                                              <div className="space-y-2 text-[11px]">
+                                                {/* Strategic Context */}
+                                                <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                                                  <strong className="text-[10px] text-slate-400 uppercase tracking-wider block mb-0.5 font-bold">Decision Context & Purpose:</strong>
+                                                  <span className="text-slate-300 leading-normal block">
+                                                    {details.context}
+                                                  </span>
+                                                </div>
+
+                                                {/* Mathematical Derivation */}
+                                                <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                                                  <strong className="text-[10px] text-slate-400 uppercase tracking-wider block mb-0.5 font-bold">Mathematical Derivation:</strong>
+                                                  <span className="text-slate-300 leading-normal block font-mono text-[10.5px]">
+                                                    {details.derivation}
+                                                  </span>
+                                                </div>
+
+                                                {/* Decision Rule / Trigger */}
+                                                <div className="p-2 bg-emerald-950/40 border border-emerald-900/60 rounded-lg text-emerald-300 text-[11px] leading-relaxed">
+                                                  <span className="font-semibold text-emerald-400">💡 Decision Rule:</span> {details.trigger}
+                                                </div>
+                                              </div>
+                                              
+                                              <div className="text-[9px] text-slate-500 text-right font-mono italic">
+                                                Hover to hold details open
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 leading-snug">
+                                          <HighlightedText text={f.description} searchQuery={revisionSearchQuery} boldPrefix={false} />
+                                        </p>
+                                      </div>
+
+                                      {/* Formula Block */}
+                                      <div className="p-3 bg-slate-900 rounded-xl relative group overflow-hidden border border-slate-800">
+                                        <code className="text-[11px] text-emerald-300 font-mono block whitespace-pre-wrap leading-relaxed select-all">
+                                          {f.formula}
+                                        </code>
+
+                                        {/* Copy to Clipboard action */}
+                                        <button
+                                          onClick={() => handleCopyText(f.formula, f.name)}
+                                          className={`absolute top-2 right-2 p-1 rounded-lg transition-all ${isJustCopied ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                          title="Copy Formula"
+                                        >
+                                          {isJustCopied ? <Check size={12} className="text-slate-900" /> : <ClipboardList size={12} />}
+                                        </button>
+                                      </div>
+
+                                      {isJustCopied && (
+                                        <p className="text-[10px] text-emerald-600 font-bold self-end animate-pulse flex items-center gap-1">
+                                          <Check size={10} /> Copied formula to clipboard!
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Footer check if no formulas or notes */}
+                          {chap.id === 1 && (
+                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-3 text-left">
+                              <Info size={16} className="text-slate-400" />
+                              <p className="text-xs text-slate-500 leading-relaxed">
+                                <strong>Note on strategic frameworks:</strong> Chapter 1 establishes the foundational qualitative strategic positioning models (Porter's Value Chain, Core Positioning, Cost Drivers) rather than mathematical equations. All subsequent costing structures build directly on these themes.
+                              </p>
+                            </div>
+                          )}
+
+                        </div>
+                      ));
+                    })()}
+
+                  </div>
+                </div>
+              </>
+            ) : revisionSubView === 'flashcards' ? (
+              /* Formula Flashcards & Quizzes Sub-view Layout */
+              <div id="flashcards-layout-root" className="space-y-6 flex-1 flex flex-col animate-fadeIn">
+                
+                {/* Flashcard Practice Activity Switcher */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl max-w-md w-full mx-auto shadow-inner border border-slate-250">
+                  <button
+                    id="btn-flashcard-mode-drill"
+                    onClick={() => setFlashcardMode('drill')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${
+                      flashcardMode === 'drill'
+                        ? 'bg-slate-900 text-emerald-400 shadow-md'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <BookOpen size={13} />
+                    🗂️ Flashcard Drill
+                  </button>
+                  <button
+                    id="btn-flashcard-mode-quiz"
+                    onClick={() => {
+                      setFlashcardMode('quiz');
+                      handleGenerateQuizQuestion();
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${
+                      flashcardMode === 'quiz'
+                        ? 'bg-slate-900 text-emerald-400 shadow-md'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <Trophy size={13} />
+                    📝 Derivation MCQ Quiz
+                  </button>
+                </div>
+
+                {/* Sub-view Content based on active flashcardMode */}
+                {(() => {
+                  const keys = Object.keys(currentFormulaDetails);
+                  const activeKey = currentFlashcardKey && currentFormulaDetails[currentFlashcardKey] ? currentFlashcardKey : (keys[0] || "");
+                  const totalFormulasCount = keys.length;
+                  const knownFormulasCount = keys.filter(k => flashcardPerformance[k] === 'known').length;
+                  const masteryPct = totalFormulasCount > 0 ? Math.round((knownFormulasCount / totalFormulasCount) * 100) : 0;
+                  const cardFormula = currentFormulaDetails[activeKey] || { context: "", derivation: "", trigger: "" };
+                  const matchingFormulaObj = currentChapters
+                    .flatMap((c) => c.formulas || [])
+                    .find((f) => f.name.toLowerCase() === activeKey.toLowerCase());
+                  const currentIdx = Math.max(0, keys.indexOf(activeKey));
+
+                  if (flashcardMode === 'drill') {
+                    return (
+                      <div id="flashcard-drill-section" className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
+                        {/* Summary Block */}
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                          <div className="text-left">
+                            <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                              <BookOpen className="text-indigo-600" size={18} />
+                              {activeSubject === 'setA'
+                                ? 'Set-A Statutory Thresholds, Time Limits & Formula Deck'
+                                : 'Set-B SCM-PE Formula Flashcard Study Deck'}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {activeSubject === 'setA'
+                                ? 'Active recall deck covering all 38 statutory thresholds, quorum/rotational formulas, and appeal timelines across all 14 Set-A chapters.'
+                                : 'Active recall tool to master derivation context, mathematical formulas, and operational decision rules from the SCM-PE curriculum.'}
+                            </p>
+                          </div>
+                          {/* Progress box */}
+                          <div className="bg-slate-50 flex items-center gap-3.5 p-3 rounded-2xl border border-slate-200/50">
+                            <div className="text-right">
+                              <span className="text-xs font-bold text-slate-800 block">Deck Mastery</span>
+                              <span className="text-[10px] text-slate-500 font-mono font-medium block">
+                                {knownFormulasCount} of {totalFormulasCount} Mastered ({masteryPct}%)
+                              </span>
+                            </div>
+                            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 font-black text-xs flex items-center justify-center border border-emerald-100">
+                              {masteryPct}%
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mastery Bar */}
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-emerald-500 h-1.5 transition-all duration-500" 
+                            style={{ width: `${masteryPct}%` }}
+                          />
+                        </div>
+
+                        {/* Card Selector Pills / Index Indicator */}
+                        <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                          <span className="text-xs font-black uppercase tracking-wider font-mono text-slate-500">
+                            Card {currentIdx + 1} of {totalFormulasCount}
+                          </span>
+                          <select
+                            aria-label="Select Flashcard Topic"
+                            value={activeKey}
+                            onChange={(e) => {
+                              setCurrentFlashcardKey(e.target.value);
+                              setIsCardFlipped(false);
+                            }}
+                            className="w-full sm:w-80 text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            {keys.map((k, idx) => (
+                              <option key={k} value={k}>
+                                #{idx + 1} — {k}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Interactive Card Canvas */}
+                        <div className="max-w-2xl mx-auto py-2">
+                          <div 
+                            id="interactive-flip-card"
+                            onClick={() => setIsCardFlipped(!isCardFlipped)}
+                            className={`min-h-[360px] flex flex-col justify-between rounded-3xl border-2 p-6 md:p-8 relative transition-all duration-300 select-none cursor-pointer ${
+                              isCardFlipped 
+                                ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-2xl' 
+                                : 'bg-white border-slate-200 text-slate-900 shadow-lg hover:shadow-xl hover:border-indigo-400'
+                            }`}
+                          >
+                            {/* Card Top */}
+                            <div className="flex items-center justify-between w-full pb-3 border-b border-slate-200/30">
+                              <span className="text-[10px] font-black uppercase tracking-wider font-mono text-indigo-500">
+                                {isCardFlipped
+                                  ? (activeSubject === 'setA' ? "🔑 BACK: STATUTORY THRESHOLD, RULE & EXCEPTION" : "🔑 BACK: DEFINITION & EXAM TRUTH")
+                                  : (activeSubject === 'setA' ? "💡 FRONT: STATUTORY PROVISION / FORMULA" : "💡 FRONT: THE CONCEPT")}
+                              </span>
+                              <div>
+                                {flashcardPerformance[activeKey] === 'known' ? (
+                                  <span className="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                                    ✓ Mastered
+                                  </span>
+                                ) : flashcardPerformance[activeKey] === 'learning' ? (
+                                  <span className="bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                                    ✗ In Practice
+                                  </span>
+                                ) : (
+                                  <span className="bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
+                                    • Unreviewed
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="flex-1 flex flex-col justify-center items-center py-6 text-center">
+                              {!isCardFlipped ? (
+                                <div className="space-y-4">
+                                  <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner mx-auto border border-indigo-100">
+                                    <Calculator size={28} />
+                                  </div>
+                                  <h4 className="text-xl md:text-2xl font-black text-slate-900 leading-snug tracking-tight max-w-lg mx-auto">
+                                    {activeKey}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    {activeSubject === 'setA'
+                                      ? 'Click card to reveal the exact statutory section, numerical/monetary threshold, and proviso exceptions.'
+                                      : 'Click card to flip and inspect the high-yield mathematical derivation and decision rules.'}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="w-full text-left space-y-4 animate-fadeIn">
+                                  <h4 className="text-base sm:text-lg font-black text-emerald-400 border-b border-slate-800 pb-2.5 flex items-center justify-between gap-2">
+                                    <span className="break-words">{activeKey}</span>
+                                    <span className="text-[10px] bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700 text-slate-300 font-mono shrink-0">
+                                      {activeSubject === 'setA' ? 'SET-A LAW' : 'SCM-PE'}
+                                    </span>
+                                  </h4>
+
+                                  {cardFormula.context && (
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block font-mono">
+                                        {activeSubject === 'setA' ? 'Statutory Section & Scope:' : 'Decision Context & Purpose:'}
+                                      </span>
+                                      <p className="text-xs leading-relaxed text-slate-100">
+                                        <HighlightedText text={cardFormula.context} boldPrefix={false} onDark />
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {matchingFormulaObj?.formula && (
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-bold block font-mono">
+                                        {activeSubject === 'setA' ? 'Quick Statutory Equation / Threshold:' : 'Mathematical Formula Statement:'}
+                                      </span>
+                                      <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
+                                        <code className="text-xs text-emerald-300 font-mono block whitespace-pre-wrap leading-relaxed select-all">
+                                          {matchingFormulaObj.formula}
+                                        </code>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {cardFormula.derivation && (
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block font-mono">
+                                        {activeSubject === 'setA' ? 'Detailed Statutory Rule & Threshold Breakdown:' : 'Strategic Model Derivation:'}
+                                      </span>
+                                      <p className="text-xs leading-relaxed text-slate-200">
+                                        {cardFormula.derivation}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {cardFormula.trigger && (
+                                    <div className="p-3 bg-indigo-950/60 border border-indigo-800/80 rounded-xl text-indigo-200 text-xs leading-relaxed shadow-sm">
+                                      <span className="font-extrabold text-indigo-400">
+                                        {activeSubject === 'setA' ? '💡 Proviso / Exemption / Examiner Trap:' : '💡 Performance Rule / Hurdle Limit:'}
+                                      </span>{' '}
+                                      {cardFormula.trigger}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer prompt */}
+                            <div className="w-full pt-3 border-t border-slate-200/30 text-center flex justify-center items-center gap-1.5 text-xs font-bold text-slate-400">
+                              <RefreshCw size={12} className={isCardFlipped ? "text-emerald-400" : "text-indigo-500"} />
+                              <span>{isCardFlipped ? "Click to Flip Back" : "Click to Reveal Details"}</span>
+                            </div>
+                          </div>
+
+                          {/* Quick Controls below card */}
+                          <div className="flex flex-wrap gap-3 mt-6 justify-center items-center">
+                            <button
+                              onClick={() => {
+                                const prevIdx = (currentIdx - 1 + keys.length) % keys.length;
+                                setCurrentFlashcardKey(keys[prevIdx]);
+                                setIsCardFlipped(false);
+                              }}
+                              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors cursor-pointer"
+                            >
+                              &larr; Previous
+                            </button>
+
+                            <button
+                              id="btn-flip-card"
+                              onClick={() => setIsCardFlipped(!isCardFlipped)}
+                              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-xl flex items-center justify-center gap-2 border border-slate-200 transition-colors cursor-pointer"
+                            >
+                              <RefreshCw size={13} />
+                              Flip Card
+                            </button>
+
+                            {isCardFlipped ? (
+                              <>
+                                <button
+                                  id="btn-mark-learning"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFlashcardPerformance({
+                                      ...flashcardPerformance,
+                                      [activeKey]: 'learning'
+                                    });
+                                    setIsCardFlipped(false);
+                                    const nextIdx = (currentIdx + 1) % keys.length;
+                                    setCurrentFlashcardKey(keys[nextIdx]);
+                                  }}
+                                  className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  Still Learning ✗
+                                </button>
+                                <button
+                                  id="btn-mark-mastered"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFlashcardPerformance({
+                                      ...flashcardPerformance,
+                                      [activeKey]: 'known'
+                                    });
+                                    setIsCardFlipped(false);
+                                    const nextIdx = (currentIdx + 1) % keys.length;
+                                    setCurrentFlashcardKey(keys[nextIdx]);
+                                  }}
+                                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 border border-emerald-600 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1 shadow transition-colors cursor-pointer"
+                                >
+                                  I Know This! ✓
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                id="btn-draw-random"
+                                onClick={() => {
+                                  const nextIdx = (currentIdx + 1) % keys.length;
+                                  setCurrentFlashcardKey(keys[nextIdx]);
+                                  setIsCardFlipped(false);
+                                }}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow transition-colors cursor-pointer"
+                              >
+                                Next Card &rarr;
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Reset progress */}
+                          <div className="text-center mt-6">
+                            <button
+                              id="btn-reset-flashcard-stats"
+                              onClick={() => {
+                                setFlashcardPerformance({});
+                              }}
+                              className="text-[10px] text-slate-400 hover:text-rose-500 font-extrabold uppercase tracking-wide underline cursor-pointer"
+                            >
+                              Reset Mastery Progress
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    /* Derivation MCQ Quiz Content Layout */
+                    const validQuizTargetKey = quizTargetKey && currentFormulaDetails[quizTargetKey] ? quizTargetKey : (keys[0] || "");
+                    const targetDetails = currentFormulaDetails[validQuizTargetKey] || { context: "", derivation: "", trigger: "" };
+                    return (
+                      <div id="flashcard-quiz-section" className="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
+                        {/* Summary Header */}
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                          <div className="text-left">
+                            <h3 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                              <Trophy className="text-indigo-600" size={18} />
+                              {activeSubject === 'setA'
+                                ? 'Set-A Statutory Threshold & Provision Quiz'
+                                : 'Formula Definition & Derivation Quiz'}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {activeSubject === 'setA'
+                                ? 'Tests active recognition of statutory sections, numerical thresholds, and legal exceptions across Set-A.'
+                                : 'Pulls formula properties randomly to test active recognition and formulation retrieval.'}
+                            </p>
+                          </div>
+
+                          {/* Score metrics */}
+                          <div className="flex items-center gap-3">
+                            <div className="bg-slate-50 flex items-center gap-3.5 p-3 rounded-2xl border border-slate-200/50 min-w-[140px]">
+                              <div className="text-left w-full">
+                                <div className="text-xs font-extrabold text-slate-800 flex justify-between">
+                                  <span>Score:</span>
+                                  <span className="font-mono text-indigo-600">{quizScore.correct}/{quizScore.total}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-medium font-mono mt-0.5">
+                                  Accuracy: {quizScore.total > 0 ? Math.round((quizScore.correct / quizScore.total) * 100) : 0}%
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {quizScore.total > 0 && (
+                              <button
+                                onClick={() => setQuizScore({ correct: 0, total: 0 })}
+                                className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all"
+                                title="Reset Quiz Statistics"
+                              >
+                                <RefreshCw size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Question Block */}
+                        <div className="max-w-2xl mx-auto space-y-6 text-left">
+                          <div className="space-y-2">
+                            <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider font-mono">
+                              {quizQuestionType === 'details-to-name'
+                                ? 'Identify the statutory provision / formula matching these details'
+                                : 'Identify the correct statutory threshold / details for this item'}
+                            </span>
+
+                            {quizQuestionType === 'details-to-name' ? (
+                              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 mt-2 space-y-3.5 shadow-inner">
+                                {targetDetails.context && (
+                                  <div className="space-y-0.5">
+                                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block font-mono">Scope & Context:</span>
+                                    <p className="text-xs font-medium text-slate-800 leading-relaxed">
+                                      {targetDetails.context}
+                                    </p>
+                                  </div>
+                                )}
+                                {targetDetails.derivation && (
+                                  <div className="space-y-0.5">
+                                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block font-mono">Rule / Threshold / Derivation:</span>
+                                    <p className="text-xs font-semibold text-slate-900 bg-white border border-slate-200 rounded-xl p-3 shadow-inner leading-relaxed font-sans">
+                                      {targetDetails.derivation}
+                                    </p>
+                                  </div>
+                                )}
+                                {targetDetails.trigger && (
+                                  <div className="space-y-0.5">
+                                    <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block font-mono">Proviso / Decision Rule:</span>
+                                    <p className="text-xs text-slate-700 font-mono italic">
+                                      "{targetDetails.trigger}"
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="bg-slate-900 text-slate-100 p-6 rounded-2xl border-2 border-slate-800 mt-2 text-center space-y-1 shadow-md relative overflow-hidden">
+                                <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none">
+                                  <Calculator size={90} />
+                                </div>
+                                <span className="text-[9px] uppercase tracking-wider font-extrabold text-emerald-400 font-mono">Target Provision / Formula</span>
+                                <h4 className="text-lg sm:text-xl font-black text-emerald-300 tracking-tight block py-1">
+                                  {validQuizTargetKey}
+                                </h4>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Options Choice Matrix */}
+                          <div className="grid grid-cols-1 gap-3.5 mt-4">
+                            {quizOptions.map((opt, idx) => {
+                              const isSelected = quizSelectedOption === idx;
+                              const isCorrectOpt = quizCorrectOptionIndex === idx;
+                              const showCorrectFlag = quizIsSubmitted && isCorrectOpt;
+                              const showWrongFlag = quizIsSubmitted && isSelected && !isCorrectOpt;
+
+                              let bgClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white text-slate-800";
+                              if (quizIsSubmitted) {
+                                if (isCorrectOpt) {
+                                  bgClass = "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500/20 font-semibold";
+                                } else if (isSelected) {
+                                  bgClass = "border-rose-500 bg-rose-50 text-rose-950 ring-2 ring-rose-500/20";
+                                } else {
+                                  bgClass = "border-slate-200 bg-white text-slate-400 opacity-60";
+                                }
+                              } else if (isSelected) {
+                                bgClass = "border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/10 text-slate-900";
+                              }
+
+                              return (
+                                <button
+                                  key={idx}
+                                  disabled={quizIsSubmitted}
+                                  onClick={() => {
+                                    if (quizIsSubmitted) return;
+                                    setQuizSelectedOption(idx);
+                                    setQuizIsSubmitted(true);
+                                    const isCorrect = quizCorrectOptionIndex === idx;
+                                    setQuizScore(prev => ({
+                                      correct: prev.correct + (isCorrect ? 1 : 0),
+                                      total: prev.total + 1
+                                    }));
+                                  }}
+                                  className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 duration-150 ${bgClass}`}
+                                >
+                                  <div className="flex-shrink-0 mt-0.5">
+                                    {showCorrectFlag ? (
+                                      <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                                        <CheckCircle2 size={13} />
+                                      </div>
+                                    ) : showWrongFlag ? (
+                                      <div className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center">
+                                        <XCircle size={13} />
+                                      </div>
+                                    ) : (
+                                      <div className={`w-5 h-5 rounded-full font-bold text-xs flex items-center justify-center border ${
+                                        isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 text-slate-500'
+                                      }`}>
+                                        {String.fromCharCode(65 + idx)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
+                                    {opt}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Interactive feedback card */}
+                          {quizIsSubmitted && (
+                            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl mt-4 space-y-4 shadow-inner animate-fadeIn">
+                              <div className="flex items-center gap-2 border-b border-slate-200 pb-2.5">
+                                {quizSelectedOption === quizCorrectOptionIndex ? (
+                                  <span className="text-emerald-700 font-extrabold text-sm flex items-center gap-1.5">
+                                    <CheckCircle2 size={16} /> Correct! Exact statutory/formula match verified.
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-700 font-extrabold text-sm flex items-center gap-1.5">
+                                    <XCircle size={16} /> Not quite — review the exact provision and threshold below:
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Target Details summary */}
+                              <div className="space-y-3.5 text-xs">
+                                <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                  <span className="font-mono text-xs font-black text-indigo-700">
+                                    {validQuizTargetKey}
+                                  </span>
+                                  {currentChapters
+                                    .flatMap((c) => c.formulas || [])
+                                    .find((f) => f.name.toLowerCase() === validQuizTargetKey.toLowerCase())?.formula && (
+                                    <button
+                                      onClick={() => {
+                                        const matchingF = currentChapters
+                                          .flatMap((c) => c.formulas || [])
+                                          .find((f) => f.name.toLowerCase() === validQuizTargetKey.toLowerCase());
+                                        if (matchingF?.formula) {
+                                          navigator.clipboard.writeText(matchingF.formula);
+                                        }
+                                      }}
+                                      className="text-[10px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded"
+                                    >
+                                      Copy Threshold / Formula
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <p className="text-slate-700 leading-normal">
+                                      <strong className="text-slate-900 text-[9px] uppercase font-mono tracking-wider font-bold block mb-0.5">Decision Scope:</strong>
+                                      {targetDetails.context}
+                                    </p>
+                                    
+                                    {currentChapters
+                                      .flatMap((c) => c.formulas || [])
+                                      .find((f) => f.name.toLowerCase() === validQuizTargetKey.toLowerCase())?.formula && (
+                                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-emerald-300 font-mono text-[10px]">
+                                        {currentChapters
+                                          .flatMap((c) => c.formulas || [])
+                                          .find((f) => f.name.toLowerCase() === validQuizTargetKey.toLowerCase())?.formula}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1 flex flex-col justify-center">
+                                    <strong className="text-indigo-900 text-[9px] uppercase font-mono tracking-wider font-extrabold">Exam Application Guideline:</strong>
+                                    <p className="text-indigo-950 leading-relaxed italic text-xs">
+                                      "{targetDetails.trigger}"
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 flex justify-end">
+                                <button
+                                  id="btn-next-quiz-question"
+                                  onClick={() => handleGenerateQuizQuestion()}
+                                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                                >
+                                  <span>Next Quiz Question</span>
+                                  <ArrowRight size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+
+              </div>
+            ) : (
+              /* Quick-Fire Theoretical Frameworks Deck Layout */
+              <div id="frameworks-layout-root" className="space-y-6 flex-1 flex flex-col animate-fadeIn">
+                
+                {/* Stats Header Summary block */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-5">
+                  <div className="text-left space-y-1">
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                      <Award className="text-amber-500 animate-pulse" size={20} />
+                      Core SCM-PE Theoretical Frameworks (High-Yield)
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
+                      Master the qualitative models that compose up to 40% of the SCM-PE exam. Flip cards to view components, examiner warnings, and rate your confidence to track progress.
+                    </p>
+                  </div>
+                  
+                  {/* Confidence metrics */}
+                  <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-inner">
+                    <div className="text-center px-2">
+                      <span className="block font-black text-sm text-teal-600">
+                        {Object.values(frameworkCardAssessments).filter(v => v === 'Mastered').length}
+                      </span>
+                      <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-500">Mastered</span>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200" />
+                    <div className="text-center px-2">
+                      <span className="block font-black text-sm text-amber-600">
+                        {Object.values(frameworkCardAssessments).filter(v => v === 'Medium').length}
+                      </span>
+                      <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-500">Medium</span>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200" />
+                    <div className="text-center px-2">
+                      <span className="block font-black text-sm text-rose-600">
+                        {Object.values(frameworkCardAssessments).filter(v => v === 'Hard').length}
+                      </span>
+                      <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-500">Review</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Card Arena */}
+                <div className="max-w-3xl w-full mx-auto space-y-6">
+                  {/* Card Navigation and Indicator Bar */}
+                  <div className="flex items-center justify-between px-2 select-none">
+                    <span className="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">
+                      Card {currentFrameworkCardIndex + 1} of {currentFlashcards.length}
+                    </span>
+                    <span className={`text-[10px] uppercase font-bold font-mono px-2.5 py-0.5 rounded-full border ${
+                      currentFlashcards[currentFrameworkCardIndex]?.difficulty === 'Hard'
+                        ? 'border-rose-100 bg-rose-50 text-rose-700'
+                        : 'border-yellow-105 bg-yellow-50 text-yellow-700'
+                    }`}>
+                      {currentFlashcards[currentFrameworkCardIndex]?.difficulty || 'Medium'} Difficulty
+                    </span>
+                  </div>
+
+                  {/* Active Flashcard container */}
+                  {currentFlashcards[currentFrameworkCardIndex] && (
+                  <div 
+                    id={`framework-flashcard-${currentFlashcards[currentFrameworkCardIndex].id}`}
+                    className={`relative min-h-[440px] rounded-3xl border transition-all p-6 sm:p-8 flex flex-col justify-between shadow-md cursor-pointer ${
+                      isFrameworkCardFlipped 
+                        ? 'bg-slate-900 text-white border-indigo-500 shadow-indigo-150/20 shadow-sm' 
+                        : 'bg-white text-slate-900 border-slate-200 hover:border-slate-300'
+                    }`}
+                    onClick={() => setIsFrameworkCardFlipped(!isFrameworkCardFlipped)}
+                  >
+                    {!isFrameworkCardFlipped ? (
+                      /* FRONT SIDE */
+                      <div className="flex-1 flex flex-col justify-between space-y-6 pointer-events-none select-none">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest font-mono">
+                            <span>CARD #{currentFrameworkCardIndex + 1}</span>
+                            <span>•</span>
+                            <span>{currentFlashcards[currentFrameworkCardIndex].subtopic}</span>
+                          </div>
+                          <h4 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight tracking-tight font-sans">
+                            {currentFlashcards[currentFrameworkCardIndex].framework}
+                          </h4>
+                        </div>
+
+                        <div className="text-center py-6">
+                          <p className="text-base sm:text-lg font-bold text-slate-700 italic leading-relaxed max-w-xl mx-auto font-sans">
+                            "{currentFlashcards[currentFrameworkCardIndex].question}"
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider animate-pulse font-mono">
+                            Click Anywhere to Flip Card
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            Reveals qualitative framework targets & examiner warning
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* BACK SIDE */
+                      <div className="flex-1 flex flex-col justify-between space-y-6">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest font-mono">
+                              Model Breakdown Revealed
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest font-mono">
+                              {currentFlashcards[currentFrameworkCardIndex].framework}
+                            </span>
+                          </div>
+                          
+                          {/* Answer point lists */}
+                          <div className="space-y-2.5">
+                            {currentFlashcards[currentFrameworkCardIndex].answer.map((ans, idx) => (
+                              <div 
+                                key={idx} 
+                                className="flex items-start gap-3 bg-slate-800/40 p-3 rounded-xl border border-slate-800/30"
+                              >
+                                <span className="w-5 h-5 flex-shrink-0 bg-indigo-500 text-white rounded-full flex items-center justify-center font-bold text-xs font-mono shadow-sm">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-slate-200 text-xs sm:text-sm leading-relaxed self-center font-medium font-sans">
+                                  <HighlightedText text={ans} onDark />
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Examiner Warn alert trap */}
+                          {currentFlashcards[currentFrameworkCardIndex].examinerTrap && (
+                            <div className="bg-rose-950/45 border border-rose-900 p-3.5 rounded-2xl flex gap-3 text-left">
+                              <AlertTriangle className="text-rose-400 flex-shrink-0 mt-0.5" size={16} />
+                              <div className="space-y-0.5">
+                                <strong className="text-rose-300 text-[10px] uppercase tracking-wider font-extrabold flex items-center gap-1.5 font-mono">
+                                  Examiner Pitfall Alert
+                                </strong>
+                                <p className="text-xs text-rose-200 leading-relaxed font-semibold font-sans">
+                                  <HighlightedText text={currentFlashcards[currentFrameworkCardIndex].examinerTrap} boldPrefix={false} onDark />
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] text-emerald-400 font-black uppercase tracking-wider font-mono">
+                            Click Card Again to Flip Back
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  )}
+
+                  {/* Rating Confidence Console & Slider */}
+                  {currentFlashcards[currentFrameworkCardIndex] && (
+                  <div className="space-y-5 bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-inner">
+                    {/* Mastery Level Rating Panel */}
+                    <div className="space-y-2.5">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-wider text-center font-mono">
+                        How confident are you with this framework?
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFrameworkCardAssessments(prev => ({
+                              ...prev,
+                              [currentFlashcards[currentFrameworkCardIndex].framework]: 'Hard'
+                            }));
+                            // Auto advance with simple debounce helper
+                            setTimeout(() => {
+                              if (currentFrameworkCardIndex < currentFlashcards.length - 1) {
+                                setCurrentFrameworkCardIndex(prev => prev + 1);
+                                setIsFrameworkCardFlipped(false);
+                              }
+                            }, 400);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                            frameworkCardAssessments[currentFlashcards[currentFrameworkCardIndex].framework] === 'Hard'
+                              ? 'bg-rose-50 border-rose-205 text-rose-700 ring-2 ring-rose-300 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-205 font-sans'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-rose-500" />
+                          🔴 Review
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFrameworkCardAssessments(prev => ({
+                              ...prev,
+                              [currentFlashcards[currentFrameworkCardIndex].framework]: 'Medium'
+                            }));
+                            setTimeout(() => {
+                              if (currentFrameworkCardIndex < currentFlashcards.length - 1) {
+                                setCurrentFrameworkCardIndex(prev => prev + 1);
+                                setIsFrameworkCardFlipped(false);
+                              }
+                            }, 400);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                            frameworkCardAssessments[currentFlashcards[currentFrameworkCardIndex].framework] === 'Medium'
+                              ? 'bg-yellow-50 border-yellow-205 text-yellow-700 ring-2 ring-yellow-300 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-255 font-sans'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                          🟡 Medium
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFrameworkCardAssessments(prev => ({
+                              ...prev,
+                              [currentFlashcards[currentFrameworkCardIndex].framework]: 'Mastered'
+                            }));
+                            setTimeout(() => {
+                              if (currentFrameworkCardIndex < currentFlashcards.length - 1) {
+                                setCurrentFrameworkCardIndex(prev => prev + 1);
+                                setIsFrameworkCardFlipped(false);
+                              }
+                            }, 400);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                            frameworkCardAssessments[currentFlashcards[currentFrameworkCardIndex].framework] === 'Mastered'
+                              ? 'bg-teal-50 border-teal-200 text-teal-700 ring-2 ring-teal-300 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 font-sans'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-teal-500" />
+                          🟢 Mastered
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Left & Right arrow controls */}
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-4 px-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (currentFrameworkCardIndex > 0) {
+                            setCurrentFrameworkCardIndex(prev => prev - 1);
+                            setIsFrameworkCardFlipped(false);
+                          }
+                        }}
+                        disabled={currentFrameworkCardIndex === 0}
+                        className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 font-sans ${
+                          currentFrameworkCardIndex === 0
+                            ? 'opacity-40 text-slate-400 cursor-not-allowed border-slate-100 bg-slate-50'
+                            : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700 active:scale-97'
+                        }`}
+                      >
+                        <ChevronLeft size={16} /> Previous Model
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsFrameworkCardFlipped(!isFrameworkCardFlipped);
+                        }}
+                        className="p-2 px-4 bg-slate-900 border border-slate-950 text-emerald-400 hover:bg-slate-800 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all active:scale-97 shadow font-sans"
+                      >
+                        <RefreshCw size={13} /> Flip Card
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (currentFrameworkCardIndex < currentFlashcards.length - 1) {
+                            setCurrentFrameworkCardIndex(prev => prev + 1);
+                            setIsFrameworkCardFlipped(false);
+                          }
+                        }}
+                        disabled={currentFrameworkCardIndex === currentFlashcards.length - 1}
+                        className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 font-sans ${
+                          currentFrameworkCardIndex === currentFlashcards.length - 1
+                            ? 'opacity-40 text-slate-400 cursor-not-allowed border-slate-100 bg-slate-50'
+                            : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700 active:scale-97'
+                        }`}
+                      >
+                        Next Model <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  )}
+
+                  {/* Dynamic Pill Indicators at base */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center font-mono">
+                      Visual Mastery Grid Matrix
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {currentFlashcards.map((f, idx) => {
+                        const status = frameworkCardAssessments[f.framework];
+                        let pillClass = "bg-slate-100 text-slate-400 hover:bg-slate-200 border-slate-200";
+                        if (status === 'Hard') pillClass = "bg-rose-50 border-rose-200 text-rose-600 font-bold";
+                        if (status === 'Medium') pillClass = "bg-yellow-50 border-yellow-250 text-yellow-600 font-bold";
+                        if (status === 'Mastered') pillClass = "bg-teal-50 border-teal-200 text-teal-600 font-bold";
+
+                        const isActive = idx === currentFrameworkCardIndex;
+
+                        return (
+                          <button
+                            key={f.id}
+                            title={f.framework}
+                            onClick={() => {
+                              setCurrentFrameworkCardIndex(idx);
+                              setIsFrameworkCardFlipped(false);
+                            }}
+                            className={`w-9 h-9 text-xs sm:text-sm font-black font-mono rounded-xl border flex items-center justify-center transition-all ${pillClass} ${
+                              isActive 
+                                ? 'ring-2 ring-indigo-500 ring-offset-2 scale-110 shadow-sm shadow-indigo-200' 
+                                : 'hover:scale-105'
+                            }`}
+                          >
+                            {idx + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: timed mock EXAM simulator */}
+        {activeTab === 'mock' && (
+          <div className="flex-1 flex flex-col space-y-4">
+            
+            {/* Setting Screen if not started */}
+            {!examStarted ? (
+              <div className="max-w-2xl w-full mx-auto bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg text-center space-y-6">
+                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                  <Timer size={32} />
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                    SCM & PM Full-Length MCQ Mock Exam
+                  </h2>
+                  <p className="text-slate-500 text-sm max-w-lg mx-auto">
+                    Simulate actual self-paced exam conditions. Questions are dynamically drawn across all chapters, enforcing logical timers. Passing requires scoring 50% or above.
+                  </p>
+                </div>
+
+                {/* Exam Settings */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 max-w-md mx-auto grid grid-cols-2 gap-4 text-left">
+                  <div className="space-y-1.5 col-span-2">
+                    <label className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Total Questions Pool</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[10, 15, 25].map(cnt => (
+                        <button
+                          key={cnt}
+                          onClick={() => setTotalMockQuestionsCount(cnt)}
+                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${totalMockQuestionsCount === cnt ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'}`}
+                        >
+                          {cnt} Qs
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Duration</span>
+                    <p className="text-lg font-black text-slate-800">{totalMockQuestionsCount * 1} Min</p>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Standard</span>
+                    <p className="text-lg font-black text-slate-800">4 Choices (A-D)</p>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-left flex gap-3 max-w-lg mx-auto">
+                  <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                  <div>
+                    <h5 className="text-xs font-extrabold text-amber-900 uppercase">Fiduciary Testing Integrity</h5>
+                    <p className="text-xs text-amber-800 tracking-wide mt-1 leading-relaxed">
+                      You cannot pause the timer once the mock test starts. Ensure you have a quiet environment. Closing this tab or switching panels will cancel progress.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleStartMockExam}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-8 py-3.5 rounded-xl shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 mx-auto"
+                >
+                  <Play size={18} /> Initialize Assessment Session
+                </button>
+              </div>
+            ) : examFinished ? (
+              /* Review / Score Card screen */
+              <div className="space-y-6">
+                {/* Result Summary Bar */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                  <div className="flex items-center gap-4 text-left">
+                    <div className={`p-4 rounded-2xl flex items-center justify-center shadow-inner ${mockScoreCard && mockScoreCard.pct >= 50 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                      <Trophy size={36} />
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Scorecard result</span>
+                      <h2 className="text-2xl font-black text-slate-900">
+                        {mockScoreCard && mockScoreCard.pct >= 50 ? 'CONGRATULATIONS: PASSED' : 'ASSESSMENT OUTCOME: UNPASSED'}
+                      </h2>
+                      <p className="text-xs text-slate-500">Passing criteria: minimum 50% accurate responses.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-6 items-center">
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Accuracy</span>
+                      <p className={`text-4xl font-extrabold ${mockScoreCard && mockScoreCard.pct >= 50 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {mockScoreCard?.pct}%
+                      </p>
+                    </div>
+                    <div className="text-center border-l border-slate-200 pl-6">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Score</span>
+                      <p className="text-4xl font-extrabold text-slate-800">
+                        {mockScoreCard?.score} <span className="text-sm font-medium text-slate-400">/ {mockQuestions.length}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setExamStarted(false)}
+                    className="py-3 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow active:scale-98"
+                  >
+                    <RefreshCw size={13} /> Exit to Menu
+                  </button>
+                </div>
+
+                {/* POST-EXAM WEAKNESS ANALYTICS (Chapter-Wise Insights) */}
+                {mockScoreCard && mockScoreCard.categoryBreakdown && (
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-5 text-left animate-fadeIn">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                          <BarChart2 className="text-indigo-600 animate-pulse" size={20} />
+                          Post-Exam Chapter Weakness Analytics
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Syllabus-wise accuracy metrics across CA Final SCM-PE Parts to target corrective study.
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">
+                        Diagnosis Complete
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(Object.entries(mockScoreCard.categoryBreakdown) as [string, { correct: number; total: number; chapterId: number }][])
+                        .sort((a, b) => a[1].chapterId - b[1].chapterId)
+                        .map(([partName, data]) => {
+                          const percentage = Math.round((data.correct / data.total) * 100);
+                          let statusColor = "teal";
+                          let bgBar = "bg-teal-500";
+                          let bgTrack = "bg-teal-50";
+                          let borderClass = "border-teal-100";
+                          let textClass = "text-teal-700";
+                          let tip = "Mastery Level Attained — Keep current pace.";
+
+                          if (percentage < 55) {
+                            statusColor = "rose";
+                            bgBar = "bg-rose-500";
+                            bgTrack = "bg-rose-50";
+                            borderClass = "border-rose-100";
+                            textClass = "text-rose-700";
+                            tip = "CRITICAL WEAKNESS: Immediate formula review & scenario practice recommended!";
+                          } else if (percentage < 80) {
+                            statusColor = "amber";
+                            bgBar = "bg-amber-500";
+                            bgTrack = "bg-amber-50";
+                            borderClass = "border-amber-100";
+                            textClass = "text-amber-700";
+                            tip = "MODERATE GAP: Focus on Examiner warns and MCQs to secure higher score.";
+                          }
+
+                          return (
+                            <div 
+                              key={partName} 
+                              className={`p-4 rounded-2xl border ${borderClass} bg-slate-50/50 flex flex-col justify-between space-y-3 transition-all hover:shadow-sm`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <span className="text-[9px] uppercase font-mono tracking-wider font-extrabold text-slate-400">
+                                    Part {data.chapterId}
+                                  </span>
+                                  <h4 className="text-xs sm:text-sm font-black text-slate-800 leading-tight font-sans">
+                                    {partName}
+                                  </h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`text-[13px] font-mono font-black ${textClass}`}>
+                                    {percentage}%
+                                  </span>
+                                  <span className="block text-[10px] text-slate-400 font-mono font-medium whitespace-nowrap">
+                                    {data.correct} / {data.total} Qs
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Progress bar */}
+                              <div className="space-y-1">
+                                <div className={`w-full h-2.5 rounded-full ${bgTrack} overflow-hidden shadow-inner`}>
+                                  <div 
+                                    className={`h-full ${bgBar} rounded-full transition-all duration-500`}
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+                                <p className={`text-[10px] font-semibold leading-relaxed font-sans ${textClass}`}>
+                                  {tip}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Question Retrospective list */}
+                <div className="space-y-4 text-left">
+                  <h3 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <FileText size={18} className="text-indigo-600" /> Assessment Question Retrospective
+                  </h3>
+
+                  <div className="space-y-4">
+                    {mockQuestions.map((q, idx) => {
+                      const ans = mockAnswers[idx];
+                      const isCorrect = ans === q.correctOption;
+                      return (
+                        <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                          <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                            <div>
+                              <span className={`text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full ${isCorrect ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'}`}>
+                                {isCorrect ? 'CORRECT SCORE' : 'INCORRECT ANSWER'}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-400 mt-2">
+                                Derived from reference: {q.caseTitle}
+                              </h4>
+                            </div>
+                            <span className="text-xs font-extrabold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                              Question {idx + 1}
+                            </span>
+                          </div>
+
+                          <p className="text-sm sm:text-base font-bold text-slate-800 leading-snug">
+                            {q.questionText}
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                            {(Object.keys(q.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const wasSelected = ans === opt;
+                              const isCorrectOption = opt === q.correctOption;
+                              
+                              let optClass = "border-slate-100 bg-slate-50 text-slate-700";
+                              if (wasSelected) optClass = "border-rose-400 bg-rose-50 text-rose-900 font-medium";
+                              if (isCorrectOption) optClass = "border-emerald-400 bg-emerald-50 text-emerald-900 font-semibold";
+
+                              return (
+                                <div key={opt} className={`p-3 rounded-lg border flex items-start gap-2 ${optClass}`}>
+                                  <span className="font-extrabold uppercase text-slate-900 bg-slate-200/50 px-1.5 py-0.5 rounded mr-1">
+                                    {opt}
+                                  </span>
+                                  <span>{q.options[opt]}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Reference calculation explanation card */}
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-widest block mb-1">
+                              Official Reasoning & Formula Reference:
+                            </span>
+                            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                              <HighlightedText text={q.explanation} boldPrefix={false} />
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Active testing screen */
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 text-left">
+                
+                {/* Left Panel: Active Case + Question (col-span-8) */}
+                <div className="lg:col-span-9 flex flex-col gap-4">
+                  {/* Top Bar showing Active Timer & Progress */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Timer className="text-slate-400 animate-spin" size={16} />
+                      <span className="text-sm font-black text-slate-800 tracking-tight font-mono">
+                        {formatTime(timeRemaining)}
+                      </span>
+                      <span className="text-xs text-slate-400 font-medium pl-2 hidden sm:inline">Remaining</span>
+                    </div>
+
+                    <div className="flex gap-1">
+                      {mockQuestions.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentMockIndex(idx)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border flex items-center justify-center ${currentMockIndex === idx ? 'bg-indigo-600 text-white border-indigo-600 shadow' : mockAnswers[idx] ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                        >
+                          {idx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                    {/* Panel 1: Case Detail context */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-hidden flex flex-col h-[520px]">
+                      <div className="border-b border-slate-100 pb-2.5 mb-3 flex justify-between items-center">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
+                          Reference case context
+                        </span>
+                        {flaggedQuestions[currentMockIndex] && (
+                          <span className="text-[10px] font-extrabold uppercase text-amber-700 bg-amber-50 border border-amber-200 px-2 rounded-full">
+                            ★ Review flagged
+                          </span>
+                        )}
+                      </div>
+                      <div className="overflow-y-auto text-xs text-slate-600 whitespace-pre-line pr-1 leading-relaxed scrollbar-thin">
+                        <h4 className="font-extrabold text-sm text-slate-900 mb-2">
+                          {mockQuestions[currentMockIndex]?.caseTitle}
+                        </h4>
+                        {mockQuestions[currentMockIndex]?.caseText}
+                      </div>
+                    </div>
+
+                    {/* Panel 2: Active question & answering choices */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[520px] justify-between">
+                      <div className="space-y-4 overflow-y-auto pr-1">
+                        <span className="bg-slate-100 text-slate-500 text-xs px-2.5 py-0.5 rounded font-extrabold">
+                          MCQ {currentMockIndex + 1} of {mockQuestions.length}
+                        </span>
+                        
+                        <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                          {mockQuestions[currentMockIndex]?.questionText}
+                        </p>
+
+                        <div className="space-y-2 pt-2">
+                          {mockQuestions[currentMockIndex] ? (
+                            (Object.keys(mockQuestions[currentMockIndex].options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const isSelected = mockAnswers[currentMockIndex] === opt;
+                              return (
+                                <button
+                                  key={opt}
+                                  onClick={() => {
+                                    setMockAnswers(prev => ({
+                                      ...prev,
+                                      [currentMockIndex]: opt
+                                    }));
+                                  }}
+                                  className={`w-full text-left p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all ${isSelected ? 'border-indigo-600 bg-indigo-600/10 text-indigo-950 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                                >
+                                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                    {opt}
+                                  </span>
+                                  <span className="flex-1 leading-normal">{mockQuestions[currentMockIndex].options[opt]}</span>
+                                </button>
+                              );
+                            })
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Navigation Panel */}
+                      <div className="pt-4 border-b-0 border-t border-slate-100 flex justify-between gap-2">
+                        <button
+                          disabled={currentMockIndex === 0}
+                          onClick={() => setCurrentMockIndex(prev => prev - 1)}
+                          className="px-3.5 py-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-500 flex items-center gap-1 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft size={14} /> Back
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setFlaggedQuestions(prev => ({
+                              ...prev,
+                              [currentMockIndex]: !prev[currentMockIndex]
+                            }));
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${flaggedQuestions[currentMockIndex] ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-white hover:bg-slate-50 text-slate-500 border-slate-200'}`}
+                        >
+                          ★ {flaggedQuestions[currentMockIndex] ? 'Flagged' : 'Flag for Review'}
+                        </button>
+
+                        {currentMockIndex < mockQuestions.length - 1 ? (
+                          <button
+                            onClick={() => setCurrentMockIndex(prev => prev + 1)}
+                            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                          >
+                            Next <ChevronRight size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleFinishMockExam}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition-all animate-bounce"
+                          >
+                            <Save size={14} /> Complete Assessment
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Panel: Exam status dashboard (col-span-4) */}
+                <div className="lg:col-span-3 space-y-4">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm text-center space-y-4">
+                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2">
+                      Testing Dashboard
+                    </h3>
+
+                    {/* Completion rate bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                        <span>Answering Rate</span>
+                        <span>
+                          {Object.values(mockAnswers).filter(a => a !== null).length} / {mockQuestions.length} answered
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-indigo-600 h-full transition-all duration-300"
+                          style={{ width: `${(Object.values(mockAnswers).filter(a => a !== null).length / mockQuestions.length) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Question quick-hop grid */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block text-left">
+                        Jump to question:
+                      </span>
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                        {mockQuestions.map((_, idx) => {
+                          const answer = mockAnswers[idx];
+                          const isFlagged = flaggedQuestions[idx];
+                          let colorClass = "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200";
+                          if (answer) colorClass = "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300";
+                          if (isFlagged) colorClass = "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300";
+                          if (currentMockIndex === idx) colorClass = "bg-indigo-600 text-white border-indigo-600 scale-110 shadow-md";
+
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => setCurrentMockIndex(idx)}
+                              className={`py-2 rounded-lg text-xs font-black transition-all border flex items-center justify-center ${colorClass}`}
+                            >
+                              {idx + 1}
+                              {isFlagged && <span className="absolute top-0.5 right-0.5 text-[5px] text-amber-600">★</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 italic leading-snug">
+                      Your work can be completed anytime before the countdown concludes. Leaving early submits all saved answers automatically.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: INTERACTIVE CALCULATIONS SANDBOX */}
+        {activeTab === 'sandbox' && (
+          <div className="space-y-6 text-left">
+            {activeSubject === 'setA' ? (
+              <div className="space-y-4">
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Scale size={20} className="text-blue-600 dark:text-blue-400" />
+                    <h2 className="text-base font-black text-slate-900 dark:text-white">
+                      SPOM Set A: Statutory Limits, Board Quotas & Penalty Diagnostic Engine
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Audit compliance against key statutory thresholds under Companies Act, 2013, SEBI (LODR), and IBC, 2016. Adjust numerical values to verify applicability triggers.
+                  </p>
+                </div>
+
+                <SetALegalCalculators />
+              </div>
+            ) : (
+              <>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-wrap gap-2 justify-center sm:justify-start">
+                  <button
+                    onClick={() => setSandboxType('pareto')}
+                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'pareto' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
+                  >
+                    Pareto Defect Graph (Case 32)
+                  </button>
+                  <button
+                    onClick={() => setSandboxType('oee')}
+                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'oee' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
+                  >
+                    TPM / OEE Loss Calculator (Case 46)
+                  </button>
+                  <button
+                    onClick={() => setSandboxType('relevant')}
+                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'relevant' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
+                  >
+                    Airlines Relevant Costing (Case 9)
+                  </button>
+                  <button
+                    onClick={() => setSandboxType('target')}
+                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'target' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
+                  >
+                    Target Cost Gap Explorer (Case 4)
+                  </button>
+                </div>
+
+                {/* Sandbox Panel 1: Pareto Chart Defect Analyzer */}
+                {sandboxType === 'pareto' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      Cylinder Head Defects Dataset (Precision Motors)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Tweak the occurrence counts for each defect type below. See how the Pareto curve and cumulative percentages adjust automatically.
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 font-extrabold tracking-wider bg-slate-50/50">
+                          <th className="py-2.5 text-left pl-3">DEFECT TYPE</th>
+                          <th className="py-2.5 text-center">INSTANCES (INPUT)</th>
+                          <th className="py-2.5 text-center pr-3">ADJUSTER</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paretoDefects.map((def, idx) => (
+                          <tr key={def.id} className="hover:bg-slate-50/50">
+                            <td className="py-3 pl-3 font-semibold text-slate-800">{def.name}</td>
+                            <td className="py-3 text-center font-bold text-slate-900">{def.count}</td>
+                            <td className="py-3 text-center pr-3 space-x-1">
+                              <button
+                                onClick={() => {
+                                  setParetoDefects(prev => prev.map(item => item.id === def.id ? { ...item, count: Math.max(0, item.count - 5) } : item));
+                                }}
+                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
+                              >
+                                -
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setParetoDefects(prev => prev.map(item => item.id === def.id ? { ...item, count: item.count + 5 } : item));
+                                }}
+                                className="w-6 h-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
+                              >
+                                +
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-amber-50 p-4 border border-amber-200 rounded-2xl flex gap-3 text-xs leading-relaxed">
+                    <Info size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-slate-700 font-medium">
+                      <strong className="text-amber-900 block font-bold mb-0.5 uppercase tracking-wide text-[10px]">Pareto Principle Rule:</strong>
+                      Solving the top-ranking defects (which accumulate up to 80%) optimizes resources. The simulator charts the defects in sorted order to isolate these 'vital few'.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pareto SVG Chart Visualization */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      Osterwalder-Aligned defect distribution
+                    </h3>
+                  </div>
+
+                  {/* SVG Chart Rendering */}
+                  <div className="flex-1 flex items-center justify-center p-2">
+                    <svg viewBox="0 0 500 300" className="w-full h-auto max-h-[350px]">
+                      {/* Grid Lines */}
+                      {[0, 25, 50, 75, 100].map(yVal => {
+                        const yCoord = 250 - (yVal * 2);
+                        return (
+                          <g key={yVal}>
+                            <line x1="50" y1={yCoord} x2="450" y2={yCoord} stroke="#f1f5f9" strokeWidth="1" />
+                            <text x="25" y={yCoord + 4} fill="#94a3b8" fontSize="9" fontWeight="bold">{yVal}%</text>
+                            <text x="458" y={yCoord + 4} fill="#a7f3d0" fontSize="9" fontWeight="bold">{yVal}%</text>
+                          </g>
+                        );
+                      })}
+
+                      {/* Render Defect Bars sorted */}
+                      {paretoResults.defects.map((def, idx) => {
+                        const itemMax = Math.max(...paretoResults.defects.map(d => d.count), 1);
+                        const scaledHeight = (def.count / itemMax) * 200;
+                        const x = 60 + idx * 52;
+                        const y = 250 - scaledHeight;
+                        
+                        // Line segment coordinates for cumulative curve
+                        const cumY = 250 - (def.cumPct * 2);
+                        const nextY = idx < paretoResults.defects.length - 1 ? 250 - (paretoResults.defects[idx + 1].cumPct * 2) : 0;
+                        const nextX = 60 + (idx + 1) * 52 + 10;
+                        
+                        return (
+                          <g key={idx} className="group">
+                            {/* Defect Column Bar */}
+                            <rect
+                              x={x}
+                              y={y}
+                              width="28"
+                              height={scaledHeight}
+                              fill={def.cumPct <= 80 ? "#6366f1" : "#cbd5e1"}
+                              rx="3"
+                              className="transition-all duration-300"
+                            />
+                            {/* Instances value tooltip */}
+                            <text x={x + 14} y={y - 5} fill="#334155" fontSize="8" fontWeight="bold" textAnchor="middle">
+                              {def.count}
+                            </text>
+
+                            {/* Label abbreviation */}
+                            <text x={x + 14} y="265" fill="#64748b" fontSize="8" fontWeight="bold" textAnchor="middle">
+                              {def.name.substring(0, 5)}...
+                            </text>
+
+                            {/* Cumulative Circle Dot */}
+                            <circle cx={x + 14} cy={cumY} r="4" fill="#10b981" />
+                            {/* Cumulative value above the dot */}
+                            <text x={x + 14} y={cumY - 7} fill="#047857" fontSize="8" fontWeight="black" textAnchor="middle">
+                              {def.cumPct}%
+                            </text>
+
+                            {/* Line connecting to next dot */}
+                            {idx < paretoResults.defects.length - 1 && (
+                              <line
+                                x1={x + 14}
+                                y1={cumY}
+                                x2={nextX}
+                                y2={nextY}
+                                stroke="#10b981"
+                                strokeWidth="2"
+                                strokeDasharray="1 1"
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+
+                      {/* 80% Cutoff horizontal threshold line */}
+                      <line x1="50" y1="90" x2="450" y2="90" stroke="#f59e0b" strokeWidth="2" strokeDasharray="5 5" />
+                      <text x="350" y="84" fill="#b45309" fontSize="9" fontWeight="bold">80% Vital Cutoff Limit</text>
+                      
+                      {/* Axes */}
+                      <line x1="50" y1="250" x2="450" y2="250" stroke="#94a3b8" strokeWidth="1.5" />
+                    </svg>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
+                    <div className="p-2">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Total Defect Count</span>
+                      <p className="text-base font-black text-slate-800 mt-1">{paretoResults.totalCount}</p>
+                    </div>
+                    <div className="p-2 border-l border-slate-200">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Vital categories (≤ 80%)</span>
+                      <p className="text-base font-black text-indigo-600 mt-1">
+                        {paretoResults.defects.filter(d => d.cumPct <= 80).length} Defect Types
+                      </p>
+                    </div>
+                    <div className="p-2 border-l border-slate-200">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Top Defect</span>
+                      <p className="text-base font-black text-emerald-600 mt-1 truncate" title={paretoResults.defects[0]?.name}>
+                        {paretoResults.defects[0]?.name || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sandbox Panel 2: OEE Loss Calculator */}
+            {sandboxType === 'oee' && (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      TPM Shift inputs (sigma case 46 details)
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500">Scheduled Shift Length (hrs)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.shiftHours}
+                        onChange={e => setOeeParams({ ...oeeParams, shiftHours: Math.max(1, parseNum(e.target.value)) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500">Planned Breaks / Meal (mins)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.plannedBreaks}
+                        onChange={e => setOeeParams({ ...oeeParams, plannedBreaks: parseNum(e.target.value) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 font-mono text-indigo-600">Breakdown Downtime (mins)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.unplannedDowntime}
+                        onChange={e => setOeeParams({ ...oeeParams, unplannedDowntime: parseNum(e.target.value) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 font-mono text-violet-600">Design speed (parts/min)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.idealSpeedPPM}
+                        onChange={e => setOeeParams({ ...oeeParams, idealSpeedPPM: Math.max(1, parseNum(e.target.value)) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500">Actual Manufactured Output (units)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.totalOutput}
+                        onChange={e => setOeeParams({ ...oeeParams, totalOutput: parseNum(e.target.value) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 font-mono text-emerald-600">Rejected Quality defects (units)</label>
+                      <input
+                        type="number"
+                        value={oeeParams.rejections}
+                        onChange={e => setOeeParams({ ...oeeParams, rejections: parseNum(e.target.value) })}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 font-bold bg-slate-50 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                    <span className="font-extrabold text-[10px] text-slate-400 uppercase tracking-widest block">Standard calculations ledger</span>
+                    <div className="flex justify-between border-b border-slate-100 py-1">
+                      <span className="text-slate-500">Gross Shift Minutes:</span>
+                      <strong className="text-slate-800">{oeeResults.totalMinutes} mins</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 py-1">
+                      <span className="text-slate-500">Net Available (Planned Prod):</span>
+                      <strong className="text-slate-800">{oeeResults.netAvailableMinutes} mins</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 py-1">
+                      <span className="text-slate-500">Net Operating time (NOT):</span>
+                      <strong className="text-slate-800 font-mono text-indigo-700">{oeeResults.netOperatingMinutes} mins</strong>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 py-1">
+                      <span className="text-slate-500">Ideal Operating time (IOT):</span>
+                      <strong className="text-slate-800 font-mono text-violet-700">{oeeResults.idealOperatingMinutes.toFixed(1)} mins</strong>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-500">Lost Operating time (LOT):</span>
+                      <strong className="text-slate-800 font-mono text-emerald-700">{oeeResults.lostOperatingMinutes.toFixed(1)} mins</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* OEE visual breakdown rendering */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      Overall Equipment Effectiveness (OEE) metrics
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4 py-4 flex-1 flex flex-col justify-center">
+                    {/* Rate 1: Availability */}
+                    <div className="space-y-1.1">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-600">Availability Rate (NOT / Net Available)</span>
+                        <span className="text-indigo-600 font-extrabold">{oeeResults.availabilityPct.toFixed(2)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-3.5 rounded-full overflow-hidden border border-slate-200">
+                        <div
+                          className="bg-indigo-500 h-full transition-all duration-1000 ease-out"
+                          style={{ width: `${Math.min(100, oeeAnimatedValues.availabilityPct)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rate 2: Performance */}
+                    <div className="space-y-1.1">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-600">Performance Speed Rate (IOT / NOT)</span>
+                        <span className="text-violet-600 font-extrabold">{oeeResults.performancePct.toFixed(2)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-3.5 rounded-full overflow-hidden border border-slate-200">
+                        <div
+                          className="bg-violet-500 h-full transition-all duration-1000 ease-out"
+                          style={{ width: `${Math.min(100, oeeAnimatedValues.performancePct)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rate 3: Quality */}
+                    <div className="space-y-1.1">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-600">Quality Reject rate (Good units / Gross parts)</span>
+                        <span className="text-emerald-700 font-extrabold">{oeeResults.qualityPct.toFixed(2)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-3.5 rounded-full overflow-hidden border border-slate-200">
+                        <div
+                          className="bg-emerald-500 h-full transition-all duration-1000 ease-out"
+                          style={{ width: `${Math.min(100, oeeAnimatedValues.qualityPct)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Overall OEE glow card */}
+                    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-4 text-center mt-4 border border-indigo-500/20 shadow-md">
+                      <span className="text-[10px] font-extrabold tracking-widest text-emerald-400 uppercase">
+                        Combined result
+                      </span>
+                      <p className="text-3xl font-black mt-1 font-mono text-emerald-300">
+                        {oeeResults.oeePct.toFixed(2)}%
+                      </p>
+                      <p className="text-[10px] text-slate-300 mt-1 leading-snug">
+                        Calculated as: Availability x Performance x Quality. Typically, world-class OEE target is considered above 85.0%.
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              {/* TPM 6 Major Losses Breakdown - Newly Added */}
+              <div className="bg-slate-50 rounded-3xl border border-slate-200/80 p-6 mt-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                  <div>
+                    <h4 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+                      <span className="p-1 px-2 rounded-lg bg-pink-100 text-pink-700 text-xs font-mono">TPM</span>
+                      Deconstruction of TPM's 6 Major Losses
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Breakdown of where availability, performance, and quality are leakages and how they strategically pull down OEE.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-500 block">Total OEE Capacity Loss</span>
+                    <span className="text-lg font-black text-rose-600 font-mono">
+                      -{(100 - oeeResults.oeePct).toFixed(2)}% (pts)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Loss 1: Breakdowns */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded-full">
+                          Availability Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss1.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss1.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Unplanned equipment fail, tooling downtime or technical asset breakdowns during operational runs.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans">
+                      <span>Allocated Duration:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss1.amount.toFixed(1)} mins</span>
+                    </div>
+                  </div>
+
+                  {/* Loss 2: Setup & Adjustments */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded-full">
+                          Availability Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss2.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss2.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Downtime for setups, part changeovers, tooling adjustments, or calibration activities.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans">
+                      <span>Allocated Duration:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss2.amount.toFixed(1)} mins</span>
+                    </div>
+                  </div>
+
+                  {/* Loss 3: Idling & Minor Stops */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-violet-600 uppercase bg-violet-50 px-2 py-0.5 rounded-full">
+                          Performance Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss3.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss3.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Short stoppers, minor line jams, or sensor delays causing brief idle states (usually not counted as downtime).
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans">
+                      <span>Performance Gap:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss3.amount.toFixed(1)} mins</span>
+                    </div>
+                  </div>
+
+                  {/* Loss 4: Reduced Operation Speed */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-violet-600 uppercase bg-violet-50 px-2 py-0.5 rounded-full">
+                          Performance Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss4.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss4.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Equipment running below its ideal designed cycle speed/capacity limits.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans font-sans">
+                      <span>Speed Deficit:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss4.amount.toFixed(1)} mins eq.</span>
+                    </div>
+                  </div>
+
+                  {/* Loss 5: Production Defects & Scrap */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded-full">
+                          Quality Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss5.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss5.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Material scrap and rework generated during steady-state production runs.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans">
+                      <span>Rejected Units:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss5.amount.toFixed(0)} units</span>
+                    </div>
+                  </div>
+
+                  {/* Loss 6: Warmup Yield Losses */}
+                  <div className="bg-white rounded-2xl border border-slate-200/75 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black tracking-widest text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded-full">
+                          Quality Loss
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-600">
+                          -{oeeResults.losses.loss6.impact.toFixed(2)}% OEE
+                        </span>
+                      </div>
+                      <h5 className="font-bold text-slate-800 text-sm">{oeeResults.losses.loss6.name}</h5>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Scrap and yield losses that occur during project startup or tool warm-up sequences.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 font-sans">
+                      <span>Warmup Defects:</span>
+                      <span className="font-mono text-slate-800">{oeeResults.losses.loss6.amount.toFixed(0)} units</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+            {/* Sandbox Panel 3: Airlines Relevant Costing statement */}
+            {sandboxType === 'relevant' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* Inputs table left side (span 5) */}
+                <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      Flight continuous parameters
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Fictional passenger occupancy count</label>
+                      <input
+                        type="number"
+                        value={airlineParams.occupancy}
+                        onChange={e => setAirlineParams({ ...airlineParams, occupancy: Math.min(100, Math.max(0, parseNum(e.target.value))) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Ticket fare price per user (₹)</label>
+                      <input
+                        type="number"
+                        value={airlineParams.ticketPrice}
+                        onChange={e => setAirlineParams({ ...airlineParams, ticketPrice: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Varying fuel expense (₹)</label>
+                      <input
+                        type="number"
+                        value={airlineParams.fuelCost}
+                        onChange={e => setAirlineParams({ ...airlineParams, fuelCost: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Assistant contractual payment per flight (₹)</label>
+                      <input
+                        type="number"
+                        value={airlineParams.assistantCostPerFlight}
+                        onChange={e => setAirlineParams({ ...airlineParams, assistantCostPerFlight: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-slate-50"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-[#b45309]">Sunk fixed crew annual salaries (₹)</label>
+                      <input
+                        type="number"
+                        value={airlineParams.crewSalaryFixed}
+                        onChange={e => setAirlineParams({ ...airlineParams, crewSalaryFixed: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-[#fef3c7] font-bold bg-[#fffbeb] text-[#92400e]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comparative Ledger Statement right side (span 8) */}
+                <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-400">
+                      Comprehensive Relevant Cost accounting report
+                    </h3>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-slate-400 font-extrabold tracking-wider bg-slate-50/50">
+                          <th className="py-2 pl-3">COST HEAD LEDGER</th>
+                          <th className="py-2 text-right">CONTRACT VALUE</th>
+                          <th className="py-2 text-center">IS RELEVANT?</th>
+                          <th className="py-2 text-right pr-3">RELEVANT PORTION VALUE (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {/* Revenues */}
+                        <tr className="text-indigo-800 font-bold bg-indigo-50/20">
+                          <td className="py-2.5 pl-3">Ticket revenue stream</td>
+                          <td className="py-2.5 text-right">₹{airlineResults.revenue.toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-teal-600">YES (Inflow)</td>
+                          <td className="py-2.5 text-right pr-3">₹{airlineResults.revenue.toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 pl-3">Avoidable Variable passenger costs</td>
+                          <td className="py-2.5 text-right">₹{airlineResults.variableCost.toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-teal-600">YES (Outflow)</td>
+                          <td className="py-2.5 text-right pr-3">-₹{airlineResults.variableCost.toLocaleString()}</td>
+                        </tr>
+                        {/* Avoidables */}
+                        <tr>
+                          <td className="py-2.5 pl-3">Aviation Fuel (incremental)</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.fuelCost).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-teal-600">YES</td>
+                          <td className="py-2.5 text-right pr-3">-₹{parseNum(airlineParams.fuelCost).toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 pl-3">Contractual flight assistant wages</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.assistantCostPerFlight).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-teal-600">YES</td>
+                          <td className="py-2.5 text-right pr-3">-₹{parseNum(airlineParams.assistantCostPerFlight).toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 pl-3">Specific sector insurance premium (1/3rd)</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.attributableInsuranceThird).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-teal-600">YES</td>
+                          <td className="py-2.5 text-right pr-3">-₹{parseNum(airlineParams.attributableInsuranceThird).toLocaleString()}</td>
+                        </tr>
+                        {/* Irrelevant Sunk ones */}
+                        <tr className="bg-orange-50/30 text-slate-500 font-normal italic">
+                          <td className="py-2.5 pl-3">Annual fixed pilots salaries</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.crewSalaryFixed).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-amber-700">NO (Sunk contract)</td>
+                          <td className="py-2.5 text-right pr-3">₹0</td>
+                        </tr>
+                        <tr className="bg-orange-50/30 text-slate-500 font-normal italic">
+                          <td className="py-2.5 pl-3">Ground handling allotted overhead</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.groundHandlingAllocated).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-amber-700">NO (Apportioned)</td>
+                          <td className="py-2.5 text-right pr-3">₹0</td>
+                        </tr>
+                        <tr className="bg-orange-50/30 text-slate-500 font-normal italic">
+                          <td className="py-2.5 pl-3">General aircraft depreciation</td>
+                          <td className="py-2.5 text-right">₹{parseNum(airlineParams.aircraftDepreciationSunk).toLocaleString()}</td>
+                          <td className="py-2.5 text-center text-amber-700">NO (Sunk book)</td>
+                          <td className="py-2.5 text-right pr-3">₹0</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-200 dark:border-emerald-800/60 text-teal-900 dark:text-teal-200 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center mt-3">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-teal-700 dark:text-teal-300 tracking-wider">Continuance Decision Verdict</span>
+                      <p className="text-xs text-teal-800 dark:text-teal-200 leading-snug mt-1">
+                        Although the traditional book ledger shows loss due to apportioned charges, continuing the route yields positive cash flows.
+                      </p>
+                    </div>
+                    <div className="text-right mt-3 sm:mt-0 font-extrabold text-sm sm:text-base text-emerald-800 dark:text-emerald-300">
+                      Net Route continuation Benefit: <span className="font-black text-xl text-emerald-600 dark:text-emerald-400">₹{airlineResults.netContinuationGain.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sandbox Panel 4: Target Cost gap matrices */}
+            {sandboxType === 'target' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="font-extrabold text-base tracking-tight text-slate-900">
+                    Surgical Target Costing sandbox and gross waste closing
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Set targeted parameters. Lowering direct fabrics, labor timelines, or molding wastage % can instantly help close the targeted 'cost gap'. Refer to Cellwell Technology Case 4.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Category 1: Selling Parameters */}
+                  <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Selling Price limits</h4>
+                    
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-500 block">Planned Retail Price (₹)</label>
+                      <input
+                        type="number"
+                        value={targetParams.sellingPrice}
+                        onChange={e => setTargetParams({ ...targetParams, sellingPrice: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-500 block">Target profit margin %</label>
+                      <input
+                        type="number"
+                        value={targetParams.targetProfitPct}
+                        onChange={e => setTargetParams({ ...targetParams, targetProfitPct: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category 2: Labor & Overhead conversion */}
+                  <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-violet-600">Labor & Overhead Conversion</h4>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-500 block">Labor Assembly Hours</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={targetParams.laborHours}
+                          onChange={e => setTargetParams({ ...targetParams, laborHours: parseNum(e.target.value) })}
+                          className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-500 block">Labor Rate / Hr(₹)</label>
+                        <input
+                          type="number"
+                          value={targetParams.laborRate}
+                          onChange={e => setTargetParams({ ...targetParams, laborRate: parseNum(e.target.value) })}
+                          className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-500 block">Tooling Specific Overheads (₹)</label>
+                      <input
+                        type="number"
+                        value={targetParams.toolingOverhead}
+                        onChange={e => setTargetParams({ ...targetParams, toolingOverhead: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category 3: Raw materials with conversion wastes */}
+                  <div className="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600">Material conversion Wastes</h4>
+                    
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-500 block">Core purchase fabric cost (₹)</label>
+                      <input
+                        type="number"
+                        value={targetParams.componentCost}
+                        onChange={e => setTargetParams({ ...targetParams, componentCost: parseNum(e.target.value) })}
+                        className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-500 block">Plastic Net kg</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={targetParams.customMaterialNetKG}
+                          onChange={e => setTargetParams({ ...targetParams, customMaterialNetKG: parseNum(e.target.value) })}
+                          className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-slate-500 block">Wastage %</label>
+                        <input
+                          type="number"
+                          value={targetParams.normalWastagePct}
+                          onChange={e => setTargetParams({ ...targetParams, normalWastagePct: parseNum(e.target.value) })}
+                          className="w-full p-2 rounded-lg border border-slate-200 font-bold bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border border-slate-100 rounded-3xl bg-slate-50/50">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-150">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Target Profit Margin </span>
+                    <p className="text-xl font-extrabold text-indigo-600 mt-1">₹{targetResults.targetProfit.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Based on target profit %</p>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-150">
+                    <span className="text-[10px] uppercase font-bold text-indigo-500">Allowable Target Cost</span>
+                    <p className="text-xl font-extrabold text-indigo-700 mt-1">₹{targetResults.targetCost.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Surgical ceiling price limits</p>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-150">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Total Actual Cost</span>
+                    <p className="text-xl font-extrabold text-slate-800 mt-1">₹{targetResults.totalActualCost.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Sum of modular inputs & gross waste</p>
+                  </div>
+
+                  <div className={`p-4 rounded-2xl shadow-md border ${targetResults.costGap > 0 ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+                    <span className="text-[10px] uppercase font-bold tracking-wider">Unsatisfied Cost Gap</span>
+                    <p className={`text-xl font-black mt-1 ${targetResults.costGap > 0 ? 'text-rose-600 animate-pulse' : 'text-emerald-600'}`}>
+                      ₹{targetResults.costGap.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] mt-1">{targetResults.costGap > 0 ? 'Engineers must apply value analysis to close gap.' : 'Cost requirement successfully met!'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            </>
+            )}
+          </div>
+        )}
+        </main>
+
+        {/* Global Study Notepad Sidebar */}
+        {showGlobalNotepad && (
+          <aside className="w-full lg:w-80 xl:w-[350px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 backdrop-blur-md flex flex-col p-5 select-text animate-slideIn shadow-xl lg:shadow-none lg:bg-slate-50/10 dark:lg:bg-slate-950/20">
+            {/* Header of Notepad */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-1.5">
+                <StickyNote className="text-emerald-500 animate-pulse" size={16} />
+                <h3 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-widest font-mono">
+                  Study Notepad
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-50 dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-200/50 dark:border-slate-800/80">
+                  Auto-Save
+                </span>
+                <button
+                  onClick={() => setShowGlobalNotepad(false)}
+                  className="p-1 hover:bg-slate-105 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-705 dark:hover:text-slate-200 transition-all cursor-pointer"
+                  title="Close Notepad Workspace"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Subject Specific Quick Helper templates */}
+            <div className="py-2 flex flex-wrap gap-1 border-b border-slate-200/60 dark:border-slate-800/60 font-mono text-[9px] select-none">
+              <span className="text-[8px] text-slate-400 font-bold uppercase py-0.5 mr-1 self-center">Insert Boilerplate:</span>
+              {activeSubject === 'setA' ? (
+                <>
+                  <button
+                    onClick={() => handleInsertTemplate("Sec 149(4) ID Thresholds:\n• Paid-up Capital >= Rs. 10 Cr\n• Turnover >= Rs. 100 Cr\n• Borrowings > Rs. 50 Cr (strictly >)\n• Appoint min 2 Independent Directors")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-400 hover:text-blue-500 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    Sec 149(4) ID
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("Sec 197 Remuneration Ceilings:\n• Overall public co = 11% Net Profits\n• 1 MD/WTD = 5% Max\n• >1 MD/WTD = 10% Combined Max\n• NEDs = 1% (if MD exists) / 3% (no MD)")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-400 hover:text-blue-500 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    Sec 197 Caps
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("IBC CIRP Timelines (Sec 12):\n• Base: 180 days\n• Extension: +90 days (66% CoC vote)\n• Outer Cap: 330 days (mandatory)\n• Default Floor: >= Rs. 1 Crore (Sec 4)")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-400 hover:text-blue-500 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    IBC Timeline
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("FEMA Sec 2(v) PRII Departure Test:\n• Preceding year stay > 182 days\n• If departs for employment/vocation/uncertain stay -> PROI immediately upon departure")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-slate-600 dark:text-slate-400 hover:text-blue-500 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    FEMA PRII
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleInsertTemplate("OEE = Availability x Performance x Quality\n• Avail = Actual Run Time / Planned Prod Time\n• Perf = (Ideal Cycle Time x Total Count) / Run Time\n• Qual = Good Count / Total Count")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-600 dark:text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    OEE
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("Min Transfer Price = Marginal Cost + Opportunity Cost\nMax Transfer Price = Lower of Market Price OR Buyer's net benefit")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-600 dark:text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    Transfer Pricing
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("Target Cost = Target Selling Price - Target Profit Margin\nCost Gap = Estimated cost - Target cost")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-600 dark:text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    Target Cost
+                  </button>
+                  <button
+                    onClick={() => handleInsertTemplate("Material Price Variance = Actual Qty x (Std Price - Actual Price)\nMaterial Usage Variance = Std Price x (Std Qty - Actual Qty)\nLabor Rate Variance = Actual Hours x (Std Rate - Actual Rate)\nLabor Efficiency Variance = Std Rate x (Std Hours - Actual Hours)")}
+                    className="bg-slate-50 dark:bg-slate-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-slate-600 dark:text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60 cursor-pointer text-[8px]"
+                  >
+                    Variances
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Writing Area */}
+            <div className="flex-1 relative mt-3 flex flex-col min-h-[250px] lg:min-h-0">
+              <textarea
+                value={globalNotepadText}
+                onChange={(e) => setGlobalNotepadText(e.target.value)}
+                placeholder="💡 Scribble formulas, chapter notes, mock-exam answers or memory aids here.
+
+Your text persists continuously in your browser and stays accessible across all tabs (Dashboard, Case Practice, Revision Cards, and Kalkulator Sandbox) for prompt reference!"
+                className="flex-1 w-full text-slate-800 dark:text-slate-100 bg-transparent resize-none focus:outline-none text-[11.5px] leading-relaxed font-mono scrollbar-thin select-text p-1 placeholder:text-slate-405 dark:placeholder:text-slate-600"
+              />
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 select-none">
+              <div className="flex items-center gap-1">
+                <span>{globalNotepadText.length} chars</span>
+                <span>•</span>
+                <span>{globalNotepadText.split(/\s+/).filter(Boolean).length} words</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const blob = new Blob([globalNotepadText], { type: "text/plain;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `SCM-PE_Study_Notepad_${new Date().toISOString().slice(0, 10)}.txt`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="hover:text-emerald-500 hover:underline active:scale-95 transition-all cursor-pointer font-bold"
+                  title="Download notes as .txt file"
+                >
+                  Download .TXT
+                </button>
+                <span>|</span>
+                <button
+                  onClick={() => {
+                    if (confirm("Reset and clear all study notes in notepad?")) {
+                      setGlobalNotepadText("");
+                    }
+                  }}
+                  className="hover:text-rose-500 active:scale-95 transition-all cursor-pointer font-bold"
+                  title="Clear study notes"
+                >
+                  Clear Notes
+                </button>
+              </div>
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {/* Premium minimal Footer with practACE Branding */}
+      <footer className="bg-[#021027] text-slate-400 text-xs py-6 px-6 border-t border-[#C9A84C]/30 tracking-wide mt-12">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <img
+              src={practAceLogoImg}
+              alt="practACE Logo"
+              className="h-9 w-auto object-contain"
+              referrerPolicy="no-referrer"
+            />
+            <span className="text-slate-300 font-semibold">
+              practACE • <span className="text-[#C9A84C]">Plan. Revise. Analyse. Correct. Track.</span>
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 md:gap-4">
+            <a
+              href="https://www.linkedin.com/company/pract-ace/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#0A66C2]/25 text-slate-200 hover:text-sky-300 border border-slate-700 hover:border-[#0A66C2]/60 font-bold transition-all"
+              title="Visit practACE on LinkedIn"
+            >
+              <Linkedin size={13} className="text-sky-400" />
+              <span>Follow us on LinkedIn</span>
+              <ExternalLink size={11} className="opacity-70" />
+            </a>
+            <a
+              href="https://discord.gg/buecjd45u"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#5865F2]/25 text-slate-200 hover:text-indigo-300 border border-slate-700 hover:border-[#5865F2]/60 font-bold transition-all"
+              title="Join practACE Discord Community"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                className="w-3.5 h-3.5 text-indigo-400"
+              >
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
+              <span>Join us on Discord</span>
+              <ExternalLink size={11} className="opacity-70" />
+            </a>
+            <p className="font-medium text-slate-400 text-center md:text-right">
+              CA Final SPOM Set A (Laws) & Set B (SCMPE) • High-Yield Statutory & Case Study Suite
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* =========================================================================
+          OPENING WELCOME POP-UP: 1. pract.CA TO practACE  |  2. INTRO OF SET A
+          ========================================================================= */}
+      {showSetAAnnouncement && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Welcome to practACE"
+        >
+          <div className="relative w-full max-w-3xl bg-white dark:bg-[#0b1124] rounded-2xl border border-[#C9A84C]/50 shadow-2xl shadow-black/80 overflow-hidden flex flex-col max-h-[94vh]">
+            
+            {/* 1. EXECUTIVE DARK NAVY BRAND STAGE (Full-Bleed Top Banner) */}
+            <div className="bg-[#021027] border-b border-[#C9A84C]/40 px-5 sm:px-7 pt-4 pb-5 relative shrink-0">
+              {/* Top Golden Accent Line */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
+
+              {/* Top Bar: Welcome Tag + Transition Pill + Close Button */}
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] text-[10px] font-black uppercase tracking-widest">
+                    <Sparkles size={11} />
+                    <span>Welcome to practACE</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-slate-300 text-[10px] font-mono font-bold">
+                    <span className="line-through text-slate-400">pract.CA</span>
+                    <ArrowRight size={10} className="text-[#C9A84C]" />
+                    <span className="text-white font-black">pract<span className="text-[#C9A84C]">ACE</span></span>
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handleCloseSetAAnnouncement(false)}
+                  className="p-1.5 text-slate-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/15 rounded-lg transition-all cursor-pointer"
+                  title="Close Welcome Pop-up"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Brand Identity Showcase: Logo + Welcome Message */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                <div className="bg-[#021027] p-1.5 rounded-xl border border-[#C9A84C]/25 shadow-inner shrink-0">
+                  <img
+                    src={practAceLogoImg}
+                    alt="practACE — Plan. Revise. Analyse. Correct. Track."
+                    className="h-16 sm:h-20 w-auto object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+
+                <div className="space-y-1.5 text-center sm:text-left flex-1">
+                  <h2 className="text-lg sm:text-xl font-black text-white tracking-tight leading-snug">
+                    Welcome to <span className="text-white">pract</span><span className="text-[#C9A84C]">ACE</span> — Evolved from pract.CA &amp; Now With SPOM Set A
+                  </h2>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    <strong className="text-slate-200">pract.CA</strong> is now <strong className="text-[#C9A84C]">practACE</strong> — your complete CA Final SPOM preparation workspace covering both <strong className="text-blue-400">Set A (Corporate &amp; Economic Laws)</strong> and <strong className="text-[#C9A84C]">Set B (SCMPE)</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* 5-Pillar P-R-A-C-T Acronym Strip */}
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2 mt-4 pt-3.5 border-t border-slate-800/90">
+                {[
+                  { letter: 'P', word: 'Plan', desc: 'Chapter Matrix' },
+                  { letter: 'R', word: 'Revise', desc: 'Statutory Deck' },
+                  { letter: 'A', word: 'Analyse', desc: '80 Case Studies' },
+                  { letter: 'C', word: 'Correct', desc: 'Saved Qs Vault' },
+                  { letter: 'T', word: 'Track', desc: 'Solved vs Pending' }
+                ].map((pillar, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/40 rounded-lg px-2 py-1.5 text-center transition-colors"
+                  >
+                    <div className="text-[11px] sm:text-xs font-black tracking-wide text-white">
+                      <span className="text-[#C9A84C] font-mono mr-0.5">{pillar.letter}</span>
+                      <span>{pillar.word.slice(1)}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-medium hidden sm:block truncate">
+                      {pillar.desc}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. SCROLLABLE STRUCTURED BODY */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 scrollbar-thin text-left bg-slate-50/60 dark:bg-[#0b1124]">
+              
+              {/* At-a-Glance Curriculum Scale Strip (4 Static Metric Boxes) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-white dark:bg-[#111936] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center shadow-2xs">
+                  <div className="text-lg sm:text-xl font-black font-mono text-[#C9A84C] leading-none">
+                    800+
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">
+                    Practice MCQs
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#111936] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center shadow-2xs">
+                  <div className="text-lg sm:text-xl font-black font-mono text-blue-600 dark:text-blue-400 leading-none">
+                    65 + 15
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">
+                    ICAI Case Studies
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#111936] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center shadow-2xs">
+                  <div className="text-lg sm:text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 leading-none">
+                    24 Chapters
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">
+                    Set A (14) + Set B (10)
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#111936] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-center shadow-2xs">
+                  <div className="text-lg sm:text-xl font-black font-mono text-indigo-600 dark:text-indigo-400 leading-none">
+                    220+ Cards
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">
+                    Flashcards &amp; Calcs
+                  </div>
+                </div>
+              </div>
+
+              {/* Two-Column Ordered Welcome Matrix: 1st = pract.CA to practACE, 2nd = Intro of Set A */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* 1st Card: pract.CA to practACE Rebrand & Platform Suite */}
+                <div className="bg-white dark:bg-[#111936] rounded-2xl border border-amber-200/80 dark:border-amber-900/40 p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-[#C9A84C] text-slate-950">
+                          <BarChart2 size={14} />
+                        </span>
+                        <div>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-[#C9A84C] block">
+                            1. Brand Evolution
+                          </span>
+                          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                            pract.CA → practACE
+                          </h3>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        01
+                      </span>
+                    </div>
+
+                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-amber-600 dark:text-[#C9A84C] shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Unified P-R-A-C-T Identity:</strong> Upgraded from <span className="line-through text-slate-400">pract.CA</span> to <strong className="text-slate-900 dark:text-white">practACE</strong> (Plan, Revise, Analyse, Correct, Track) for multi-subject SPOM mastery.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-amber-600 dark:text-[#C9A84C] shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Saved Questions Revision Vault:</strong> Bookmark any Case MCQ or Standalone MCQ during practice to revisit in a dedicated filterable list.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-amber-600 dark:text-[#C9A84C] shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Solved vs. Pending Analytics:</strong> Upgraded Dashboard tracking Completed Cases, Solved MCQs, Pending Questions &amp; Chapter-Wise Resolution.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-amber-600 dark:text-[#C9A84C] shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Seamless Set A / Set B Switcher:</strong> Switch anytime between Corporate &amp; Economic Laws and SCMPE from the top navigation header.
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 2nd Card: Introduction of SPOM Set A (Corporate & Economic Laws) */}
+                <div className="bg-white dark:bg-[#111936] rounded-2xl border border-blue-200/80 dark:border-blue-900/50 p-4 sm:p-5 shadow-xs flex flex-col justify-between space-y-3">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-blue-600 text-white">
+                          <Scale size={14} />
+                        </span>
+                        <div>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 block">
+                            2. Introducing Set A
+                          </span>
+                          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                            SPOM Set A: Corporate &amp; Economic Laws
+                          </h3>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        02
+                      </span>
+                    </div>
+
+                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Complete 14-Chapter ICAI Syllabus:</strong> Full coverage of Companies Act 2013 (Ch 1–10), SEBI Act &amp; Regulations, FEMA 1999, FCRA 2010 &amp; IBC 2016.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">65 Official Cases + 400 Topic-Wise MCQs:</strong> Practice all 65 multi-question case scenarios (319 MCQs) and 400 topic-wise standalone chapter MCQs.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Time &amp; Monetary Limits Master Charts:</strong> Structured statutory blueprints, section-wise revision notes &amp; 160+ high-yield flashcards.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                        <span>
+                          <strong className="text-slate-900 dark:text-white">Legal Diagnostic Calculators:</strong> Built-in verification tools for CSR 2% spend, Sec 197 Remuneration slabs, Board Quotas &amp; CIRP timelines.
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* 3. PINNED ACTION FOOTER */}
+            <div className="bg-white dark:bg-[#080d1e] border-t border-slate-200 dark:border-slate-800 px-5 sm:px-7 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <button
+                onClick={() => handleCloseSetAAnnouncement(true)}
+                className="w-full sm:flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-black shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+              >
+                <BookOpen size={15} />
+                <span>Explore Set A (Corporate &amp; Economic Laws)</span>
+                <ArrowRight size={14} />
+              </button>
+
+              <button
+                onClick={() => {
+                  handleCloseSetAAnnouncement(false);
+                  setActiveSubject('setB');
+                }}
+                className="w-full sm:w-auto py-3 px-4 bg-[#021027] hover:bg-slate-900 text-[#C9A84C] rounded-xl text-xs sm:text-sm font-black border border-[#C9A84C]/40 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+              >
+                <Calculator size={15} />
+                <span>Continue with Set B (SCMPE)</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "SCM & PM Practice & Mock Simulator",
+  "description": "An interactive practice study companion and timed mock exam simulator for the ICAI SPOM Set B Strategic Cost and Performance Management curriculum.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

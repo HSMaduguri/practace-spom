@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "A document representing a registered student's profile information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique reference UID of the authenticated Firebase user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The registered email address of the student."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The custom profile name displayed inside the app header."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "An optional URL pointing to the user's avatar image."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the account was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp showing the last time profile data was synchronized."
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "PracticeProgress": {
+      "title": "MCQ Practice Progress",
+      "description": "Data record tracking answered questions and accuracy metrics across mock/practice exams.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The owner user ID matching the parent account document."
+        },
+        "practiceProgress": {
+          "type": "object",
+          "description": "A serialized map of question keys with answer attempts and correctness values."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last synchronized progress attempt."
+        }
+      },
+      "required": ["userId", "practiceProgress", "updatedAt"]
+    },
+    "FlashcardsProgress": {
+      "title": "Flashcards Learning Progress",
+      "description": "Progress tracking details for formulas and framework card assessments.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The owner user ID matching the parent account document."
+        },
+        "flashcardPerformance": {
+          "type": "object",
+          "description": "A serialized map indicating user understanding of formula flashcards ('known' or 'learning')."
+        },
+        "frameworkCardAssessments": {
+          "type": "object",
+          "description": "A serialized map of strategic theoretical framework assessment rankings ('Hard', 'Medium', 'Mastered')."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last rating update."
+        }
+      },
+      "required": ["userId", "flashcardPerformance", "frameworkCardAssessments", "updatedAt"]
+    },
+    "UserNotes": {
+      "title": "User Notes & Scribble Pad Info",
+      "description": "Sticky annotations and full scribble pad text saved by the student.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The owner user ID matching the parent account document."
+        },
+        "caseNotes": {
+          "type": "object",
+          "description": "Sticky notes annotated alongside RTP/MTP booklet cases."
+        },
+        "globalNotepadText": {
+          "type": "string",
+          "description": "The full body markdown text of the global floating scribble pad."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest note-pad sync or autosave."
+        }
+      },
+      "required": ["userId", "caseNotes", "globalNotepadText", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "The primary user accounts registry."
+    },
+    "/users/{userId}/progress/practice": {
+      "schema": "PracticeProgress",
+      "description": "User-specific MCQ answers and accuracy tracker."
+    },
+    "/users/{userId}/progress/flashcards": {
+      "schema": "FlashcardsProgress",
+      "description": "User-specific formula flashcard stats."
+    },
+    "/users/{userId}/progress/notes": {
+      "schema": "UserNotes",
+      "description": "User-annotated sticky notes and scratch text."
+    }
+  }
+}
