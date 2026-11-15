@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>practACE — Redirecting...</title>
+    <script>
+      // Single Page App fallback for GitHub Pages
+      // Redirects back to the root of the repo/site while preserving any hash or query
+      const pathSegments = window.location.pathname.split('/');
+      // In GitHub Pages, path is /<repo-name>/...
+      // Redirect to the repository root directory
+      window.location.replace(window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1));
+    </script>
+  </head>
+  <body style="background-color: #030712; color: #f8fafc; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+    <p>Redirecting to practACE...</p>
+  </body>
+</html>

@@ -56,7 +56,7 @@ import { setAMCQs } from './setA/setAMcqs';
 import { setAFlashcards } from './setA/setAFlashcards';
 import { SET_A_LEGAL_LIMITS } from './setA/setALegalLimits';
 // practACE official brand logo asset
-const practAceLogoImg = '/assets/aistudio/PractACE_Logo_fceba771.png';
+const practAceLogoImg = `${import.meta.env.BASE_URL}assets/aistudio/PractACE_Logo_fceba771.png`;
 import ChapterVisualizer, { SetATimeLimitsChart, SetAMonetaryLimitsChart } from './components/ChapterVisualizer';
 import { HighlightedText, getPlainChapterName } from './components/HighlightedText';
 import SetALegalCalculators from './components/SetALegalCalculators';
