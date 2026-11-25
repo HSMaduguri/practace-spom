@@ -27,6 +27,30 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+function activateDeferredStyles() {
+  const links = document.querySelectorAll<HTMLLinkElement>('link[data-defer-css="true"]');
+  links.forEach((link) => {
+    if (link.media === 'all') return;
+    const enable = () => {
+      link.media = 'all';
+    };
+    if (link.sheet) {
+      enable();
+      return;
+    }
+    link.addEventListener('load', enable, { once: true });
+    link.addEventListener('error', enable, { once: true });
+    if (document.readyState === 'complete') {
+      enable();
+    } else {
+      window.addEventListener('load', enable, { once: true });
+      setTimeout(enable, 150);
+    }
+  });
+}
+
+activateDeferredStyles();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

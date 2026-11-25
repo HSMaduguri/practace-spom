@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   BookOpen,
   Award,
@@ -44,22 +44,26 @@ import {
   Menu,
   CloudLightning,
   Scale,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  MessageSquare
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
-import { chapters, caseScenarios, CaseScenario, Question, Chapter } from './scenariosData';
-import { generalMCQs, GeneralMCQ } from './generalMCQs';
-import { flashcards, Flashcard } from './flashcardData';
-import { setAChapters } from './setA/setAChapters';
-import { setACases } from './setA/setACases';
-import { setAMCQs } from './setA/setAMcqs';
-import { setAFlashcards } from './setA/setAFlashcards';
-import { SET_A_LEGAL_LIMITS } from './setA/setALegalLimits';
-// practACE official brand logo asset
-const practAceLogoImg = `${import.meta.env.BASE_URL}assets/aistudio/PractACE_Logo_fceba771.png`;
-import ChapterVisualizer, { SetATimeLimitsChart, SetAMonetaryLimitsChart } from './components/ChapterVisualizer';
+import type { CaseScenario, Question, Chapter } from './scenariosData';
+import type { GeneralMCQ } from './generalMCQs';
+import type { Flashcard } from './flashcardData';
+import type { FormulaDetail } from './data/setBFormulaDetails';
+import { loadSubjectDataset, type SubjectDataset } from './data/subjectLoader';
+// practACE official brand logo asset (optimized 336x112 WebP)
+const practAceLogoImg = `${import.meta.env.BASE_URL}assets/aistudio/PractACE_Logo_336x112.webp`;
+const ChapterVisualizer = lazy(() => import('./components/ChapterVisualizer'));
+const SetATimeLimitsChart = lazy(() =>
+  import('./components/ChapterVisualizer').then((m) => ({ default: m.SetATimeLimitsChart }))
+);
+const SetAMonetaryLimitsChart = lazy(() =>
+  import('./components/ChapterVisualizer').then((m) => ({ default: m.SetAMonetaryLimitsChart }))
+);
 import { HighlightedText, getPlainChapterName } from './components/HighlightedText';
-import SetALegalCalculators from './components/SetALegalCalculators';
+const SetALegalCalculators = lazy(() => import('./components/SetALegalCalculators'));
 
 export interface BookmarkedQuestion {
   id: string; // composite key: `${caseId}-${qId}` or `general-${qId}`
@@ -79,11 +83,12 @@ export interface BookmarkedQuestion {
 }
 
 // Firebase core configuration & connection testing
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, googleProvider, isFirebaseConfigured, handleFirestoreError, OperationType } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocFromServer, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocFromServer, onSnapshot, serverTimestamp, type DocumentReference } from 'firebase/firestore';
 
 async function testConnection() {
+  if (!db) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -92,350 +97,12 @@ async function testConnection() {
 }
 
 
-interface FormulaDetail {
-  context: string;
-  derivation: string;
-  trigger: string;
-}
-
-const FORMULA_DETAILS: Record<string, FormulaDetail> = {
-  "Strategic Cost Gap Index (Conceptual Metric)": {
-    context: "Strategic Cost Management (SCM) design stage tool.",
-    derivation: "Divides the excess cost gap (Estimated Cost - Target Cost) by the Target Cost baseline. This indexes the relative scale of overrun to prioritize Value Engineering (VE) efforts across different products.",
-    trigger: "Trigger VE when Index > 0. A higher index indicates severe cost overruns that threaten commercial launch."
-  },
-  "Customer Value-to-Cost Focus Ratio": {
-    context: "Value Chain Analysis & Strategic Positioning.",
-    derivation: "Divides Customer Perceived Importance of an attribute by the percentage of Total Activity Costs allocated to that attribute. Helps find matching customer value to resource usage.",
-    trigger: "If Ratio < 1.0, the activity is over-engineered (costs exceed perceived value). If Ratio > 1.0, it is under-resourced."
-  },
-  "OEE (Overall Equipment Effectiveness)": {
-    context: "Total Productive Maintenance (TPM) performance optimization.",
-    derivation: "Multiplies Availability Rate (Uptime), Performance Rate (Speed), and Quality Rate (Yield). It combines all equipment losses into one unified metric.",
-    trigger: "World-class manufacturer benchmark target is > 85%. Helps identify which of the 6 Major Losses requires immediate engineering focus."
-  },
-  "OEE Availability Rate": {
-    context: "Uptime assessment and equipment breakdown tracking.",
-    derivation: "Compares Actual Operating Run Time to Planned Production Time (excluding planned breaks/scheduled maintenance).",
-    trigger: "Low rates indicate severe downtime losses from mechanical failure or slow setup adjustment times."
-  },
-  "OEE Performance (Speed) Rate": {
-    context: "Speed losses, minor stops, and equipment performance degradation.",
-    derivation: "Ideal Cycle Time per unit multiplied by the Total Units produced, divided by Actual Operating Run Time. Captures how close the machine ran to its theoretical design speed.",
-    trigger: "Low rates indicate issues with motor wear, improper tooling feed speeds, or minor frequent jams."
-  },
-  "OEE Quality (Yield) Rate": {
-    context: "Production precision and scrap control.",
-    derivation: "Good Units Produced (First-Time-Right) divided by Total Units Entered into process.",
-    trigger: "A lower rate indicates high rework costs, raw scrap, or machine calibration errors during warm-up."
-  },
-  "Throughput (T)": {
-    context: "Theory of Constraints (TOC) short-term operations management.",
-    derivation: "Sales Revenue minus Truly Variable Costs (typically strictly Direct Materials). Unlike absorption costing, standard labor and overheads are deemed operating expenses (fixed).",
-    trigger: "Maximize short-term contribution (T) to recover fixed corporate Operating Expenses on constraint resources."
-  },
-  "Throughput Accounting (TA) Ratio": {
-    context: "Syllabus standard for product viability under narrow capacity constraint bottlenecks (Goldratt's TOC).",
-    derivation: "Throughput Contribution per Bottleneck Minute divided by Factory Operating Cost (Labor + Overhead) per Bottleneck Minute.",
-    trigger: "Accept or prioritize products if TA Ratio > 1.0. If < 1.0, the product fails to recover its operating share of bottleneck capacity."
-  },
-  "Factory Cost per Bottleneck Minute/Hour": {
-    context: "Constraint operations pricing and hourly factory run-rate cost.",
-    derivation: "Total operating expenses of the factory (Direct labor, indirect wages, factory rent, depreciation, energy) divided by the total available bottleneck operating hours.",
-    trigger: "Budget rate used as the hurdle of operating efficiency for processing through the bottleneck asset."
-  },
-  "Digital Platform Take Rate": {
-    context: "Digital business model monetization efficiency.",
-    derivation: "Platform transaction commission revenue divided by the network's Gross Merchandise Value (GMV).",
-    trigger: "Typical aggregators target 10% - 25% depending on competitive moat and supplier fragmentations."
-  },
-  "Customer Acquisition Cost (CAC)": {
-    context: "Marketing investment efficiency analysis for digital platform and SaaS subscriptions.",
-    derivation: "Total sales, marketing, commissions, promotional, and onboarding expenses divided by the number of new Customers successfully acquired during that period.",
-    trigger: "Used combined with CLV to evaluate if marketing acquisition channels are economically sustainable."
-  },
-  "Customer Lifetime Value (CLV)": {
-    context: "Syllabus metric for subscriber base equity and valuation.",
-    derivation: "Derived by multiplying Average Revenue per Customer (ARPU) by Gross Profit Margin %, then dividing by the customer Churn Rate %.",
-    trigger: "Used to determine maximum customer acquisition budgets. High churn rates exponentially depress CLV."
-  },
-  "Customer Churn Rate (%)": {
-    context: "Ecosystem retention and subscription health.",
-    derivation: "Number of customers lost during a period divided by the starting customer base in that period, converted to a percentage.",
-    trigger: "Critical performance KPI. Reducing Churn matches the leverage of acquiring several new customers."
-  },
-  "CLV-to-CAC Ratio (Hurdle Rate)": {
-    context: "Platform economic health benchmark.",
-    derivation: "Customer Lifetime Value divided by Customer Acquisition Cost. Standard indicator of unit investment returns.",
-    trigger: "Sustainable platform models require a ratio of > 3.0 (or 3:1). A ratio of 1:1 indicates commercial failure."
-  },
-  "Target Cost": {
-    context: "Proactive design-phase cost reduction and market-driven engineering.",
-    derivation: "Target Market Selling Price minus Required Target Return Margin (derived from required Return on Sales or asset markup hurdles).",
-    trigger: "Forces product design engineers to design out costs *before* factory tooling is set up."
-  },
-  "Required Profit Margin": {
-    context: "Capital return requirements and investment hurdle mapping.",
-    derivation: "Determined applying corporate return objectives (e.g., Target Profit Margin on Sale Price, or cost markups) to secure investor capital preservation.",
-    trigger: "Derived from weighted cost of capital or segment payback expectations."
-  },
-  "Cost Gap": {
-    context: "Variance analysis during design phases.",
-    derivation: "Calculated as the Current Estimated Cost of Production minus the target allowable maximum cost limits.",
-    trigger: "Must be systematically closed to zero via Value Engineering (VE) and Value Analysis (VA) before mass production begins."
-  },
-  "Product Lifecycle Cost per Unit": {
-    context: "Whole-life asset evaluation covering design to disposal phases.",
-    derivation: "Sum of Upstream Costs (R&D, design, prototyping) + Midstream Costs (operations, material) + Downstream Costs (warranty, cleanups, disposal) divided by lifetime units sold.",
-    trigger: "Prevents short-sighted design choices that reduce manufacturing costs but multiply warranty or disposal expenses."
-  },
-  "Cost Reduction Index (CRI)": {
-    context: "Commercially viable target costing index.",
-    derivation: "Target Cost divided by Currently Estimated Cost of Production. Value of 1.0 represents exact hurdle achievement.",
-    trigger: "If CRI < 1.0, the current design is not viable and must undergo Value Engineering."
-  },
-  "MFCA Positive Product Cost Allocation": {
-    context: "ISO 14051 Material Flow Cost Accounting - Green manufacturing compliance.",
-    derivation: "Calculates total chemical/material, system labor, and energy inputs allocated strictly to the proportion of physical weight inside salable finished products.",
-    trigger: "Helps separate genuine product value-add from money spent creating waste streams."
-  },
-  "MFCA Negative Waste Cost Allocation": {
-    context: "Green costing and material wastage transparency.",
-    derivation: "Allocates a proportion of raw physical materials, system operating costs, and energy to the weight of physical scrap losses, water effluents, or emissions.",
-    trigger: "Exposes the hidden cost of waste: it's not just disposal fees, but the lost purchase and processing cost of wasted inputs."
-  },
-  "Minimum Contract Bid Pricing Floor": {
-    context: "Special non-routine contract pricing under Relevant Costing.",
-    derivation: "Aggregates Incremental Out-of-Pocket Variable Costs + Specific Fixed Costs (e.g. custom tool lease) + Opportunity Cost of diverted resources.",
-    trigger: "Represents the absolute economic break-even floor. Any price above this increases company profits."
-  },
-  "Scarce Resource Opportunity Cost per Unit": {
-    context: "Operating decision under capacity constraints (labor/input shortage).",
-    derivation: "Contribution margin lost from selling standard products on the open market, divided by the scarce resource units those products consume.",
-    trigger: "Charged as an incremental cost to any custom job asking to use the scarce bottleneck resources."
-  },
-  "Price Elasticity of Demand (Ep)": {
-    context: "Pricing strategy and market sensitivity analysis.",
-    derivation: "Percentage change in demand quantity divided by corresponding percentage change in unit price.",
-    trigger: "If |Ep| > 1, demand is elastic (price reductions grow revenue). If |Ep| < 1, demand is inelastic."
-  },
-  "Linear Demand Pricing Model": {
-    context: "Demand curves and price setting pricing model.",
-    derivation: "Price = a - bQ, where 'a' is the theoretical price when quantity requested is zero, and 'b' is the demand curve slope.",
-    trigger: "Provides mathematical foundation for identifying exact pricing sweet spots for profitability."
-  },
-  "Slope factor of demand curve (b)": {
-    context: "Quantifying demand price premium relationships.",
-    derivation: "Change in Price divided by Change in Quantity demanded between two pricing options.",
-    trigger: "Represents user willingness to pay relative to product quantity expansion."
-  },
-  "Marginal Revenue (MR) Equation": {
-    context: "Economic profit maximization framework.",
-    derivation: "Calculated as a - 2bQ. Found by taking the first derivative of the Total Revenue function with respect to Quantity.",
-    trigger: "Used in combination with Marginal Cost (MC) models. Profit is maximized where MR = MC."
-  },
-  "Profit Maximizing Quantity (Q)": {
-    context: "Industrial production output target.",
-    derivation: "Set MR = MC and solve for Q: (a - MC) / 2b.",
-    trigger: "The mathematically optimized output level that achieves peak corporate profit potential."
-  },
-  "Economic Value Added (EVA)": {
-    context: "Value-based management aligning manager actions with shareholder value.",
-    derivation: "Net Operating Profit After Tax (NOPAT) minus a capitalized Capital Charge (Capital Employed × WACC %).",
-    trigger: "Promotes capital discipline. A project is wealth-creative only if EVA is positive."
-  },
-  "Adjusted NOPAT (Net Operating Profit After Tax)": {
-    context: "Accounting adjustments required for true economic profits under Stern Stewart model.",
-    derivation: "Operating profits before interest but after tax, adding back capitalized strategic intangibles like R&D, brand build, and training.",
-    trigger: "Prevents managers from cutting R&D or marketing just to boost short-term earnings."
-  },
-  "Adjusted Capital Employed": {
-    context: "Adjusting book assets for capital-based returns.",
-    derivation: "Net assets (Equity + Debt) adjusted to add back capitalized R&D, brand development assets, and provision for warranties.",
-    trigger: "Establishes the true asset base invested by shareholders, including key intangible investments."
-  },
-  "Weighted Average Cost of Capital (WACC)": {
-    context: "Syllabus cost of corporate finance across debt and equity structures.",
-    derivation: "Weighted average of the cost of equity (Ke) and tax-adjusted cost of debt (Kd) based on the target capital structure.",
-    trigger: "Used as the absolute discount rate hurdle for capital budgeting and EVA capital charges."
-  },
-  "Residual Income (RI)": {
-    context: "Divisional performance evaluation and anti-suboptimization metric.",
-    derivation: "Divisional Operating Profit minus a cost of capital charge (Capital Employed × Corporate Hurdle Rate %).",
-    trigger: "Avoids the Suboptimization trap of ROI (where managers decline profitable expansion because it lowers their average ROI)."
-  },
-  "Return on Investment (ROI)": {
-    context: "Traditional divisional efficiency and capital yield percentage.",
-    derivation: "Divisional Operating Profits divided by the Divisional Capital Employed base, converted to a percentage.",
-    trigger: "Widely used but prone to Suboptimization. Managers might drop high-NPV projects if they are below current divisional ROI."
-  },
-  "Manufacturing Cycle Efficiency (MCE)": {
-    context: "Continuous process waste tracking under Lean manufacturing.",
-    derivation: "Value-Added Processing time divided by overall Manufacturing Cycle Lead Time (Process + Queue + Move + Inspect + Dwell times).",
-    trigger: "For most traditional batch operations, MCE is below 10%. Continuous improvement goals aim for > 50%."
-  },
-  "General Minimum Transfer Price Rule (Seller Floor)": {
-    context: "Internal pricing between autonomous divisions in a multi-segment group.",
-    derivation: "Selling Division's out-of-pocket Variable Costs plus the Opportunity Cost of sacrificing external sales.",
-    trigger: "Establishes the absolute supplier baseline that protects segment margins and divisional performance evaluation."
-  },
-  "Selling Division Opportunity Cost of Sacrificed Sales": {
-    context: "Opportunity charge for internal resource allocations.",
-    derivation: "External Retail Price minus Variable production and distribution costs, minus any Saved Logistics cost from trading internally.",
-    trigger: "Quantifies exactly what corporate profit is given up on the retail market by shifting units inside."
-  },
-  "General Maximum Transfer Price Rule (Buyer Ceiling)": {
-    context: "Buying division internal boundary condition.",
-    derivation: "The lesser of: the current alternative external open market price, or the buyer's Net Marginal Revenue (NMR) on the finished product.",
-    trigger: "Ensures the buying manager is never forced to import internally at a price that causes segment losses."
-  },
-  "Buyer Net Marginal Revenue (NMR)": {
-    context: "Internal buying division maximum financial capacity assessment.",
-    derivation: "Final Selling Price of finished product minus any variable costs incurred inside the buying division itself (packaging, assembly, labor).",
-    trigger: "Upper economic limit on component purchase price before divisional contribution becomes negative."
-  },
-  "Company Consolidated Profit Net Impact": {
-    context: "Group-wide financial optimization ignore transfer offsets.",
-    derivation: "Finished retail revenue minus cumulative variable costs of manufacturing across all intermediate segments.",
-    trigger: "Ensures corporate leadership guides overall congruence under capacity constraints."
-  },
-  "Material Price Variance (MPV)": {
-    context: "Standard Costing standard procurement efficiency KPI.",
-    derivation: "Actual Material Quantity Purchased multiplied by the rate difference: Standard Price per unit minus Actual Price per unit.",
-    trigger: "Enables procurement tracking. Helpful to identify if material quality shortcuts led to downstream factory waste."
-  },
-  "Material Usage Variance (MUV)": {
-    context: "Floor operations material conservation evaluation.",
-    derivation: "Standard Unit Price multiplied by the physical variance: Standard quantity allowed for actual output minus Actual quantity used.",
-    trigger: "Primary metric of scrap, spillages, and fabrication waste on the factory floor."
-  },
-  "Material Mix Variance (MMV)": {
-    context: "Standard Costing material mix proportion analysis.",
-    derivation: "Standard Price per unit multiplied by the variance: Revised standard quantity in the actual mix ratio minus Actual quantity used.",
-    trigger: "Isolates savings or deficits arising purely from switching to a cheaper or more expensive ratio of raw materials."
-  },
-  "Material Yield Variance (MYV)": {
-    context: "Recipe output yields extraction rating.",
-    derivation: "Standard Unit Price multiplied by the variance: Standard input quantity allowed minus Revised standard quantity in the actual mix.",
-    trigger: "Tracks chemical or conversion process yield losses when using standard mix recipes."
-  },
-  "Labor Efficiency Planning Variance": {
-    context: "Planning vs. Operational standard adjustments.",
-    derivation: "Standard Hourly Wage Rate multiplied by: Original Standard Hours minus Revised Standard Hours.",
-    trigger: "Locks in and isolates uncontrollable planning shifts (e.g., changes in law or retrospective union wage rules) to keep operations feedback fair."
-  },
-  "Labor Efficiency Operational Variance": {
-    context: "Operational labor performance of shift floor managers.",
-    derivation: "Standard Hourly Wage Rate multiplied by: Revised Standard Hours allowed for actual output minus Actual hours paid.",
-    trigger: "Accurate indicator of staff skill, shift pacing, and machine uptime influence on labor productivity."
-  },
-  "Sales Margin Mix Variance": {
-    context: "Sales mix strategic market planning variance.",
-    derivation: "Calculates the margin divergence that arises when products are sold in a ratio different from standard sales budget plans.",
-    trigger: "Helps marketing leaders analyze if pushing certain low-margin products has cannibalized high-margin sales."
-  },
-  "Sales Margin Quantity Variance": {
-    context: "Sales volume volume-based profit impact tracking.",
-    derivation: "Measures general segment profit increases due purely to total aggregate sales volumes changes, assuming the standard mix remains constant.",
-    trigger: "Standard metric highlighting marketing penetration and market share achievements."
-  },
-  "Fixed Overhead Standard Cost Variance": {
-    context: "OAs standard absorption costing variance.",
-    derivation: "Absorbed Fixed Overheads (Standard hours for actual output × FOAR) minus Actual Fixed Overheads incurred on the floor.",
-    trigger: "Primary indicator of under-absorption or over-absorption of monthly factory capacity overheads."
-  },
-  "Fixed Overhead Expenditure Variance": {
-    context: "Out-of-pocket fixed spending control.",
-    derivation: "Budgeted Fixed Overheads minus Actual Fixed Overheads spent during the period.",
-    trigger: "Indicates real cash overruns on rent, wages, insurance, or property taxes."
-  },
-  "Fixed Overhead Volume Variance": {
-    context: "Under/Over absorption due to physical production volume changes.",
-    derivation: "Standard FOAR multiplied by: Standard hours allowed for actual output minus Budgeted Hours.",
-    trigger: "Highlights volume losses. If production falls below capacity plans, overhead costs cannot be fully absorbed."
-  },
-  "Fixed Overhead Capacity Variance": {
-    context: "Asset utilization hours metrics.",
-    derivation: "Standard FOAR multiplied by: Actual operating hours worked minus original Budgeted Hours.",
-    trigger: "Tracks lost hours due to holidays, machine breakdowns, or labor shortages."
-  },
-  "Fixed Overhead Efficiency Variance": {
-    context: "Labor efficiency impacts on overhead absorption.",
-    derivation: "Standard FOAR multiplied by: Standard hours allowed for actual output minus Actual operating hours worked.",
-    trigger: "Identifies whether running the plant slower or faster than standard times led to over-absorbing or under-absorbing overheads."
-  },
-  "Fixed Overhead Calendar Variance": {
-    context: "Calendar days working variances.",
-    derivation: "Standard daily rate multiplied by the difference: Actual working days run minus budgeted days.",
-    trigger: "Traces overhead absorption variances caused by differences in working days during the month."
-  },
-  "COQ Conformance vs Non-Conformance Ratio": {
-    context: "Chapter 2 PAF Cost of Quality framework.",
-    derivation: "Divides COQ into Conformance (Prevention + Appraisal) and Non-Conformance (Internal + External Failures) categories to identify waste reduction opportunities.",
-    trigger: "World-class organizations aim to reduce Failure costs to near-zero while optimizing Prevention and Appraisal investments."
-  },
-  "Total Life Cycle Costing": {
-    context: "Chapter 4 life-cycle SCM calculations.",
-    derivation: "Aggregates all costs incurred throughout a product's life cycle from R&D, product design, testing, manufacturing, distribution, customer sales, servicing, through to recycling/disposal.",
-    trigger: "Enables long-term cost controls, ensuring that cheap product development does not lock in high warranty and disposal expenses."
-  },
-  "Price Elasticity of Demand (PED)": {
-    context: "Chapter 6 pricing sensitivity and elasticity rules.",
-    derivation: "Percentage change in quantity demanded divided by the percentage change in selling price.",
-    trigger: "If |PED| > 1.0, demand is elastic. Dropping prices will increase total revenues."
-  },
-  "DuPont Capital Return Analysis": {
-    context: "Chapter 7 divisional performance & DuPont deconstruction.",
-    derivation: "Return on Investment (ROI) is deconstructed as Net Profit Margin % (operating profitability) multiplied by Asset Turnover ratio (capital velocity).",
-    trigger: "Directly shows whether low returns are due to poor pricing/margins (profit margin) or sluggish asset utilization (capital turnover)."
-  },
-  "EVM Cost Performance Index (CPI)": {
-    context: "Chapter 11 Earned Value project health controls.",
-    derivation: "Earned Value (EV) divided by Actual Cost (AC) of work performed.",
-    trigger: "A CPI > 1.0 is favorable (under-budget), while a CPI < 1.0 is unfavorable (over-budget)."
-  },
-  "EVM Schedule Performance Index (SPI)": {
-    context: "Chapter 11 project timeline and speed tracking.",
-    derivation: "Earned Value (EV) divided by Planned Value (PV) of work scheduled.",
-    trigger: "An SPI > 1.0 is favorable (ahead of schedule), while an SPI < 1.0 is unfavorable (behind schedule)."
-  },
-  "EVM Project Estimate at Completion (EAC)": {
-    context: "Chapter 11 project forecasting and budget-run-rate expectations.",
-    derivation: "Calculates estimated ultimate cost of a project as Budget at Completion (BAC) divided by the Cost Performance Index (CPI).",
-    trigger: "Allows project managers to forecast prospective budget overruns and apply immediate cost remediation actions."
-  },
-  "Supplying Division Opportunity Cost": {
-    context: "Chapter 12 inter-divisional transfer boundary pricing.",
-    derivation: "Calculated as (Displaced External Sales × Contribution per External unit) / Total Units Transferred. This represents lost retail contribution.",
-    trigger: "Added to supplying divisional variable costs to determine the absolute minimum transfer pricing floor."
-  },
-  "Material Mix Variance": {
-    context: "Chapter 13 Advanced Standard Costing proportions evaluation.",
-    derivation: "Standard Unit Price multiplied by the change in input recipe: Revised Standard Quantity of inputs in actual mix proportions minus Actual quantity used.",
-    trigger: "Exposes whether switching to a cheaper ingredient blend has generated favorable purchase savings."
-  },
-  "Material Yield Variance": {
-    context: "Chapter 13 advanced materials conversion rate tracking.",
-    derivation: "Standard Unit Price multiplied by: Standard input allowed for actual output minus Revised standard input quantity in standard mix proportions.",
-    trigger: "Identifies whether process waste, shrinkage, scrap, or evaporation exceeded standard allowed recipes."
-  },
-  "Direct Labor Efficiency Variance": {
-    context: "Chapter 13 operational labor speed accountability.",
-    derivation: "Standard Hourly Wage Rate multiplied by: Standard hours allowed for actual output minus Actual hours worked.",
-    trigger: "Evaluating floor managers' scheduling and staffing skill. Unfavorable variances indicate labor idle time, poor tooling, or training gaps."
-  }
-};
-
-const getFormulaDetails = (name: string) => {
-  const combinedDetails: Record<string, FormulaDetail> = {
-    ...FORMULA_DETAILS,
-    ...SET_A_LEGAL_LIMITS
-  };
-  const normalizedKey = Object.keys(combinedDetails).find(
+const getFormulaDetails = (name: string, formulaMap: Record<string, FormulaDetail>): FormulaDetail => {
+  const normalizedKey = Object.keys(formulaMap).find(
     k => k.toLowerCase() === name.toLowerCase() || name.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(name.toLowerCase())
   );
-  if (normalizedKey && combinedDetails[normalizedKey]) {
-    return combinedDetails[normalizedKey];
+  if (normalizedKey && formulaMap[normalizedKey]) {
+    return formulaMap[normalizedKey];
   }
   return {
     context: "Core statutory provision or strategic formula mapped to the official ICAI CA Final SPOM curriculum.",
@@ -492,12 +159,52 @@ export default function App() {
     }
   }, [activeSubject]);
 
-  // Active Curriculum Resolution based on Selected Subject (Set A vs Set B)
-  const currentChapters = activeSubject === 'setA' ? setAChapters : chapters;
-  const currentCaseScenarios = activeSubject === 'setA' ? setACases : caseScenarios;
-  const currentGeneralMCQs = activeSubject === 'setA' ? setAMCQs : generalMCQs;
-  const currentFlashcards = activeSubject === 'setA' ? setAFlashcards : flashcards;
-  const currentFormulaDetails = activeSubject === 'setA' ? SET_A_LEGAL_LIMITS : FORMULA_DETAILS;
+  // Firebase Authentication & Synchronization States
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState<boolean>(true);
+  const [cloudSyncing, setCloudSyncing] = useState<boolean>(false);
+  const [isSavingCloud, setIsSavingCloud] = useState<boolean>(false);
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showProfileMenu]);
+
+  // Dynamically loaded Curriculum Dataset for active subject (code-split & gated by authentication)
+  const [subjectDatasets, setSubjectDatasets] = useState<Partial<Record<'setA' | 'setB', SubjectDataset>>>({});
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    if (!subjectDatasets[activeSubject]) {
+      loadSubjectDataset(activeSubject).then((data) => {
+        if (!cancelled) {
+          setSubjectDatasets((prev) => ({ ...prev, [activeSubject]: data }));
+        }
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubject, subjectDatasets, currentUser]);
+
+  const activeDataset = subjectDatasets[activeSubject];
+  const currentChapters: Chapter[] = activeDataset?.chapters ?? [];
+  const currentCaseScenarios: CaseScenario[] = activeDataset?.caseScenarios ?? [];
+  const currentGeneralMCQs: GeneralMCQ[] = activeDataset?.generalMCQs ?? [];
+  const currentFlashcards: Flashcard[] = activeDataset?.flashcards ?? [];
+  const currentFormulaDetails: Record<string, FormulaDetail> = activeDataset?.formulaDetails ?? {};
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'practice' | 'mock' | 'sandbox' | 'revision'>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -571,10 +278,15 @@ export default function App() {
     }
   });
 
-  // Persist framework card assessments to local storage
+  // Persist framework card assessments to local storage only for authenticated user
   useEffect(() => {
-    localStorage.setItem('framework_card_assessments', JSON.stringify(frameworkCardAssessments));
-  }, [frameworkCardAssessments]);
+    if (!currentUser) return;
+    try {
+      localStorage.setItem('framework_card_assessments', JSON.stringify(frameworkCardAssessments));
+    } catch (e) {
+      console.error("Failed to save framework assessments to localStorage", e);
+    }
+  }, [frameworkCardAssessments, currentUser]);
 
   const [quizQuestionType, setQuizQuestionType] = useState<'name-to-details' | 'details-to-name'>('details-to-name');
   const [quizTargetKey, setQuizTargetKey] = useState<string>("");
@@ -599,12 +311,13 @@ export default function App() {
   }, [activeSubject, currentFlashcardKey, quizTargetKey, currentFormulaDetails]);
 
   useEffect(() => {
+    if (!currentUser) return;
     try {
       localStorage.setItem('flashcardPerformance', JSON.stringify(flashcardPerformance));
     } catch (e) {
       console.error("Failed to save flashcard performance to localStorage", e);
     }
-  }, [flashcardPerformance]);
+  }, [flashcardPerformance, currentUser]);
 
   const handleGenerateQuizQuestion = (type?: 'name-to-details' | 'details-to-name') => {
     const keys = Object.keys(currentFormulaDetails);
@@ -707,14 +420,15 @@ export default function App() {
     }
   });
 
-  // Automatically save notes to localStorage
+  // Automatically save notes to localStorage only for authenticated user
   useEffect(() => {
+    if (!currentUser) return;
     try {
       localStorage.setItem('caseNotes', JSON.stringify(caseNotes));
     } catch (e) {
       console.error("Failed to save case annotations to localStorage", e);
     }
-  }, [caseNotes]);
+  }, [caseNotes, currentUser]);
 
   // Toggle state to collapse or expand sticky note pane in high-contrast practice view
   const [showNotesPane, setShowNotesPane] = useState<boolean>(true);
@@ -733,8 +447,9 @@ export default function App() {
   }, [showGlobalNotepad]);
 
   useEffect(() => {
+    if (!currentUser) return;
     localStorage.setItem('global_notepad_text', globalNotepadText);
-  }, [globalNotepadText]);
+  }, [globalNotepadText, currentUser]);
 
   const handleInsertTemplate = (template: string) => {
     setGlobalNotepadText(prev => prev ? prev + "\n" + template : template);
@@ -754,14 +469,15 @@ export default function App() {
     }
   });
 
-  // Persist progress changes to localStorage
+  // Persist progress changes to localStorage only for authenticated user
   useEffect(() => {
+    if (!currentUser) return;
     try {
       localStorage.setItem('practiceProgress', JSON.stringify(practiceProgress));
     } catch (e) {
       console.error("Failed to save practice progress to localStorage", e);
     }
-  }, [practiceProgress]);
+  }, [practiceProgress, currentUser]);
 
   // Saved / Bookmarked Practice Questions State
   const [savedBookmarks, setSavedBookmarks] = useState<Record<string, BookmarkedQuestion>>(() => {
@@ -774,12 +490,13 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (!currentUser) return;
     try {
       localStorage.setItem('spom_saved_bookmarks_v1', JSON.stringify(savedBookmarks));
     } catch (e) {
       console.error("Failed to save bookmarks to localStorage", e);
     }
-  }, [savedBookmarks]);
+  }, [savedBookmarks, currentUser]);
 
   const toggleBookmarkQuestion = (item: {
     key?: string;
@@ -827,182 +544,549 @@ export default function App() {
 
   const isQuestionBookmarked = (key: string) => !!savedBookmarks[key];
 
-  // Firebase Authentication & Synchronization States
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [isFirebaseLoading, setIsFirebaseLoading] = useState<boolean>(true);
-  const [cloudSyncing, setCloudSyncing] = useState<boolean>(false);
+  const latestProgressRef = useRef({
+    practiceProgress,
+    savedBookmarks,
+    flashcardPerformance,
+    frameworkCardAssessments,
+    caseNotes,
+    globalNotepadText
+  });
 
-  // Listen for Authentication state changes and merge/retrieve Cloud data
   useEffect(() => {
+    latestProgressRef.current = {
+      practiceProgress,
+      savedBookmarks,
+      flashcardPerformance,
+      frameworkCardAssessments,
+      caseNotes,
+      globalNotepadText
+    };
+  }, [practiceProgress, savedBookmarks, flashcardPerformance, frameworkCardAssessments, caseNotes, globalNotepadText]);
+
+  const hydratedUidRef = useRef<string | null>(null);
+  const lastSyncedJsonRef = useRef<{ practice: string; flashcards: string; notes: string }>({
+    practice: '',
+    flashcards: '',
+    notes: ''
+  });
+
+  const fetchDocServerFirst = async (docRef: DocumentReference) => {
+    try {
+      return await getDocFromServer(docRef);
+    } catch (err: any) {
+      const code = err?.code || '';
+      const msg = String(err?.message || '').toLowerCase();
+      if (code === 'unavailable' || msg.includes('offline')) {
+        return await getDoc(docRef);
+      }
+      throw err;
+    }
+  };
+
+  // Listen for Authentication state changes and retrieve/initialize Cloud data
+  useEffect(() => {
+    if (!auth || !db) {
+      setIsFirebaseLoading(false);
+      return;
+    }
+    const firestore = db;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        hydratedUidRef.current = null;
         setCloudSyncing(true);
+        setAuthError(null);
+        setSyncError(null);
+        const userPath = `users/${user.uid}`;
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userDocRef);
+          const userDocRef = doc(firestore, 'users', user.uid);
+          let userSnap;
+          try {
+            userSnap = await fetchDocServerFirst(userDocRef);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.GET, userPath);
+            return;
+          }
 
           if (!userSnap.exists()) {
-            // New cloud account: initialize profile and push local client state up to the cloud!
-            await setDoc(userDocRef, {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || '',
-              photoURL: user.photoURL || '',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
+            // New cloud account: initialize profile and push any current non-empty client progress up to the cloud
+            const snapshot = latestProgressRef.current;
+            const practicePayload = {
+              practiceProgress: snapshot.practiceProgress,
+              savedBookmarks: snapshot.savedBookmarks
+            };
+            const flashcardsPayload = {
+              flashcardPerformance: snapshot.flashcardPerformance,
+              frameworkCardAssessments: snapshot.frameworkCardAssessments
+            };
+            const notesPayload = {
+              caseNotes: snapshot.caseNotes,
+              globalNotepadText: snapshot.globalNotepadText
+            };
+            try {
+              await setDoc(userDocRef, {
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || '',
+                photoURL: user.photoURL || '',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              });
 
-            await setDoc(doc(db, 'users', user.uid, 'progress', 'practice'), {
-              userId: user.uid,
-              practiceProgress,
-              updatedAt: serverTimestamp()
-            });
+              await Promise.all([
+                setDoc(doc(firestore, 'users', user.uid, 'progress', 'practice'), {
+                  userId: user.uid,
+                  ...practicePayload,
+                  updatedAt: serverTimestamp()
+                }),
+                setDoc(doc(firestore, 'users', user.uid, 'progress', 'flashcards'), {
+                  userId: user.uid,
+                  ...flashcardsPayload,
+                  updatedAt: serverTimestamp()
+                }),
+                setDoc(doc(firestore, 'users', user.uid, 'progress', 'notes'), {
+                  userId: user.uid,
+                  ...notesPayload,
+                  updatedAt: serverTimestamp()
+                })
+              ]);
 
-            await setDoc(doc(db, 'users', user.uid, 'progress', 'flashcards'), {
-              userId: user.uid,
-              flashcardPerformance,
-              frameworkCardAssessments,
-              updatedAt: serverTimestamp()
-            });
-
-            await setDoc(doc(db, 'users', user.uid, 'progress', 'notes'), {
-              userId: user.uid,
-              caseNotes,
-              globalNotepadText,
-              updatedAt: serverTimestamp()
-            });
+              lastSyncedJsonRef.current = {
+                practice: JSON.stringify(practicePayload),
+                flashcards: JSON.stringify(flashcardsPayload),
+                notes: JSON.stringify(notesPayload)
+              };
+              hydratedUidRef.current = user.uid;
+            } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, userPath);
+              return;
+            }
           } else {
-            // Existing cloud account: fetch student records to replace client-side state
-            const practiceRef = doc(db, 'users', user.uid, 'progress', 'practice');
-            const flashcardsRef = doc(db, 'users', user.uid, 'progress', 'flashcards');
-            const notesRef = doc(db, 'users', user.uid, 'progress', 'notes');
+            // Existing cloud account: fetch fresh server records so another device's latest progress is always loaded
+            const practiceRef = doc(firestore, 'users', user.uid, 'progress', 'practice');
+            const flashcardsRef = doc(firestore, 'users', user.uid, 'progress', 'flashcards');
+            const notesRef = doc(firestore, 'users', user.uid, 'progress', 'notes');
 
-            const [practiceSnap, flashcardsSnap, notesSnap] = await Promise.all([
-              getDoc(practiceRef),
-              getDoc(flashcardsRef),
-              getDoc(notesRef)
-            ]);
+            let practiceSnap, flashcardsSnap, notesSnap;
+            try {
+              [practiceSnap, flashcardsSnap, notesSnap] = await Promise.all([
+                fetchDocServerFirst(practiceRef),
+                fetchDocServerFirst(flashcardsRef),
+                fetchDocServerFirst(notesRef)
+              ]);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.GET, `${userPath}/progress`);
+              return;
+            }
 
-            if (practiceSnap.exists()) {
-              const data = practiceSnap.data();
-              if (data && data.practiceProgress) {
-                setPracticeProgress(data.practiceProgress);
-              }
-            }
-            if (flashcardsSnap.exists()) {
-              const data = flashcardsSnap.data();
-              if (data) {
-                if (data.flashcardPerformance) {
-                  setFlashcardPerformance(data.flashcardPerformance);
-                }
-                if (data.frameworkCardAssessments) {
-                  setFrameworkCardAssessments(data.frameworkCardAssessments);
-                }
-              }
-            }
-            if (notesSnap.exists()) {
-              const data = notesSnap.data();
-              if (data) {
-                if (data.caseNotes) {
-                  setCaseNotes(data.caseNotes);
-                }
-                if (data.globalNotepadText) {
-                  setGlobalNotepadText(data.globalNotepadText);
-                }
-              }
-            }
+            const practiceData = practiceSnap.exists() ? practiceSnap.data() : {};
+            const nextPractice = practiceData?.practiceProgress ?? {};
+            const nextBookmarks = practiceData?.savedBookmarks ?? {};
+            lastSyncedJsonRef.current.practice = JSON.stringify({
+              practiceProgress: nextPractice,
+              savedBookmarks: nextBookmarks
+            });
+            setPracticeProgress(nextPractice);
+            setSavedBookmarks(nextBookmarks);
+
+            const flashcardsData = flashcardsSnap.exists() ? flashcardsSnap.data() : {};
+            const nextFlashcards = flashcardsData?.flashcardPerformance ?? {};
+            const nextFrameworks = flashcardsData?.frameworkCardAssessments ?? {};
+            lastSyncedJsonRef.current.flashcards = JSON.stringify({
+              flashcardPerformance: nextFlashcards,
+              frameworkCardAssessments: nextFrameworks
+            });
+            setFlashcardPerformance(nextFlashcards);
+            setFrameworkCardAssessments(nextFrameworks);
+
+            const notesData = notesSnap.exists() ? notesSnap.data() : {};
+            const nextCaseNotes = notesData?.caseNotes ?? {};
+            const nextGlobalNotepad = notesData?.globalNotepadText ?? '';
+            lastSyncedJsonRef.current.notes = JSON.stringify({
+              caseNotes: nextCaseNotes,
+              globalNotepadText: nextGlobalNotepad
+            });
+            setCaseNotes(nextCaseNotes);
+            setGlobalNotepadText(nextGlobalNotepad);
+
+            hydratedUidRef.current = user.uid;
           }
           setCurrentUser(user);
         } catch (error) {
           console.error("Cloud synchronisation failure: ", error);
+          setSyncError("Could not load saved cloud progress. Please check your connection or retry.");
+          setCurrentUser(user);
         } finally {
           setIsFirebaseLoading(false);
           setCloudSyncing(false);
         }
       } else {
+        hydratedUidRef.current = null;
+        lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
         setCurrentUser(null);
         setIsFirebaseLoading(false);
+        setCloudSyncing(false);
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Sync state changes back up to the cloud securely (using 1s debounces to preserve quota)
-  // Practice Progress synchronization
+  // Real-time cross-device cloud listeners (keeps mobile & desktop synchronized live while signed in)
   useEffect(() => {
-    if (currentUser && !cloudSyncing) {
+    if (!db || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.uid) {
+      return;
+    }
+    const firestore = db;
+    const uid = currentUser.uid;
+    const practicePath = `users/${uid}/progress/practice`;
+    const flashcardsPath = `users/${uid}/progress/flashcards`;
+    const notesPath = `users/${uid}/progress/notes`;
+
+    const unsubPractice = onSnapshot(
+      doc(firestore, 'users', uid, 'progress', 'practice'),
+      (snap) => {
+        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
+        const data = snap.data();
+        const nextPractice = data?.practiceProgress ?? {};
+        const nextBookmarks = data?.savedBookmarks ?? {};
+        const incomingJson = JSON.stringify({
+          practiceProgress: nextPractice,
+          savedBookmarks: nextBookmarks
+        });
+        if (incomingJson !== lastSyncedJsonRef.current.practice) {
+          lastSyncedJsonRef.current.practice = incomingJson;
+          setPracticeProgress(nextPractice);
+          setSavedBookmarks(nextBookmarks);
+        }
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, practicePath)
+    );
+
+    const unsubFlashcards = onSnapshot(
+      doc(firestore, 'users', uid, 'progress', 'flashcards'),
+      (snap) => {
+        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
+        const data = snap.data();
+        const nextFlashcards = data?.flashcardPerformance ?? {};
+        const nextFrameworks = data?.frameworkCardAssessments ?? {};
+        const incomingJson = JSON.stringify({
+          flashcardPerformance: nextFlashcards,
+          frameworkCardAssessments: nextFrameworks
+        });
+        if (incomingJson !== lastSyncedJsonRef.current.flashcards) {
+          lastSyncedJsonRef.current.flashcards = incomingJson;
+          setFlashcardPerformance(nextFlashcards);
+          setFrameworkCardAssessments(nextFrameworks);
+        }
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, flashcardsPath)
+    );
+
+    const unsubNotes = onSnapshot(
+      doc(firestore, 'users', uid, 'progress', 'notes'),
+      (snap) => {
+        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
+        const data = snap.data();
+        const nextCaseNotes = data?.caseNotes ?? {};
+        const nextGlobalNotepad = data?.globalNotepadText ?? '';
+        const incomingJson = JSON.stringify({
+          caseNotes: nextCaseNotes,
+          globalNotepadText: nextGlobalNotepad
+        });
+        if (incomingJson !== lastSyncedJsonRef.current.notes) {
+          lastSyncedJsonRef.current.notes = incomingJson;
+          setCaseNotes(nextCaseNotes);
+          setGlobalNotepadText(nextGlobalNotepad);
+        }
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, notesPath)
+    );
+
+    return () => {
+      unsubPractice();
+      unsubFlashcards();
+      unsubNotes();
+    };
+  }, [currentUser, cloudSyncing]);
+
+  const hasPendingCloudWriteRef = useRef<{ practice: boolean; flashcards: boolean; notes: boolean }>({
+    practice: false,
+    flashcards: false,
+    notes: false
+  });
+
+  // Immediate flush helper used before Sign Out, tab hide, or manual retry
+  const flushAllProgressToCloud = async (userToFlush: FirebaseUser | null) => {
+    if (!db || !userToFlush || hydratedUidRef.current !== userToFlush.uid) return;
+    const firestore = db;
+    const snapshot = latestProgressRef.current;
+    setIsSavingCloud(true);
+    setSyncError(null);
+    const basePath = `users/${userToFlush.uid}/progress`;
+    const practicePayload = {
+      practiceProgress: snapshot.practiceProgress,
+      savedBookmarks: snapshot.savedBookmarks
+    };
+    const flashcardsPayload = {
+      flashcardPerformance: snapshot.flashcardPerformance,
+      frameworkCardAssessments: snapshot.frameworkCardAssessments
+    };
+    const notesPayload = {
+      caseNotes: snapshot.caseNotes,
+      globalNotepadText: snapshot.globalNotepadText
+    };
+    try {
+      await Promise.all([
+        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'practice'), {
+          userId: userToFlush.uid,
+          ...practicePayload,
+          updatedAt: serverTimestamp()
+        }),
+        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'flashcards'), {
+          userId: userToFlush.uid,
+          ...flashcardsPayload,
+          updatedAt: serverTimestamp()
+        }),
+        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'notes'), {
+          userId: userToFlush.uid,
+          ...notesPayload,
+          updatedAt: serverTimestamp()
+        })
+      ]);
+      lastSyncedJsonRef.current = {
+        practice: JSON.stringify(practicePayload),
+        flashcards: JSON.stringify(flashcardsPayload),
+        notes: JSON.stringify(notesPayload)
+      };
+      hasPendingCloudWriteRef.current = { practice: false, flashcards: false, notes: false };
+    } catch (error) {
+      setSyncError("Progress sync interrupted.");
+      handleFirestoreError(error, OperationType.WRITE, basePath);
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!db || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.uid) return;
+    const firestore = db;
+    const flushPendingOnLeave = () => {
+      if (hydratedUidRef.current !== currentUser.uid) return;
+      const pending = hasPendingCloudWriteRef.current;
+      if (!pending.practice && !pending.flashcards && !pending.notes) return;
+      const snapshot = latestProgressRef.current;
+      if (pending.practice) {
+        hasPendingCloudWriteRef.current.practice = false;
+        const payload = { practiceProgress: snapshot.practiceProgress, savedBookmarks: snapshot.savedBookmarks };
+        lastSyncedJsonRef.current.practice = JSON.stringify(payload);
+        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'practice'), {
+          userId: currentUser.uid,
+          ...payload,
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+      }
+      if (pending.flashcards) {
+        hasPendingCloudWriteRef.current.flashcards = false;
+        const payload = { flashcardPerformance: snapshot.flashcardPerformance, frameworkCardAssessments: snapshot.frameworkCardAssessments };
+        lastSyncedJsonRef.current.flashcards = JSON.stringify(payload);
+        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'flashcards'), {
+          userId: currentUser.uid,
+          ...payload,
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+      }
+      if (pending.notes) {
+        hasPendingCloudWriteRef.current.notes = false;
+        const payload = { caseNotes: snapshot.caseNotes, globalNotepadText: snapshot.globalNotepadText };
+        lastSyncedJsonRef.current.notes = JSON.stringify(payload);
+        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'notes'), {
+          userId: currentUser.uid,
+          ...payload,
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingOnLeave();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', flushPendingOnLeave);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', flushPendingOnLeave);
+    };
+  }, [currentUser, cloudSyncing]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      hasPendingCloudWriteRef.current = { practice: false, flashcards: false, notes: false };
+    }
+  }, [currentUser]);
+
+  // Sync state changes back up to the cloud securely (using 800ms debounces + hash check to prevent echo loops)
+  // Practice Progress & Saved Bookmarks synchronization
+  useEffect(() => {
+    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+      const payload = { practiceProgress, savedBookmarks };
+      const nextJson = JSON.stringify(payload);
+      if (nextJson === lastSyncedJsonRef.current.practice) return;
+      const firestore = db;
+      hasPendingCloudWriteRef.current.practice = true;
       const upload = async () => {
         const path = `users/${currentUser.uid}/progress/practice`;
+        setIsSavingCloud(true);
         try {
-          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'practice'), {
+          lastSyncedJsonRef.current.practice = nextJson;
+          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'practice'), {
             userId: currentUser.uid,
-            practiceProgress,
+            ...payload,
             updatedAt: serverTimestamp()
           });
+          hasPendingCloudWriteRef.current.practice = false;
+          setSyncError(null);
         } catch (error) {
+          setSyncError("Could not sync practice progress.");
           handleFirestoreError(error, OperationType.WRITE, path);
+        } finally {
+          setIsSavingCloud(false);
         }
       };
-      const timer = setTimeout(upload, 1000);
+      const timer = setTimeout(upload, 800);
       return () => clearTimeout(timer);
     }
-  }, [practiceProgress, currentUser, cloudSyncing]);
+  }, [practiceProgress, savedBookmarks, currentUser, cloudSyncing]);
 
   // Flashcards progress synchronization
   useEffect(() => {
-    if (currentUser && !cloudSyncing) {
+    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+      const payload = { flashcardPerformance, frameworkCardAssessments };
+      const nextJson = JSON.stringify(payload);
+      if (nextJson === lastSyncedJsonRef.current.flashcards) return;
+      const firestore = db;
+      hasPendingCloudWriteRef.current.flashcards = true;
       const upload = async () => {
         const path = `users/${currentUser.uid}/progress/flashcards`;
+        setIsSavingCloud(true);
         try {
-          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'flashcards'), {
+          lastSyncedJsonRef.current.flashcards = nextJson;
+          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'flashcards'), {
             userId: currentUser.uid,
-            flashcardPerformance,
-            frameworkCardAssessments,
+            ...payload,
             updatedAt: serverTimestamp()
           });
+          hasPendingCloudWriteRef.current.flashcards = false;
+          setSyncError(null);
         } catch (error) {
+          setSyncError("Could not sync flashcard progress.");
           handleFirestoreError(error, OperationType.WRITE, path);
+        } finally {
+          setIsSavingCloud(false);
         }
       };
-      const timer = setTimeout(upload, 1000);
+      const timer = setTimeout(upload, 800);
       return () => clearTimeout(timer);
     }
   }, [flashcardPerformance, frameworkCardAssessments, currentUser, cloudSyncing]);
 
   // User Notes & Notebook synchronization
   useEffect(() => {
-    if (currentUser && !cloudSyncing) {
+    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+      const payload = { caseNotes, globalNotepadText };
+      const nextJson = JSON.stringify(payload);
+      if (nextJson === lastSyncedJsonRef.current.notes) return;
+      const firestore = db;
+      hasPendingCloudWriteRef.current.notes = true;
       const upload = async () => {
         const path = `users/${currentUser.uid}/progress/notes`;
+        setIsSavingCloud(true);
         try {
-          await setDoc(doc(db, 'users', currentUser.uid, 'progress', 'notes'), {
+          lastSyncedJsonRef.current.notes = nextJson;
+          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'notes'), {
             userId: currentUser.uid,
-            caseNotes,
-            globalNotepadText,
+            ...payload,
             updatedAt: serverTimestamp()
           });
+          hasPendingCloudWriteRef.current.notes = false;
+          setSyncError(null);
         } catch (error) {
+          setSyncError("Could not sync study notes.");
           handleFirestoreError(error, OperationType.WRITE, path);
+        } finally {
+          setIsSavingCloud(false);
         }
       };
-      const timer = setTimeout(upload, 1000);
+      const timer = setTimeout(upload, 800);
       return () => clearTimeout(timer);
     }
   }, [caseNotes, globalNotepadText, currentUser, cloudSyncing]);
 
   // Sign in and out handlers
   const handleSignIn = async () => {
+    if (!auth || !googleProvider) {
+      setAuthError("Authentication service is not configured for this environment.");
+      return;
+    }
+    setIsSigningIn(true);
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sign in failed: ", error);
+      const code = error?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        setAuthError("Sign-in popup was closed before completing. Click Continue with Google to try again.");
+      } else if (code === 'auth/popup-blocked') {
+        setAuthError("Browser blocked the Google sign-in popup. Please allow popups for this site and retry.");
+      } else if (code === 'auth/unauthorized-domain') {
+        setAuthError("This domain is not authorized in Firebase Authentication settings.");
+      } else {
+        setAuthError(error?.message || "Unable to sign in with Google right now. Please try again.");
+      }
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
   const handleSignOut = async () => {
+    if (!auth) return;
     try {
+      if (currentUser && !cloudSyncing) {
+        await flushAllProgressToCloud(currentUser);
+      }
+    } catch (error) {
+      console.error("Pre-signout progress flush failed: ", error);
+    }
+    try {
+      hydratedUidRef.current = null;
+      lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
       await signOut(auth);
+      // Clear local user progress & session state so next student starts cleanly
+      setPracticeProgress({});
+      setSavedBookmarks({});
+      setFlashcardPerformance({});
+      setFrameworkCardAssessments({});
+      setCaseNotes({});
+      setGlobalNotepadText("");
+      setQuizScore({ correct: 0, total: 0 });
+      setExamStarted(false);
+      setExamFinished(false);
+      setMockScoreCard(null);
+      setActiveTab('dashboard');
+      setShowMobileMenu(false);
+      setShowProfileMenu(false);
+      try {
+        localStorage.removeItem('practiceProgress');
+        localStorage.removeItem('spom_saved_bookmarks_v1');
+        localStorage.removeItem('flashcardPerformance');
+        localStorage.removeItem('framework_card_assessments');
+        localStorage.removeItem('caseNotes');
+        localStorage.removeItem('global_notepad_text');
+      } catch (e) {
+        console.error("Failed to clear local progress cache on sign-out", e);
+      }
     } catch (error) {
       console.error("Sign out failed: ", error);
     }
@@ -1067,8 +1151,9 @@ export default function App() {
   }, [activeTab, practiceCompletionPercentage]);
 
   // PDF Export Function for Study Companion Notes & Scenarios
-  const exportCaseToPDF = (caseObj: CaseScenario) => {
+  const exportCaseToPDF = async (caseObj: CaseScenario) => {
     try {
+      const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -1242,8 +1327,9 @@ export default function App() {
   };
 
   // PDF Export for Revision summary notes & formula materials
-  const exportRevisionToPDF = (targetChapters: Chapter | Chapter[]) => {
+  const exportRevisionToPDF = async (targetChapters: Chapter | Chapter[]) => {
     try {
+      const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -1938,54 +2024,290 @@ export default function App() {
     };
   }).filter(item => item.hasMatch);
 
+  if (isFirebaseLoading) {
+    return (
+      <div
+        onContextMenu={(e) => e.preventDefault()}
+        className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col items-center justify-center p-6 font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
+      >
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="bg-[#021027] p-3 rounded-2xl border border-[#C9A84C]/40 shadow-lg">
+            <img
+              src={practAceLogoImg}
+              alt="practACE — Plan. Revise. Analyse. Correct. Track."
+              width={336}
+              height={112}
+              fetchPriority="high"
+              decoding="sync"
+              className="h-14 sm:h-16 w-auto object-contain"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          <div className="flex items-center gap-2.5 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+            <span>Verifying your practACE session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div
+        onContextMenu={(e) => e.preventDefault()}
+        className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
+      >
+        {/* Sign-In Header */}
+        <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-[54px] sm:h-[64px] w-auto flex-shrink-0 bg-[#021027] rounded-xl flex items-center justify-center">
+              <img
+                src={practAceLogoImg}
+                alt="practACE — Plan. Revise. Analyse. Correct. Track."
+                width={336}
+                height={112}
+                fetchPriority="high"
+                decoding="sync"
+                className="h-[54px] sm:h-[64px] w-auto object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3">
+              <span className="text-xs font-extrabold text-slate-200 tracking-wide">
+                CA Final SPOM Set A &amp; Set B Suite
+              </span>
+              <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest">
+                Plan. Revise. Analyse. Correct. Track.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <a
+              href="https://www.linkedin.com/company/pract-ace/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Follow practACE on LinkedIn"
+              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0"
+              title="Follow practACE on LinkedIn"
+            >
+              <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400" />
+              <span className="hidden md:inline">LinkedIn</span>
+            </a>
+            <a
+              href="https://discord.gg/buecjd45u"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Join practACE Discord Community"
+              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0"
+              title="Join practACE Discord Community"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400"
+              >
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
+              <span className="hidden md:inline">Discord</span>
+            </a>
+            <a
+              href="https://forms.gle/PzWDLK1F3PsobrFL6"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Share practACE Feedback"
+              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 hover:text-amber-300 rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0"
+              title="Share Feedback on practACE"
+            >
+              <MessageSquare size={13} className="text-[#C9A84C] shrink-0" />
+              <span>Feedback</span>
+            </a>
+            <button
+              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 cursor-pointer shrink-0"
+            >
+              {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
+            </button>
+          </div>
+        </header>
+
+        {/* Centered Mandatory Sign-In Gate */}
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-2xl bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl overflow-hidden">
+            {/* Top Executive Navy Hero Strip */}
+            <div className="bg-[#021027] px-6 sm:px-8 py-6 border-b border-[#C9A84C]/30 relative">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
+              <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                <div className="p-3 rounded-2xl bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] shrink-0">
+                  <Lock size={28} />
+                </div>
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#C9A84C]">
+                    <ShieldCheck size={12} />
+                    <span>Student Account Required</span>
+                  </span>
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    Sign In to Access practACE &amp; Save Your Progress
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Authenticate with Google to unlock <strong className="text-blue-400">SPOM Set A (Laws)</strong> &amp; <strong className="text-[#C9A84C]">Set B (SCMPE)</strong> and automatically back up every solved MCQ, flashcard rating, and note.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body: Benefits & Sign-In Action */}
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white">Cloud Progress Tracking</p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Sync Solved vs. Pending MCQs, case completions &amp; accuracy across all devices.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <BookmarkCheck size={16} className="text-[#C9A84C] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white">Saved Questions Vault</p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Bookmark tricky statutory &amp; case MCQs for targeted last-minute revision.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <StickyNote size={16} className="text-sky-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white">Persistent Study Notes</p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Preserve case annotations and global scratchpad formulas in your account.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                  <BarChart2 size={16} className="text-indigo-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white">Flashcards &amp; Mock Readiness</p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Retain Known/Learning ratings across 220+ statutory &amp; SCMPE cards.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {!isFirebaseConfigured && (
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>
+                    Authentication configuration is missing in this environment. Please verify Firebase credentials before signing in.
+                  </span>
+                </div>
+              )}
+
+              {authError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700/60 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3 pt-1">
+                <button
+                  onClick={handleSignIn}
+                  disabled={isSigningIn || !isFirebaseConfigured}
+                  aria-label="Sign in with Google to access practACE and save progress"
+                  className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                >
+                  {isSigningIn ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Signing in...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CloudLightning size={16} />
+                      <span>Continue with Google to Start</span>
+                      <ArrowRight size={15} />
+                    </>
+                  )}
+                </button>
+                <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 font-medium">
+                  Sign-in is required to open Revision Decks, Practice Cases, SPOM Mocks, and cloud progress backup.
+                </p>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Minimal Footer */}
+        <footer className="bg-[#021027] text-slate-400 text-xs py-4 px-6 border-t border-[#C9A84C]/30 text-center">
+          <span className="text-slate-300 font-semibold">
+            practACE • <span className="text-[#C9A84C]">Plan. Revise. Analyse. Correct. Track.</span>
+          </span>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div
       onContextMenu={(e) => e.preventDefault()}
       className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
     >
       {/* Premium Corporate Top Navbar - Official practACE Branding with Set A / Set B Switcher */}
-      <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors duration-200 dark:bg-[#021027] dark:border-[#C9A84C]/30 relative">
+      <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 xl:px-5 py-3 flex flex-col md:flex-row md:flex-wrap xl:flex-nowrap md:items-center justify-between gap-3 xl:gap-4 transition-colors duration-200 dark:bg-[#021027] dark:border-[#C9A84C]/30 relative">
         {/* Left Side: practACE branding with logo & Subject Switcher */}
-        <div className="flex items-center justify-between w-full md:w-auto">
-          <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap">
+        <div className="flex items-center justify-between w-full md:w-auto shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className="relative h-[54px] sm:h-[64px] w-auto flex-shrink-0 select-none bg-[#021027] rounded-xl flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
+              aria-label="practACE Home — Go to Dashboard"
+              className="relative h-[50px] sm:h-[58px] w-auto flex-shrink-0 select-none bg-[#021027] rounded-xl flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
               title="practACE — Plan. Revise. Analyse. Correct. Track."
             >
               <img 
                 src={practAceLogoImg} 
                 alt="practACE — Plan. Revise. Analyse. Correct. Track." 
-                className="h-[54px] sm:h-[64px] w-auto object-contain ml-0 pl-0 transition-transform duration-200 group-hover:scale-[1.02]" 
+                width={336}
+                height={112}
+                fetchPriority="high"
+                decoding="sync"
+                className="h-[50px] sm:h-[58px] w-auto object-contain ml-0 pl-0 transition-transform duration-200 group-hover:scale-[1.02]" 
                 referrerPolicy="no-referrer" 
               />
             </button>
 
             {/* Persistent Set A / Set B Switcher */}
-            <div className="flex items-center bg-slate-950/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-700/80 shadow-inner">
+            <div className="flex items-center bg-slate-950/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-700/80 shadow-inner shrink-0">
               <button
                 onClick={() => setActiveSubject('setA')}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
                   activeSubject === 'setA'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
                 title="SPOM Set A: Corporate and Economic Laws"
               >
-                <BookOpen size={13} className={activeSubject === 'setA' ? 'text-white' : 'text-slate-400'} />
+                <BookOpen size={13} className={activeSubject === 'setA' ? 'text-white shrink-0' : 'text-slate-400 shrink-0'} />
                 <span>Set A : Laws</span>
               </button>
 
               <button
                 onClick={() => setActiveSubject('setB')}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
                   activeSubject === 'setB'
                     ? 'bg-[#C9A84C] text-slate-950 shadow-md shadow-amber-500/20 ring-1 ring-amber-300'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
                 title="SPOM Set B: Strategic Cost & Performance Management"
               >
-                <Calculator size={13} className={activeSubject === 'setB' ? 'text-slate-950' : 'text-slate-400'} />
+                <Calculator size={13} className={activeSubject === 'setB' ? 'text-slate-950 shrink-0' : 'text-slate-400 shrink-0'} />
                 <span>Set B : SCMPE</span>
               </button>
             </div>
@@ -1993,21 +2315,21 @@ export default function App() {
             {/* What's New Trigger Button */}
             <button
               onClick={() => setShowSetAAnnouncement(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-lg transition-all cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-lg transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0"
               title="View What's New — practACE Rebrand & Set A Addition"
             >
-              <Sparkles size={12} className="text-[#C9A84C]" />
+              <Sparkles size={12} className="text-[#C9A84C] shrink-0" />
               <span>What's New</span>
             </button>
             
-            {/* Tagline divider & text - integrated on the left with logo, hidden under xl sizes (1280px) to prevent overlap */}
-            <div className="hidden xl:block h-6 w-[1px] bg-slate-800 self-center"></div>
-            <div className="hidden xl:flex flex-col text-left">
+            {/* Tagline divider & text - shown on 2xl+ screens so 1280px-1535px desktop navbar remains single-row */}
+            <div className="hidden 2xl:block h-6 w-[1px] bg-slate-800 self-center"></div>
+            <div className="hidden 2xl:flex flex-col text-left">
               <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-slate-200 dark:text-slate-200 tracking-wide font-extrabold leading-tight">
+                <span className="text-[11px] text-slate-200 dark:text-slate-200 tracking-wide font-extrabold leading-tight whitespace-nowrap">
                   {activeSubject === 'setA' ? "SPOM Set A: Corporate & Economic Laws" : "SPOM Set B: Strategic Cost Management"}
                 </span>
-                <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none">
+                <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none whitespace-nowrap">
                   Plan. Revise. Analyse. Correct. Track.
                 </span>
               </div>
@@ -2019,6 +2341,8 @@ export default function App() {
             {/* Theme Toggle for Mobile */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+              aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
               className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
             >
               {theme === 'light' ? <Moon size={13} className="text-sky-400" /> : <Sun size={13} className="text-[#C9A84C]" />}
@@ -2027,6 +2351,9 @@ export default function App() {
             {/* Hamburger Button */}
             <button
               onClick={() => setShowMobileMenu(prev => !prev)}
+              aria-label={showMobileMenu ? 'Close Menu' : 'Open Menu'}
+              aria-expanded={showMobileMenu}
+              title={showMobileMenu ? 'Close Navigation Menu' : 'Open Navigation Menu'}
               className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60"
             >
               {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
@@ -2035,15 +2362,13 @@ export default function App() {
         </div>
 
         {/* Navigation & Actions Container */}
-        <div className={`w-full md:w-auto md:flex flex-col md:flex-row items-center gap-4 ${showMobileMenu ? 'flex animate-fadeIn' : 'hidden md:flex'}`}>
-          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto pt-2 md:pt-0">
-            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-2 md:gap-4 w-full md:w-auto">
+        <div className={`w-full md:w-auto md:flex flex-col md:flex-row items-center gap-3 xl:gap-4 ${showMobileMenu ? 'flex animate-fadeIn' : 'hidden md:flex'}`}>
+          <div className="flex flex-col md:flex-row items-center gap-3 xl:gap-4 w-full md:w-auto pt-2 md:pt-0">
+            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-1.5 xl:gap-3 w-full md:w-auto">
               {[
                 { id: 'dashboard', label: 'Dashboard' },
                 { id: 'revision', label: 'Revision Deck' },
-                { id: 'practice', label: 'Practice Cases' },
-                { id: 'mock', label: 'SPOM Mock' },
-                { id: 'sandbox', label: 'Decision Calc' }
+                { id: 'practice', label: 'Practice Cases' }
               ].map(navItem => {
                 const isActive = activeTab === navItem.id;
                 return (
@@ -2056,7 +2381,7 @@ export default function App() {
                          setHasSubmittedPractice(false);
                        }
                     }}
-                    className={`group pb-1 px-2.5 text-xs sm:text-sm font-semibold tracking-wide transition-all relative cursor-pointer font-sans select-none ${
+                    className={`group pb-1 px-2 text-xs xl:text-[13px] font-semibold tracking-wide whitespace-nowrap transition-all relative cursor-pointer font-sans select-none shrink-0 ${
                       isActive 
                         ? 'text-[#C9A84C] font-black' 
                         : 'text-slate-300 hover:text-white'
@@ -2072,35 +2397,32 @@ export default function App() {
               })}
             </nav>
 
-            <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-end border-t border-slate-800 pt-3 md:border-t-0 md:pt-0">
-              {/* Persistent Notepad Selector */}
-              <button
-                id="global-notepad-toggle"
-                onClick={() => {
-                  setShowGlobalNotepad(prev => !prev);
-                  setShowMobileMenu(false);
-                }}
-                className={`flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full transition-all border text-xs font-bold cursor-pointer active:scale-95 shrink-0 select-none ${
-                  showGlobalNotepad 
-                    ? 'bg-emerald-500/15 border-emerald-400/35 text-emerald-400 shadow-md shadow-emerald-500/5'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 hover:border-slate-650'
-                }`}
-                title="Open persistent study notepad for formula drafting"
+            <div className="flex items-center gap-2 xl:gap-2.5 w-full md:w-auto justify-center md:justify-end border-t border-slate-800 pt-3 md:border-t-0 md:pt-0 shrink-0">
+              {/* Official Feedback Form Link */}
+              <a
+                href="https://forms.gle/PzWDLK1F3PsobrFL6"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Share practACE Feedback"
+                onClick={() => setShowMobileMenu(false)}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 hover:text-amber-300 rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
+                title="Share Feedback on practACE"
               >
-                <StickyNote size={13} className={showGlobalNotepad ? 'text-emerald-400' : 'text-slate-400'} />
-                <span>{showGlobalNotepad ? 'Notepad Open' : 'My Notepad'}</span>
-              </button>
+                <MessageSquare size={13} className="text-[#C9A84C] shrink-0" />
+                <span>Feedback</span>
+              </a>
 
               {/* Official LinkedIn Link */}
               <a
                 href="https://www.linkedin.com/company/pract-ace/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                aria-label="Follow practACE on LinkedIn"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
                 title="Follow practACE on LinkedIn"
               >
-                <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400" />
-                <span className="hidden lg:inline">LinkedIn</span>
+                <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400 shrink-0" />
+                <span className="hidden 2xl:inline">LinkedIn</span>
               </a>
 
               {/* Official Discord Link */}
@@ -2108,78 +2430,121 @@ export default function App() {
                 href="https://discord.gg/buecjd45u"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                aria-label="Join practACE Discord Community"
+                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
                 title="Join practACE Discord Community"
               >
                 <svg
                   viewBox="0 0 24 24"
                   fill="currentColor"
                   aria-hidden="true"
-                  className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400"
+                  className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400 shrink-0"
                 >
                   <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
                 </svg>
-                <span className="hidden lg:inline">Discord</span>
+                <span className="hidden 2xl:inline">Discord</span>
               </a>
 
               {/* Theme Switcher Icon (Desktop view) */}
               <button
                 id="global-theme-toggle"
                 onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-                className="hidden md:flex items-center justify-center p-2 bg-slate-850 hover:bg-slate-750 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-705 text-xs font-bold cursor-pointer shrink-0 select-none"
+                aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
+                className="hidden md:flex items-center justify-center p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
                 title={theme === 'light' ? 'Switch to Dark Mode for study sessions' : 'Switch to Light Mode'}
               >
                 {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
               </button>
 
-              {/* Cloud Sync & Student Profile Widget */}
-              {isFirebaseLoading ? (
-                <div className="w-[160px] h-9 flex items-center justify-center gap-2 bg-slate-850/50 dark:bg-slate-800/50 border border-slate-700/60 rounded-full text-[11px] text-slate-400 font-sans select-none shrink-0 transition-all">
-                  <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="font-medium tracking-wide">Securing...</span>
-                </div>
-              ) : currentUser ? (
-                <div className="w-[160px] h-9 flex items-center bg-slate-850 dark:bg-slate-800 border border-slate-700/80 hover:border-[#C9A84C]/40 rounded-full pl-2 pr-2.5 py-1 select-none shadow-sm shadow-[#C9A84C]/5 transition-all shrink-0 hover:bg-slate-800/80">
+              {/* Compact Single-Circle User Account Icon & Popover */}
+              <div className="relative shrink-0" ref={profileMenuRef}>
+                <button
+                  onClick={() => setShowProfileMenu(prev => !prev)}
+                  aria-label={`User Profile (${currentUser.email || currentUser.displayName || 'Account'})`}
+                  aria-expanded={showProfileMenu}
+                  title={`${currentUser.displayName || 'Student'} (${currentUser.email || ''}) — ${syncError ? 'Sync Error' : (cloudSyncing || isSavingCloud) ? 'Saving...' : 'Saved'}`}
+                  className="relative w-9 h-9 rounded-full flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 border border-[#C9A84C]/50 hover:border-[#C9A84C] transition-all cursor-pointer select-none shadow-sm focus:outline-none"
+                >
                   {currentUser.photoURL ? (
                     <img
                       src={currentUser.photoURL}
-                      alt="Student"
+                      alt={currentUser.email || 'User Profile'}
+                      width={34}
+                      height={34}
                       referrerPolicy="no-referrer"
-                      className="w-6 h-6 rounded-full border border-[#C9A84C]/40 object-cover shrink-0"
+                      className="w-full h-full rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#C9A84C] to-amber-600 border border-[#C9A84C]/40 flex items-center justify-center text-[10px] font-black text-slate-950 font-sans shadow-inner shrink-0">
-                      {currentUser.displayName ? currentUser.displayName.slice(0, 2).toUpperCase() : (currentUser.email ? currentUser.email.slice(0, 2).toUpperCase() : 'ST')}
-                    </div>
+                    <span className="w-full h-full rounded-full bg-gradient-to-br from-[#C9A84C] to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 font-sans">
+                      {currentUser.email ? currentUser.email.slice(0, 1).toUpperCase() : (currentUser.displayName ? currentUser.displayName.slice(0, 1).toUpperCase() : 'U')}
+                    </span>
                   )}
-                  <div className="flex flex-col text-left leading-none ml-1.5 w-[70px] min-w-0">
-                    <span className="text-[10px] font-black tracking-wide text-slate-200 truncate">
-                      {currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Student')}
-                    </span>
-                    <span className="text-[8px] text-[#C9A84C] font-semibold flex items-center gap-1 mt-0.5 min-w-0 truncate">
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${cloudSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
-                      <span className="truncate">{cloudSyncing ? 'Saving' : 'Synced'}</span>
-                    </span>
-                  </div>
-                  <div className="h-4 w-[1px] bg-slate-700/60 mx-1.5 shrink-0"></div>
-                  <button
-                    onClick={handleSignOut}
-                    className="text-[9px] font-black text-slate-400 hover:text-rose-400 transition-colors uppercase cursor-pointer py-0.5 tracking-wider active:scale-95 shrink-0"
-                    title="Sign Out"
-                  >
-                    Exit
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={handleSignIn}
-                  className="w-[160px] h-9 flex items-center justify-center gap-1.5 px-3 bg-[#C9A84C] hover:bg-[#b0913e] rounded-full border border-[#C9A84C]/60 hover:dark:border-[#C9A84C] text-[11px] font-black uppercase tracking-wider select-none active:scale-95 transition-all text-center shadow-md shadow-[#C9A84C]/10 cursor-pointer text-slate-950 shrink-0"
-                  title="Sign in with Google to backup and synchronize your revision progress across devices"
-                >
-                  <CloudLightning size={12} className="text-slate-950" />
-                  <span>Sign In</span>
+                  <span
+                    className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#021027] ${
+                      syncError
+                        ? 'bg-rose-500'
+                        : (cloudSyncing || isSavingCloud)
+                        ? 'bg-amber-400 animate-pulse'
+                        : 'bg-emerald-400'
+                    }`}
+                  />
                 </button>
-              )}
+
+                {showProfileMenu && (
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl p-3.5 z-50 text-left space-y-3 animate-fadeIn">
+                    <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                      {currentUser.photoURL ? (
+                        <img
+                          src={currentUser.photoURL}
+                          alt="Profile"
+                          width={32}
+                          height={32}
+                          referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-full border border-[#C9A84C]/40 object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C9A84C] to-amber-600 flex items-center justify-center text-xs font-black text-slate-950 shrink-0">
+                          {currentUser.email ? currentUser.email.slice(0, 1).toUpperCase() : 'U'}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                          {currentUser.displayName || 'practACE Student'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {currentUser.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 font-semibold">Cloud Sync</span>
+                      {syncError ? (
+                        <button
+                          onClick={() => flushAllProgressToCloud(currentUser)}
+                          className="font-bold text-rose-500 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                          <span>Retry Sync</span>
+                        </button>
+                      ) : (
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full inline-block ${(cloudSyncing || isSavingCloud) ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                          <span>{(cloudSyncing || isSavingCloud) ? 'Saving...' : 'All Progress Saved'}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleSignOut}
+                      aria-label="Sign Out of User Profile"
+                      className="w-full py-2 px-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -4397,11 +4762,15 @@ export default function App() {
                   {/* Main Workspace showing matching results or active chapter */}
                   <div className="lg:col-span-9 space-y-6">
                     {activeSubject === 'setA' && (selectedRevisionChapterId === -101 || selectedRevisionChapterId === -1) && (
-                      <SetATimeLimitsChart searchQuery={revisionSearchQuery} />
+                      <Suspense fallback={<div className="h-40 rounded-2xl bg-slate-100 dark:bg-slate-900 animate-pulse" />}>
+                        <SetATimeLimitsChart searchQuery={revisionSearchQuery} />
+                      </Suspense>
                     )}
 
                     {activeSubject === 'setA' && (selectedRevisionChapterId === -102 || selectedRevisionChapterId === -1) && (
-                      <SetAMonetaryLimitsChart searchQuery={revisionSearchQuery} />
+                      <Suspense fallback={<div className="h-40 rounded-2xl bg-slate-100 dark:bg-slate-900 animate-pulse" />}>
+                        <SetAMonetaryLimitsChart searchQuery={revisionSearchQuery} />
+                      </Suspense>
                     )}
 
                     {/* Search Filtering Algorithm */}
@@ -4488,7 +4857,9 @@ export default function App() {
                           </div>
 
                           {/* Dynamic Concept Visualizer & Illustration Lab */}
-                          <ChapterVisualizer chapterId={chap.id} chapterName={chap.name} searchQuery={revisionSearchQuery} />
+                          <Suspense fallback={<div className="h-32 rounded-2xl bg-slate-100 dark:bg-slate-900 animate-pulse" />}>
+                            <ChapterVisualizer chapterId={chap.id} chapterName={chap.name} searchQuery={revisionSearchQuery} />
+                          </Suspense>
 
                           {/* Summary Notes Subsection */}
                           {notesMatches.length > 0 && (
@@ -4540,7 +4911,7 @@ export default function App() {
                                   };
 
                                   const isJustCopied = copiedFormulaName === f.name;
-                                  const details = getFormulaDetails(f.name);
+                                  const details = getFormulaDetails(f.name, currentFormulaDetails);
 
                                   return (
                                     <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-all hover:border-emerald-200 flex flex-col justify-between space-y-3 text-left hover:z-30 relative duration-200">
@@ -6000,7 +6371,9 @@ export default function App() {
                   </p>
                 </div>
 
-                <SetALegalCalculators />
+                <Suspense fallback={<div className="h-48 rounded-2xl bg-slate-100 dark:bg-slate-900 animate-pulse" />}>
+                  <SetALegalCalculators />
+                </Suspense>
               </div>
             ) : (
               <>
@@ -6972,6 +7345,10 @@ Your text persists continuously in your browser and stays accessible across all 
             <img
               src={practAceLogoImg}
               alt="practACE Logo"
+              width={336}
+              height={112}
+              loading="lazy"
+              decoding="async"
               className="h-9 w-auto object-contain"
               referrerPolicy="no-referrer"
             />
@@ -7007,6 +7384,17 @@ Your text persists continuously in your browser and stays accessible across all 
                 <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
               </svg>
               <span>Join us on Discord</span>
+              <ExternalLink size={11} className="opacity-70" />
+            </a>
+            <a
+              href="https://forms.gle/PzWDLK1F3PsobrFL6"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#C9A84C]/20 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-[#C9A84C]/60 font-bold transition-all whitespace-nowrap"
+              title="Share Feedback on practACE"
+            >
+              <MessageSquare size={13} className="text-[#C9A84C]" />
+              <span>Share Feedback</span>
               <ExternalLink size={11} className="opacity-70" />
             </a>
             <p className="font-medium text-slate-400 text-center md:text-right">
@@ -7049,6 +7437,7 @@ Your text persists continuously in your browser and stays accessible across all 
 
                 <button
                   onClick={() => handleCloseSetAAnnouncement(false)}
+                  aria-label="Close Welcome Pop-up"
                   className="p-1.5 text-slate-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/15 rounded-lg transition-all cursor-pointer"
                   title="Close Welcome Pop-up"
                 >
@@ -7062,6 +7451,10 @@ Your text persists continuously in your browser and stays accessible across all 
                   <img
                     src={practAceLogoImg}
                     alt="practACE — Plan. Revise. Analyse. Correct. Track."
+                    width={336}
+                    height={112}
+                    fetchPriority="high"
+                    decoding="sync"
                     className="h-16 sm:h-20 w-auto object-contain"
                     referrerPolicy="no-referrer"
                   />

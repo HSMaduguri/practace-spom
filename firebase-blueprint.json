@@ -47,6 +47,10 @@
           "type": "object",
           "description": "A serialized map of question keys with answer attempts and correctness values."
         },
+        "savedBookmarks": {
+          "type": "object",
+          "description": "A serialized map of bookmarked/flagged questions saved in the user's Revision Vault."
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

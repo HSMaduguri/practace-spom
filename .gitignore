@@ -1,8 +1,12 @@
 node_modules/
 build/
 dist/
+docs/
 coverage/
 .DS_Store
 *.log
+*.local
 .env*
 !.env.example
+firebase-applet-config.json
+!firebase-applet-config.example.json
