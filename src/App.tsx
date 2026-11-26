@@ -532,6 +532,25 @@ export default function App() {
   const [selectedGeneralOption, setSelectedGeneralOption] = useState<'A' | 'B' | 'C' | 'D' | null>(null);
   const [hasSubmittedGeneral, setHasSubmittedGeneral] = useState<boolean>(false);
 
+  // Pro MCQ Practice Arena States (Eliminated Options Strikethrough, Reader Font Scale, Difficulty Filter, Case Search & Focus Mode)
+  const [eliminatedOptions, setEliminatedOptions] = useState<Record<string, Partial<Record<'A' | 'B' | 'C' | 'D', boolean>>>>({});
+  const [arenaReaderFontSize, setArenaReaderFontSize] = useState<'xs' | 'sm' | 'base'>('sm');
+  const [arenaCaseSearch, setArenaCaseSearch] = useState<string>('');
+  const [arenaGeneralDifficulty, setArenaGeneralDifficulty] = useState<'ALL' | 'Easy' | 'Moderate' | 'Tough'>('ALL');
+  const [arenaStatusFilter, setArenaStatusFilter] = useState<'ALL' | 'PENDING' | 'SOLVED' | 'INCORRECT'>('ALL');
+  const [arenaFocusMode, setArenaFocusMode] = useState<boolean>(false);
+
+  const toggleEliminateOption = (questionKey: string, opt: 'A' | 'B' | 'C' | 'D', e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEliminatedOptions(prev => ({
+      ...prev,
+      [questionKey]: {
+        ...(prev[questionKey] || {}),
+        [opt]: !prev[questionKey]?.[opt]
+      }
+    }));
+  };
+
   // Saved / Bookmarked Questions State & Filters
   const [savedFilterType, setSavedFilterType] = useState<'all' | 'case' | 'general'>('all');
   const [savedFilterStatus, setSavedFilterStatus] = useState<'all' | 'solved' | 'pending'>('all');
@@ -2508,10 +2527,51 @@ export default function App() {
   const allChapterMCQs = currentGeneralMCQs.filter(q => q.chapterId === selectedChapterId);
   const chapterTopics = Array.from(new Set(allChapterMCQs.map(q => q.topic)));
   const effectiveGeneralTopic = selectedGeneralTopic === 'ALL' || chapterTopics.includes(selectedGeneralTopic) ? selectedGeneralTopic : 'ALL';
-  const chapterMCQs = effectiveGeneralTopic === 'ALL'
-    ? allChapterMCQs
-    : allChapterMCQs.filter(q => q.topic === effectiveGeneralTopic);
-  const currentMCQ = chapterMCQs[currentGeneralIndex];
+  const chapterMCQs = allChapterMCQs.filter(q => {
+    if (effectiveGeneralTopic !== 'ALL' && q.topic !== effectiveGeneralTopic) return false;
+    if (arenaGeneralDifficulty !== 'ALL' && q.difficulty !== arenaGeneralDifficulty) return false;
+    const prog = practiceProgress[`general-${q.id}`];
+    if (arenaStatusFilter === 'PENDING' && prog?.answered) return false;
+    if (arenaStatusFilter === 'SOLVED' && !prog?.answered) return false;
+    if (arenaStatusFilter === 'INCORRECT' && (!prog?.answered || prog?.correct)) return false;
+    return true;
+  });
+  const safeGeneralIndex = chapterMCQs.length > 0 ? Math.min(currentGeneralIndex, chapterMCQs.length - 1) : 0;
+  const currentMCQ = chapterMCQs[safeGeneralIndex];
+
+  const handleResetQuestionProgress = (progressKey: string, isCaseQuestion: boolean) => {
+    setPracticeProgress(prev => {
+      const next = { ...prev };
+      delete next[progressKey];
+      return next;
+    });
+    setEliminatedOptions(prev => {
+      const next = { ...prev };
+      delete next[progressKey];
+      return next;
+    });
+    if (isCaseQuestion) {
+      setSelectedOption(null);
+      setHasSubmittedPractice(false);
+      setShowExplanation(false);
+    } else {
+      setSelectedGeneralOption(null);
+      setHasSubmittedGeneral(false);
+    }
+  };
+
+  const handleResetCurrentCaseProgress = (caseObj: CaseScenario) => {
+    setPracticeProgress(prev => {
+      const next = { ...prev };
+      caseObj.questions.forEach(q => {
+        delete next[`${caseObj.id}-${q.id}`];
+      });
+      return next;
+    });
+    setSelectedOption(null);
+    setHasSubmittedPractice(false);
+    setShowExplanation(false);
+  };
 
   // Restore user answered state from practiceProgress upon switching question or case scenario
   useEffect(() => {
@@ -2530,6 +2590,61 @@ export default function App() {
     }
   }, [selectedCaseId, currentQuestionIndex]);
 
+  // Keyboard Shortcuts for Pro MCQ Practice Arena (A/B/C/D or 1-4 to answer, ArrowLeft/Right for navigation, B to Bookmark)
+  useEffect(() => {
+    if (activeTab !== 'practice' || practiceSubTab === 'saved') return;
+    const handleArenaKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key.toUpperCase();
+      const optMap: Record<string, 'A' | 'B' | 'C' | 'D'> = {
+        A: 'A', B: 'B', C: 'C', D: 'D',
+        '1': 'A', '2': 'B', '3': 'C', '4': 'D'
+      };
+
+      if (practiceSubTab === 'cases' && selectedCase && currentQuestion) {
+        if (optMap[key] && !hasSubmittedPractice) {
+          e.preventDefault();
+          handleOptionSelect(optMap[key]);
+        } else if (e.key === 'ArrowRight' && currentQuestionIndex < selectedCase.questions.length - 1) {
+          e.preventDefault();
+          setCurrentQuestionIndex(prev => prev + 1);
+        } else if (e.key === 'ArrowLeft' && currentQuestionIndex > 0) {
+          e.preventDefault();
+          setCurrentQuestionIndex(prev => prev - 1);
+        }
+      } else if (practiceSubTab === 'general' && currentMCQ) {
+        if (optMap[key] && !hasSubmittedGeneral) {
+          e.preventDefault();
+          handleGeneralOptionSelect(optMap[key]);
+        } else if (e.key === 'ArrowRight' && safeGeneralIndex < chapterMCQs.length - 1) {
+          e.preventDefault();
+          setCurrentGeneralIndex(safeGeneralIndex + 1);
+        } else if (e.key === 'ArrowLeft' && safeGeneralIndex > 0) {
+          e.preventDefault();
+          setCurrentGeneralIndex(safeGeneralIndex - 1);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleArenaKeyDown);
+    return () => window.removeEventListener('keydown', handleArenaKeyDown);
+  }, [
+    activeTab,
+    practiceSubTab,
+    selectedCase,
+    currentQuestion,
+    hasSubmittedPractice,
+    currentQuestionIndex,
+    currentMCQ,
+    hasSubmittedGeneral,
+    safeGeneralIndex,
+    chapterMCQs.length
+  ]);
   // Restore user answered state from practiceProgress upon switching general question
   useEffect(() => {
     if (currentMCQ) {
@@ -5639,9 +5754,9 @@ export default function App() {
             {/* 6-Card Custom Portal Grid — Upgraded High-Craft Interactive Tiles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               
-              {/* Card 1: MCQ Practice */}
+              {/* Card 1: Pro MCQ Practice Arena */}
               <button
-                onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
+                onClick={() => { setActiveTab('practice'); setPracticeSubTab('general'); }}
                 className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-[#C9A84C]/60 dark:hover:border-[#C9A84C]/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-[#C9A84C]/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] to-amber-300 opacity-75 group-hover:opacity-100 transition-opacity" />
@@ -5650,16 +5765,16 @@ export default function App() {
                     <div className="w-9 h-9 rounded-xl bg-[#C9A84C]/15 border border-[#C9A84C]/30 text-[#C9A84C] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <BookOpen size={17} />
                     </div>
-                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[19px] tracking-tight leading-tight">MCQ Practice</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[19px] tracking-tight leading-tight">Pro MCQ Practice Arena</h3>
                   </div>
                   <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Chapter-wise and full-length practice sets with instant statutory explanations
+                    Interactive CBT arena with option elimination, keyboard shortcuts, difficulty filters &amp; statutory trap alerts
                   </p>
                   
                   {/* Miniature progress bar */}
                   <div className="pt-1.5">
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
-                      <span>{answeredPracticeQuestions} practiced</span>
+                      <span>{answeredPracticeQuestions} / {totalAllQuestionsCount} solved</span>
                       <span className="font-mono text-[#C9A84C]">{practiceCompletionPercentage}%</span>
                     </div>
                     <div className="h-1.5 w-full bg-slate-100 dark:bg-[#171f3a] rounded-full overflow-hidden">
@@ -5672,7 +5787,7 @@ export default function App() {
 
                   <div className="flex items-center gap-1.5 pt-1">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
-                      ⏱️ ~15 mins
+                      ⚡ {totalGeneralMCQsCount} Chapter MCQs
                     </span>
                   </div>
                 </div>
@@ -5681,7 +5796,7 @@ export default function App() {
                 </div>
               </button>
 
-              {/* Card 2: Questions Vault */}
+              {/* Card 2: Case Scenarios Arena */}
               <button
                 onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
                 className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-blue-500/60 dark:hover:border-blue-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
@@ -5692,19 +5807,19 @@ export default function App() {
                     <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <Award size={17} />
                     </div>
-                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors text-[19px] tracking-tight leading-tight">Questions Vault</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors text-[19px] tracking-tight leading-tight">Case Scenarios Arena</h3>
                   </div>
                   <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     {activeSubject === 'setA' 
-                      ? "Corporate Governance, Restructuring, IBC & FEMA case studies" 
-                      : "Past exam, RTP, MTP booklet case studies with answers"}
+                      ? "Split-screen Corporate Governance, Restructuring, IBC & FEMA integrated case scenarios" 
+                      : "Split-screen ICAI BoS, RTP & MTP integrated case scenarios with step-by-step reconciliations"}
                   </p>
                   <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
-                    Browse {currentCaseScenarios.length} Detailed Case Studies →
+                    Solve {currentCaseScenarios.length} Integrated Case Studies ({totalCaseQuestionsCount} MCQs) →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
-                      ⏱️ ~20 mins
+                      🏆 {completedCaseScenariosCount}/{totalCaseScenariosCount} Completed
                     </span>
                   </div>
                 </div>
@@ -6122,102 +6237,299 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: INTERACTIVE PRACTICE COMPANION */}
-        {activeTab === 'practice' && (
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0 animate-tabEnter">
-            {/* Left Column - Side Chapter & Case Selector (col-span-3) */}
-            <div className="lg:col-span-3 space-y-4">
-              <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
-                <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1">
-                  <ClipboardList size={12} /> Select Chapter ({activeSubject === 'setA' ? 'Set A' : 'Set B'})
-                </h3>
-                <div className="space-y-1.5 flex flex-col max-h-[340px] overflow-y-auto scrollbar-thin">
-                  {currentChapters.map(chap => (
+        {/* TAB 2: PRO MCQ PRACTICE ARENA (CASES, STANDALONE MCQS & SAVED VAULT) */}
+        {activeTab === 'practice' && (() => {
+          const activeChapCases = currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId);
+          const filteredChapCases = activeChapCases.filter(cs => {
+            if (!arenaCaseSearch.trim()) return true;
+            const q = arenaCaseSearch.toLowerCase();
+            return (
+              cs.title.toLowerCase().includes(q) ||
+              cs.scenarioText.toLowerCase().includes(q) ||
+              cs.questions.some(mq => mq.questionText.toLowerCase().includes(q))
+            );
+          });
+          const chapTotalCaseQs = activeChapCases.reduce((sum, cs) => sum + cs.questions.length, 0);
+          const chapSolvedCaseQs = activeChapCases.reduce(
+            (sum, cs) => sum + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length,
+            0
+          );
+          const chapCorrectCaseQs = activeChapCases.reduce(
+            (sum, cs) => sum + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.correct).length,
+            0
+          );
+          const chapSolvedGenQs = allChapterMCQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
+          const chapCorrectGenQs = allChapterMCQs.filter(q => practiceProgress[`general-${q.id}`]?.correct).length;
+          const chapArenaTotalQs = chapTotalCaseQs + allChapterMCQs.length;
+          const chapArenaSolvedQs = chapSolvedCaseQs + chapSolvedGenQs;
+          const chapArenaCorrectQs = chapCorrectCaseQs + chapCorrectGenQs;
+          const chapArenaAccuracy = chapArenaSolvedQs > 0 ? Math.round((chapArenaCorrectQs / chapArenaSolvedQs) * 100) : 0;
+          const chapArenaCompletion = chapArenaTotalQs > 0 ? Math.round((chapArenaSolvedQs / chapArenaTotalQs) * 100) : 0;
+
+          const readerFontClass =
+            arenaReaderFontSize === 'xs'
+              ? 'text-xs leading-relaxed'
+              : arenaReaderFontSize === 'base'
+              ? 'text-base leading-relaxed'
+              : 'text-sm leading-relaxed';
+
+          return (
+          <div className="flex-1 flex flex-col space-y-5 min-h-0 animate-tabEnter">
+            {/* PRO MCQ PRACTICE ARENA EXECUTIVE COMMAND HEADER */}
+            <div className="bg-gradient-to-r from-[#021027] via-[#091e3a] to-[#0f172a] text-white rounded-2xl border border-[#C9A84C]/35 p-4 sm:p-5 shadow-md relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] text-[10px] font-black uppercase tracking-widest">
+                      <Sparkles size={11} />
+                      <span>Pro MCQ Practice Arena</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-200 border border-white/10">
+                      {activeSubject === 'setA' ? `Chapter ${selectedChapterId - 100} of 14` : `Chapter ${selectedChapterId} of 10`}
+                    </span>
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-slate-300 bg-slate-900/80 px-2.5 py-0.5 rounded-full border border-slate-700">
+                      <span>⌨️ Keys: A–D / 1–4 Answer • ←/→ Navigate • Strikeout to Eliminate</span>
+                    </span>
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-black text-white tracking-tight leading-snug">
+                    {getPlainChapterName(selectedChapterObj?.name) || 'SPOM Practice Arena'}
+                  </h2>
+                </div>
+
+                {/* Live Chapter Telemetry & Mode Switcher */}
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <div className="flex items-center gap-3 bg-slate-950/80 border border-slate-800 px-3.5 py-2 rounded-xl text-xs">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Chapter Solved</span>
+                      <span className="font-mono font-black text-white">{chapArenaSolvedQs}/{chapArenaTotalQs} <span className="text-[#C9A84C]">({chapArenaCompletion}%)</span></span>
+                    </div>
+                    <div className="h-6 w-[1px] bg-slate-800" />
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Accuracy</span>
+                      <span className={`font-mono font-black ${chapArenaAccuracy >= 50 ? 'text-emerald-400' : chapArenaSolvedQs > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                        {chapArenaAccuracy}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mode Switcher: Case Scenarios vs Standalone MCQs vs Saved Vault */}
+                  <div className="bg-slate-950/90 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
                     <button
-                      key={chap.id}
-                      onClick={() => {
-                        setSelectedChapterId(chap.id);
-                        setCurrentGeneralIndex(0);
-                        setSelectedGeneralOption(null);
-                        setHasSubmittedGeneral(false);
-                        const firstCase = currentCaseScenarios.find(cs => cs.chapterId === chap.id);
-                        if (firstCase) {
-                          setSelectedCaseId(firstCase.id);
-                          setCurrentQuestionIndex(0);
-                          setSelectedOption(null);
-                          setHasSubmittedPractice(false);
-                          setShowExplanation(false);
-                        }
-                      }}
-                      className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-start justify-between gap-2 ${selectedChapterId === chap.id ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-md' : 'bg-indigo-600 text-white shadow-md') : 'text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                      onClick={() => setPracticeSubTab('cases')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                        practiceSubTab === 'cases'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
                     >
-                      <span className="break-words whitespace-normal leading-snug flex-1">{getPlainChapterName(chap.name)}</span>
-                      <ChevronRight size={14} className={`flex-shrink-0 mt-0.5 ${selectedChapterId === chap.id ? 'text-white' : 'text-slate-400'}`} />
+                      <FileText size={12} />
+                      <span>Case Scenarios ({activeChapCases.length})</span>
                     </button>
-                  ))}
+                    <button
+                      onClick={() => setPracticeSubTab('general')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                        practiceSubTab === 'general'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <HelpCircle size={12} />
+                      <span>Standalone MCQs ({allChapterMCQs.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setPracticeSubTab('saved')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                        practiceSubTab === 'saved'
+                          ? 'bg-amber-500 text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-amber-300 hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <Bookmark size={12} className={practiceSubTab === 'saved' || activeSubjectBookmarksCount > 0 ? 'fill-current' : ''} />
+                      <span>Vault ({activeSubjectBookmarksCount})</span>
+                    </button>
+                  </div>
+
+                  {/* Focus Mode Toggle (Collapses Left Navigation Sidebar for Maximum Reading Width) */}
+                  <button
+                    type="button"
+                    onClick={() => setArenaFocusMode(prev => !prev)}
+                    className={`hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                      arenaFocusMode
+                        ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                        : 'bg-slate-900/90 text-slate-200 border-slate-700 hover:border-[#C9A84C]'
+                    }`}
+                    title={arenaFocusMode ? 'Show Chapter & Case Sidebar' : 'Expand Arena into Full-Width Focus Mode'}
+                  >
+                    <LayoutDashboard size={13} />
+                    <span>{arenaFocusMode ? 'Show Sidebar' : 'Focus Mode'}</span>
+                  </button>
                 </div>
               </div>
+            </div>
 
-              {/* Sub-tab selection: Cases vs General vs Saved */}
-              <div className="bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-1 shadow-2xs">
-                <button
-                  onClick={() => setPracticeSubTab('cases')}
-                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'cases' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-                >
-                  <FileText size={12} />
-                  <span>Cases</span>
-                </button>
-                <button
-                  onClick={() => setPracticeSubTab('general')}
-                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'general' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-                >
-                  <HelpCircle size={12} />
-                  <span>MCQs</span>
-                </button>
-                <button
-                  onClick={() => setPracticeSubTab('saved')}
-                  className={`py-2 px-2 text-center text-[11px] sm:text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer ${practiceSubTab === 'saved' ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 border border-slate-300/40 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-                  title="View Saved / Flagged Questions"
-                >
-                  <Bookmark size={12} className={practiceSubTab === 'saved' || activeSubjectBookmarksCount > 0 ? "text-amber-500 fill-amber-500" : ""} />
-                  <span>Saved ({activeSubjectBookmarksCount})</span>
-                </button>
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+            {/* Left Column - Side Chapter & Case Selector (col-span-3, collapsible in Focus Mode) */}
+            {!arenaFocusMode && (
+            <div className="lg:col-span-3 space-y-4">
+              <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                    <ClipboardList size={13} className="text-[#C9A84C]" />
+                    <span>Syllabus Chapters</span>
+                  </h3>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {currentChapters.length} Chaps
+                  </span>
+                </div>
+                <div className="space-y-1.5 flex flex-col max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                  {currentChapters.map((chap, cIdx) => {
+                    const cCases = currentCaseScenarios.filter(cs => cs.chapterId === chap.id);
+                    const cCaseQs = cCases.reduce((s, cs) => s + cs.questions.length, 0);
+                    const cSolvedCaseQs = cCases.reduce((s, cs) => s + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length, 0);
+                    const cGenQs = currentGeneralMCQs.filter(q => q.chapterId === chap.id);
+                    const cSolvedGenQs = cGenQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
+                    const cTotal = cCaseQs + cGenQs.length;
+                    const cSolved = cSolvedCaseQs + cSolvedGenQs;
+                    const isSelectedChap = selectedChapterId === chap.id;
+
+                    return (
+                      <button
+                        key={chap.id}
+                        onClick={() => {
+                          setSelectedChapterId(chap.id);
+                          setCurrentGeneralIndex(0);
+                          setSelectedGeneralOption(null);
+                          setHasSubmittedGeneral(false);
+                          const firstCase = currentCaseScenarios.find(cs => cs.chapterId === chap.id);
+                          if (firstCase) {
+                            setSelectedCaseId(firstCase.id);
+                            setCurrentQuestionIndex(0);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-start justify-between gap-2 cursor-pointer border ${
+                          isSelectedChap
+                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white border-blue-500 shadow-md' : 'bg-[#021027] dark:bg-indigo-600 text-white border-[#C9A84C]/50 shadow-md')
+                            : 'border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${isSelectedChap ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
+                              Ch {cIdx + 1}
+                            </span>
+                            {cTotal > 0 && cSolved === cTotal && (
+                              <CheckCircle2 size={11} className={isSelectedChap ? 'text-emerald-300' : 'text-emerald-500'} />
+                            )}
+                          </div>
+                          <span className="break-words whitespace-normal leading-snug block mt-1">
+                            {getPlainChapterName(chap.name)}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
+                          isSelectedChap
+                            ? 'bg-black/25 text-[#C9A84C]'
+                            : cSolved > 0
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                        }`}>
+                          {cSolved}/{cTotal}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Dynamic sidebar content based on sub-tab */}
               {practiceSubTab === 'cases' ? (
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
                     <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                      Cases in Chapter
+                      Chapter Case Studies
                     </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                      {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).length} Available
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono">
+                      {activeChapCases.length} Cases
                     </span>
                   </div>
-                  <div className="space-y-2 overflow-y-auto max-h-[360px] pr-1 scrollbar-thin">
-                    {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).map(cs => (
+
+                  {/* Quick Case Filter Search */}
+                  <div className="relative">
+                    <Search size={13} className="absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={arenaCaseSearch}
+                      onChange={(e) => setArenaCaseSearch(e.target.value)}
+                      placeholder="Filter cases by keyword..."
+                      className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {arenaCaseSearch && (
                       <button
-                        key={cs.id}
-                        onClick={() => {
-                          setSelectedCaseId(cs.id);
-                          setCurrentQuestionIndex(0);
-                          setSelectedOption(null);
-                          setHasSubmittedPractice(false);
-                          setShowExplanation(false);
-                        }}
-                        className={`w-full text-left p-3 text-xs rounded-xl border transition-all ${selectedCaseId === cs.id ? (activeSubject === 'setA' ? 'border-blue-500 bg-blue-500/10 text-blue-900 dark:text-blue-300 font-bold' : 'border-emerald-400 bg-emerald-500/10 text-emerald-950 font-bold') : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'}`}
+                        type="button"
+                        onClick={() => setArenaCaseSearch('')}
+                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
                       >
-                        <span className="break-words whitespace-normal leading-snug">{cs.title}</span>
+                        <X size={13} />
                       </button>
-                    ))}
-                    {currentCaseScenarios.filter(cs => cs.chapterId === selectedChapterId).length === 0 && (
-                      <p className="text-xs text-slate-400 italic text-center py-4">No cases in this chapter.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 overflow-y-auto max-h-[340px] pr-1 scrollbar-thin">
+                    {filteredChapCases.map((cs, csIdx) => {
+                      const csSolvedCount = cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length;
+                      const csCorrectCount = cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.correct).length;
+                      const csComplete = cs.questions.length > 0 && csSolvedCount === cs.questions.length;
+                      const isSelected = selectedCaseId === cs.id;
+
+                      return (
+                        <button
+                          key={cs.id}
+                          onClick={() => {
+                            setSelectedCaseId(cs.id);
+                            setCurrentQuestionIndex(0);
+                            setSelectedOption(null);
+                            setHasSubmittedPractice(false);
+                            setShowExplanation(false);
+                          }}
+                          className={`w-full text-left p-3 text-xs rounded-xl border transition-all cursor-pointer space-y-1.5 ${
+                            isSelected
+                              ? (activeSubject === 'setA'
+                                  ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/50 text-blue-950 dark:text-blue-200 font-bold shadow-xs'
+                                  : 'border-[#C9A84C] bg-amber-50/80 dark:bg-amber-950/30 text-slate-950 dark:text-amber-200 font-bold shadow-xs')
+                              : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-slate-400">
+                              Case #{csIdx + 1} • {cs.questions.length * 2} Marks
+                            </span>
+                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                              csComplete
+                                ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300'
+                                : csSolvedCount > 0
+                                ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                            }`}>
+                              {csSolvedCount}/{cs.questions.length} Qs {csSolvedCount > 0 ? `(${csCorrectCount}✓)` : ''}
+                            </span>
+                          </div>
+                          <span className="break-words whitespace-normal leading-snug block">
+                            {cs.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {filteredChapCases.length === 0 && (
+                      <p className="text-xs text-slate-400 italic text-center py-4">No matching cases in this chapter.</p>
                     )}
                   </div>
                 </div>
               ) : practiceSubTab === 'general' ? (
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3">
+                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3.5">
+                  {/* Topic Filter */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
@@ -6237,7 +6549,7 @@ export default function App() {
                       }}
                       className="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="ALL">All Topics in Chapter ({allChapterMCQs.length} MCQs)</option>
+                      <option value="ALL">All Topics ({allChapterMCQs.length} MCQs)</option>
                       {chapterTopics.map((topic) => {
                         const topicCount = allChapterMCQs.filter(q => q.topic === topic).length;
                         return (
@@ -6249,26 +6561,78 @@ export default function App() {
                     </select>
                   </div>
 
+                  {/* Difficulty & Resolution Status Filters */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                      Difficulty &amp; Status Filter
+                    </span>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['ALL', 'Easy', 'Moderate', 'Tough'] as const).map(diff => (
+                        <button
+                          key={diff}
+                          type="button"
+                          onClick={() => {
+                            setArenaGeneralDifficulty(diff);
+                            setCurrentGeneralIndex(0);
+                          }}
+                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer border ${
+                            arenaGeneralDifficulty === diff
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                          }`}
+                        >
+                          {diff === 'ALL' ? 'All' : diff}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { id: 'ALL', label: 'All' },
+                        { id: 'PENDING', label: 'Unsolved' },
+                        { id: 'SOLVED', label: 'Solved' },
+                        { id: 'INCORRECT', label: 'Retry ✗' }
+                      ].map(st => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => {
+                            setArenaStatusFilter(st.id as any);
+                            setCurrentGeneralIndex(0);
+                          }}
+                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer border ${
+                            arenaStatusFilter === st.id
+                              ? 'bg-[#021027] dark:bg-[#C9A84C] text-white dark:text-slate-950 border-[#021027] dark:border-[#C9A84C]'
+                              : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                        Questions ({chapterMCQs.length})
+                        Filtered Pool ({chapterMCQs.length})
                       </h3>
-                      {effectiveGeneralTopic !== 'ALL' && (
+                      {(effectiveGeneralTopic !== 'ALL' || arenaGeneralDifficulty !== 'ALL' || arenaStatusFilter !== 'ALL') && (
                         <button
                           onClick={() => {
                             setSelectedGeneralTopic('ALL');
+                            setArenaGeneralDifficulty('ALL');
+                            setArenaStatusFilter('ALL');
                             setCurrentGeneralIndex(0);
                             setSelectedGeneralOption(null);
                             setHasSubmittedGeneral(false);
                           }}
-                          className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                          className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                         >
-                          Show All
+                          Reset Filters
                         </button>
                       )}
                     </div>
-                    <div className="space-y-1.5 overflow-y-auto max-h-[320px] scrollbar-thin">
+                    <div className="space-y-1.5 overflow-y-auto max-h-[280px] pr-1 scrollbar-thin">
                       {chapterMCQs.map((q, idx) => {
                         const qProg = practiceProgress[`general-${q.id}`];
                         return (
@@ -6279,17 +6643,29 @@ export default function App() {
                               setSelectedGeneralOption(null);
                               setHasSubmittedGeneral(false);
                             }}
-                            className={`w-full text-left px-3 py-2 text-xs rounded-xl border transition-all flex items-start justify-between gap-2 ${currentGeneralIndex === idx ? (activeSubject === 'setA' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-300 font-bold' : 'border-indigo-455 bg-indigo-50 text-indigo-950 font-bold') : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'}`}
+                            className={`w-full text-left px-3 py-2 text-xs rounded-xl border transition-all flex items-start justify-between gap-2 cursor-pointer ${
+                              safeGeneralIndex === idx
+                                ? (activeSubject === 'setA'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-300 font-bold'
+                                    : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold')
+                                : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'
+                            }`}
                           >
                             <span className="break-words whitespace-normal leading-snug flex-1">Q {idx + 1}: {q.topic}</span>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ml-1 flex-shrink-0 mt-0.5 ${qProg?.answered ? (qProg.correct ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300') : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
-                              {qProg?.answered ? (qProg.correct ? '✓' : '✗') : 'MCQ'}
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ml-1 flex-shrink-0 mt-0.5 ${
+                              qProg?.answered
+                                ? (qProg.correct
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300')
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                              {qProg?.answered ? (qProg.correct ? '✓' : '✗') : q.difficulty.slice(0, 1)}
                             </span>
                           </button>
                         );
                       })}
                       {chapterMCQs.length === 0 && (
-                        <p className="text-xs text-slate-400 italic text-center py-4">No general questions in this chapter.</p>
+                        <p className="text-xs text-slate-400 italic text-center py-4">No questions match the selected filters.</p>
                       )}
                     </div>
                   </div>
@@ -6396,9 +6772,14 @@ export default function App() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Right Column - Split Case Reading and Question Answering / General MCQs / Saved Questions (col-span-9) */}
-            <div className={practiceSubTab === 'saved' ? "lg:col-span-9 space-y-4 min-h-[500px]" : "lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]"}>
+            {/* Right Column - Pro Split Case Reading & Question Console / General MCQs / Saved Vault */}
+            <div className={
+              practiceSubTab === 'saved'
+                ? `${arenaFocusMode ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-4 min-h-[500px]`
+                : `${arenaFocusMode ? 'lg:col-span-12' : 'lg:col-span-9'} grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]`
+            }>
               {practiceSubTab === 'saved' ? (
                 <div className="space-y-4">
                   {/* Top Control Bar: Search and Quick Stats */}
@@ -6684,50 +7065,108 @@ export default function App() {
               ) : practiceSubTab === 'cases' ? (
                 selectedCase ? (
                 <>
-                  {/* Column 1: Case Detail Reading */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[360px] max-h-[540px] md:max-h-none md:h-[650px]">
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
-                      <div className="flex-1 pr-3">
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
-                          Reference Case scenario
-                        </span>
-                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1 break-words whitespace-normal leading-snug" title={selectedCase.title}>
+                  {/* Column 1: Case Detail Reading & Embedded Case Scratchpad */}
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] max-h-[580px] md:max-h-none md:h-[680px]">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3.5 gap-2.5">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50">
+                            ICAI Integrated Case Scenario
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/50">
+                            {selectedCase.questions.length} MCQs • {selectedCase.questions.length * 2} Marks
+                          </span>
+                        </div>
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1.5 break-words whitespace-normal leading-snug" title={selectedCase.title}>
                           {selectedCase.title}
                         </h2>
                       </div>
                       
-                      {/* Active Actions: Sticky Note Toggle & Study PDF Export */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-4">
+                      {/* Reader Controls: Font Size Scaler, Case Notes Toggle, Global Notepad & PDF Export */}
+                      <div className="flex flex-wrap items-center gap-1.5 flex-shrink-0">
+                        {/* Font Scale Pill */}
+                        <div className="inline-flex items-center bg-slate-100 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-black">
+                          {(['xs', 'sm', 'base'] as const).map((sz, sIdx) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => setArenaReaderFontSize(sz)}
+                              className={`px-1.5 py-1 rounded-md transition-colors cursor-pointer ${
+                                arenaReaderFontSize === sz
+                                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-[#C9A84C] shadow-2xs'
+                                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                              }`}
+                              title={`Reader Text Size: ${sz.toUpperCase()}`}
+                            >
+                              {sIdx === 0 ? 'A-' : sIdx === 1 ? 'A' : 'A+'}
+                            </button>
+                          ))}
+                        </div>
+
                         <button
-                          onClick={() => setShowGlobalNotepad(prev => !prev)}
-                          className={`p-2 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all ${
-                            showGlobalNotepad 
-                              ? 'bg-emerald-50 border-emerald-250 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900 dark:text-emerald-400' 
-                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400'
+                          type="button"
+                          onClick={() => setShowNotesPane(prev => !prev)}
+                          className={`p-1.5 px-2.5 rounded-xl border flex items-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                            showNotesPane
+                              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300'
+                              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
                           }`}
-                          title={showGlobalNotepad ? "Hide Persistent Study Notepad" : "Show Persistent Study Notepad"}
+                          title="Toggle Case Working Notes Drawer"
                         >
-                          <StickyNote size={14} />
-                          <span className="hidden sm:inline">{showGlobalNotepad ? "Hide Notepad" : "Open Notepad"}</span>
+                          <StickyNote size={13} />
+                          <span className="hidden xl:inline">Case Note</span>
                         </button>
                         
                         <button
                           onClick={() => exportCaseToPDF(selectedCase)}
-                          className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 hover:border-indigo-800 flex items-center gap-1.5 text-xs font-bold transition-all shadow-sm active:scale-98"
-                          title="Export Case Scenario & Notes as PDF"
+                          className="p-1.5 px-2.5 rounded-xl bg-[#021027] dark:bg-[#C9A84C] hover:bg-slate-800 dark:hover:bg-[#d8b75c] text-white dark:text-slate-950 flex items-center gap-1 text-xs font-black transition-all shadow-xs cursor-pointer"
+                          title="Export Case Scenario & Working Notes as A4 PDF"
                         >
-                          <Download size={14} />
-                          <span className="hidden sm:inline">Export PDF</span>
+                          <Download size={13} />
+                          <span className="hidden sm:inline">PDF</span>
                         </button>
                       </div>
                     </div>
+
                     {/* Scenario Text */}
-                    <div className="flex-1 overflow-y-auto text-slate-600 text-sm leading-relaxed whitespace-pre-line pr-2 scrollbar-thin">
+                    <div className={`flex-1 overflow-y-auto text-slate-700 dark:text-slate-200 ${readerFontClass} whitespace-pre-line pr-2 scrollbar-thin`}>
                       <HighlightedText text={selectedCase.scenarioText} boldPrefix={false} />
                     </div>
+
+                    {/* Collapsible Per-Case Working Notes & Statutory Scratchpad */}
+                    {showNotesPane && (
+                      <div className="mt-3 pt-2.5 border-t border-amber-200/70 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/15 rounded-xl p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                          <span className="flex items-center gap-1">
+                            <StickyNote size={11} className="text-amber-600" />
+                            <span>Case Working Notes &amp; Key Dates/Numbers (Included in PDF Export)</span>
+                          </span>
+                          {caseNotes[selectedCase.id]?.text && (
+                            <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400">Auto-Saved</span>
+                          )}
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={caseNotes[selectedCase.id]?.text || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCaseNotes(prev => ({
+                              ...prev,
+                              [selectedCase.id]: {
+                                text: val,
+                                color: 'amber',
+                                lastUpdated: new Date().toLocaleTimeString()
+                              }
+                            }));
+                          }}
+                          placeholder="Jot down key case facts, section triggers, or working calculations for this scenario..."
+                          className="w-full text-xs bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-900/50 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none font-mono"
+                        />
+                      </div>
+                    )}
               
                     {/* Case Navigation Footer */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs mt-3 select-none">
+                    <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs mt-3 select-none">
                       <button
                         disabled={currentCaseIdx <= 0}
                         onClick={() => {
@@ -6741,15 +7180,25 @@ export default function App() {
                             setShowExplanation(false);
                           }
                         }}
-                        className={`px-3 py-2 rounded-xl font-extrabold flex items-center gap-1 transition-all ${currentCaseIdx <= 0 ? 'text-slate-300 bg-slate-50 cursor-not-allowed border border-slate-100' : (activeSubject === 'setA' ? 'text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 active:scale-98' : 'text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-98')}`}
+                        className={`px-3 py-1.5 rounded-xl font-extrabold flex items-center gap-1 transition-all cursor-pointer ${currentCaseIdx <= 0 ? 'text-slate-300 dark:text-slate-600 bg-slate-50 dark:bg-slate-900 cursor-not-allowed border border-slate-100 dark:border-slate-800' : (activeSubject === 'setA' ? 'text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 hover:bg-blue-100' : 'text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100')}`}
                         title="Go to Previous Case Study"
                       >
                         <ChevronLeft size={14} /> Prev Case
                       </button>
                       
-                      <span className="text-slate-400 font-extrabold font-mono text-[10px] text-center hidden sm:inline">
-                        CASE {currentCaseIdx + 1} OF {currentCaseScenarios.length}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 font-extrabold font-mono text-[10px] text-center">
+                          CASE {currentCaseIdx + 1} / {currentCaseScenarios.length}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleResetCurrentCaseProgress(selectedCase)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Reset all MCQ attempts in this Case Scenario"
+                        >
+                          <RefreshCw size={12} />
+                        </button>
+                      </div>
                       
                       <button
                         disabled={currentCaseIdx >= currentCaseScenarios.length - 1 || currentCaseIdx === -1}
@@ -6764,7 +7213,7 @@ export default function App() {
                             setShowExplanation(false);
                           }
                         }}
-                        className={`px-3 py-2 rounded-xl font-extrabold flex items-center gap-1 transition-all ${currentCaseIdx >= currentCaseScenarios.length - 1 || currentCaseIdx === -1 ? 'text-slate-300 bg-slate-50 cursor-not-allowed border border-slate-100' : (activeSubject === 'setA' ? 'text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 active:scale-98' : 'text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-98')}`}
+                        className={`px-3 py-1.5 rounded-xl font-extrabold flex items-center gap-1 transition-all cursor-pointer ${currentCaseIdx >= currentCaseScenarios.length - 1 || currentCaseIdx === -1 ? 'text-slate-300 dark:text-slate-600 bg-slate-50 dark:bg-slate-900 cursor-not-allowed border border-slate-100 dark:border-slate-800' : (activeSubject === 'setA' ? 'text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 hover:bg-blue-100' : 'text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100')}`}
                         title="Go to Next Case Study"
                       >
                         Next Case <ChevronRight size={14} />
@@ -6772,10 +7221,10 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Column 2: Question & Options Answer */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] md:h-[650px]">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                      <div className="flex items-center gap-1">
+                  {/* Column 2: Pro MCQ Arena Question Console */}
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 sm:p-5 shadow-sm flex flex-col min-h-[400px] md:h-[680px]">
+                    <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 gap-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           disabled={currentQuestionIndex === 0}
                           onClick={() => {
@@ -6784,13 +7233,13 @@ export default function App() {
                             setHasSubmittedPractice(false);
                             setShowExplanation(false);
                           }}
-                          className={`p-1.5 rounded-lg transition-all ${currentQuestionIndex === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
-                          title="Previous Question"
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${currentQuestionIndex === 0 ? 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          title="Previous Question (←)"
                         >
-                          <ChevronLeft size={15} />
+                          <ChevronLeft size={14} />
                         </button>
-                        <span className="text-xs font-extrabold text-slate-500 capitalize bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                          Q {currentQuestionIndex + 1} / {selectedCase.questions.length}
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg font-mono whitespace-nowrap">
+                          MCQ {currentQuestionIndex + 1} / {selectedCase.questions.length}
                         </span>
                         <button
                           disabled={currentQuestionIndex === selectedCase.questions.length - 1}
@@ -6800,30 +7249,59 @@ export default function App() {
                             setHasSubmittedPractice(false);
                             setShowExplanation(false);
                           }}
-                          className={`p-1.5 rounded-lg transition-all ${currentQuestionIndex === selectedCase.questions.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
-                          title="Next Question"
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${currentQuestionIndex === selectedCase.questions.length - 1 ? 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          title="Next Question (→)"
                         >
-                          <ChevronRight size={15} />
+                          <ChevronRight size={14} />
                         </button>
+                        <span className="hidden sm:inline-block text-[10px] font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/70 dark:border-emerald-800/50 px-2 py-0.5 rounded-md">
+                          2 Marks
+                        </span>
                       </div>
-                      <div className="flex gap-2 items-center">
+
+                      {/* Question Status Palette Dots + Reset + Bookmark */}
+                      <div className="flex gap-1.5 items-center">
                         <div className="flex gap-1 items-center">
-                          {selectedCase.questions.map((_, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setCurrentQuestionIndex(idx);
-                                setSelectedOption(null);
-                                setHasSubmittedPractice(false);
-                                setShowExplanation(false);
-                              }}
-                              className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${currentQuestionIndex === idx ? 'bg-indigo-600 text-white shadow font-extrabold scale-110' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`}
-                              title={`Go to Question ${idx + 1}`}
-                            >
-                              {idx + 1}
-                            </button>
-                          ))}
+                          {selectedCase.questions.map((qItem, idx) => {
+                            const qProg = practiceProgress[`${selectedCase.id}-${qItem.id}`];
+                            const isCurrent = currentQuestionIndex === idx;
+                            let pillStyle = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+                            if (qProg?.answered) {
+                              pillStyle = qProg.correct
+                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                                : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700';
+                            }
+                            if (isCurrent) {
+                              pillStyle = 'bg-[#021027] dark:bg-[#C9A84C] text-white dark:text-slate-950 border-[#021027] dark:border-[#C9A84C] ring-2 ring-[#C9A84C]/30 scale-105';
+                            }
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  setCurrentQuestionIndex(idx);
+                                  setSelectedOption(null);
+                                  setHasSubmittedPractice(false);
+                                  setShowExplanation(false);
+                                }}
+                                className={`w-6 h-6 rounded-lg border text-[10px] font-black font-mono flex items-center justify-center transition-all cursor-pointer ${pillStyle}`}
+                                title={`Question ${idx + 1}${qProg?.answered ? (qProg.correct ? ' (Solved Correct)' : ' (Solved Incorrect)') : ' (Pending)'}`}
+                              >
+                                {idx + 1}
+                              </button>
+                            );
+                          })}
                         </div>
+
+                        {currentQuestion && hasSubmittedPractice && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetQuestionProgress(`${selectedCase.id}-${currentQuestion.id}`, true)}
+                            className="p-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                            title="Re-attempt this question"
+                          >
+                            <RefreshCw size={13} />
+                          </button>
+                        )}
 
                         {currentQuestion && (
                           <button
@@ -6845,30 +7323,32 @@ export default function App() {
                                 examinerWarning: currentQuestion.examinerWarning
                               });
                             }}
-                            className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                            className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border ${
                               isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`)
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50/50'
+                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-amber-600 hover:border-amber-300'
                             }`}
-                            title={isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Remove Bookmark" : "Save this Question for Later Revision"}
+                            title={isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Remove from Saved Vault" : "Bookmark MCQ to Saved Vault"}
                           >
                             <Bookmark size={13} className={isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "fill-white" : ""} />
-                            <span className="hidden sm:inline font-mono text-[11px]">{isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Saved" : "Save MCQ"}</span>
+                            <span className="hidden sm:inline font-mono text-[11px]">{isQuestionBookmarked(`${selectedCase.id}-${currentQuestion.id}`) ? "Saved" : "Save"}</span>
                           </button>
                         )}
                       </div>
                     </div>
 
                     {currentQuestion ? (
-                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1">
+                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1 scrollbar-thin">
                         <div className="space-y-4">
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug break-words whitespace-normal">
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-snug break-words whitespace-normal">
                             {currentQuestion.questionText}
                           </h3>
 
-                          {/* Options */}
-                          <div className="space-y-2.5 pt-2">
+                          {/* Options with Distractor Elimination Strikeout */}
+                          <div className="space-y-2.5 pt-1">
                             {(Object.keys(currentQuestion.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const qKey = `${selectedCase.id}-${currentQuestion.id}`;
+                              const isEliminated = !!eliminatedOptions[qKey]?.[opt];
                               const isSelected = selectedOption === opt;
                               const isCorrect = opt === currentQuestion.correctOption;
                               
@@ -6878,6 +7358,10 @@ export default function App() {
                                   {opt}
                                 </div>
                               );
+
+                              if (isEliminated && !hasSubmittedPractice) {
+                                buttonClass = "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 text-slate-400 dark:text-slate-500 opacity-55";
+                              }
 
                               if (isSelected) {
                                 buttonClass = "border-indigo-500 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/50 font-semibold text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/15";
@@ -6901,50 +7385,97 @@ export default function App() {
                               }
 
                               return (
-                                <button
-                                  key={opt}
-                                  disabled={hasSubmittedPractice}
-                                  onClick={() => handleOptionSelect(opt)}
-                                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
-                                >
-                                  {iconEl}
-                                  <span className="flex-1 pt-0.5 leading-relaxed">{currentQuestion.options[opt]}</span>
-                                </button>
+                                <div key={opt} className="relative group flex items-stretch gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={hasSubmittedPractice}
+                                    onClick={() => handleOptionSelect(opt)}
+                                    className={`flex-1 text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
+                                  >
+                                    {iconEl}
+                                    <span className={`flex-1 pt-0.5 leading-relaxed ${isEliminated && !hasSubmittedPractice ? 'line-through' : ''}`}>
+                                      {currentQuestion.options[opt]}
+                                    </span>
+                                  </button>
+                                  {!hasSubmittedPractice && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => toggleEliminateOption(qKey, opt, e)}
+                                      className={`px-2 rounded-xl border text-[10px] font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center ${
+                                        isEliminated
+                                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                                          : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+                                      }`}
+                                      title={isEliminated ? `Restore Option ${opt}` : `Strike out Option ${opt} as distractor`}
+                                    >
+                                      {isEliminated ? 'Undo' : '✕'}
+                                    </button>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
                         </div>
 
                         {/* Action buttons or Explanation */}
-                        <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
+                        <div className="pt-5 border-t border-slate-100 dark:border-slate-800 mt-5 space-y-3.5">
                           {!hasSubmittedPractice ? (
-                            <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl p-3.5 text-center text-xs font-bold flex items-center justify-center gap-2">
-                              <Info size={14} className="text-indigo-500 animate-bounce" /> Select any option above to instantly submit and validate.
+                            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl p-3 text-center text-xs font-bold flex items-center justify-center gap-2">
+                              <Info size={14} className="text-indigo-500 shrink-0" />
+                              <span>Click an option (or press <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 font-mono text-[10px]">A</kbd>–<kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 font-mono text-[10px]">D</kbd>) to validate • Use <strong className="font-mono">✕</strong> to rule out distractors.</span>
                             </div>
                           ) : (
-                            <div className="space-y-4">
-                              {/* Explanation accordian box */}
-                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-inner">
-                                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
-                                  <Lightbulb size={14} /> Calculation & Concept Breakdown
+                            <div className="space-y-3.5 animate-fadeIn">
+                              {/* Verdict Banner */}
+                              <div className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between text-xs font-extrabold ${
+                                selectedOption === currentQuestion.correctOption
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                                  : 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                              }`}>
+                                <span className="flex items-center gap-1.5">
+                                  {selectedOption === currentQuestion.correctOption ? (
+                                    <>
+                                      <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                      <span>Correct! +2 Marks Earned (Option {currentQuestion.correctOption})</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle size={15} className="text-rose-600 shrink-0" />
+                                      <span>Incorrect (Selected {selectedOption} • Official Answer: Option {currentQuestion.correctOption})</span>
+                                    </>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetQuestionProgress(`${selectedCase.id}-${currentQuestion.id}`, true)}
+                                  className="text-[11px] underline hover:opacity-80 cursor-pointer font-bold"
+                                >
+                                  Retry MCQ
+                                </button>
+                              </div>
+
+                              {/* Explanation Box */}
+                              <div className="bg-slate-50 dark:bg-slate-900/80 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-inner">
+                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-wider mb-1.5">
+                                  <Lightbulb size={14} /> Statutory &amp; Calculation Reconciliation
                                 </div>
-                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
                                   <HighlightedText text={currentQuestion.explanation} boldPrefix={false} />
                                 </p>
                               </div>
 
                               {currentQuestion.examinerWarning && (
-                                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 shadow-sm animate-fadeIn">
-                                  <div className="flex items-center gap-2 text-rose-700 font-black text-xs uppercase tracking-wider mb-1.5 font-mono">
-                                    <AlertTriangle size={14} className="text-rose-600" /> Examiner's Warning & Pitfalls
+                                <div className="bg-rose-50 dark:bg-rose-950/35 rounded-xl p-3.5 border border-rose-200 dark:border-rose-800/60 shadow-2xs">
+                                  <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-black text-xs uppercase tracking-wider mb-1 font-mono">
+                                    <AlertTriangle size={14} className="text-rose-600 shrink-0" /> Examiner&apos;s Trap &amp; Common Pitfalls
                                   </div>
-                                  <p className="text-xs text-rose-800 leading-relaxed font-semibold font-sans">
+                                  <p className="text-xs text-rose-800 dark:text-rose-200 leading-relaxed font-semibold font-sans">
                                     <HighlightedText text={currentQuestion.examinerWarning} boldPrefix={false} />
                                   </p>
                                 </div>
                               )}
 
-                              <div className="flex w-full">
+                              <div className="flex items-center gap-2 w-full">
                                 {currentQuestionIndex < selectedCase.questions.length - 1 ? (
                                   <button
                                     onClick={() => {
@@ -6953,13 +7484,35 @@ export default function App() {
                                       setHasSubmittedPractice(false);
                                       setShowExplanation(false);
                                     }}
-                                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow transition-all active:scale-98"
+                                    className="w-full py-3 px-4 bg-[#021027] dark:bg-[#C9A84C] hover:bg-slate-800 dark:hover:bg-[#d8b75c] text-white dark:text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
                                   >
-                                    Next Question <ChevronRight size={14} />
+                                    <span>Next Question in Case ({currentQuestionIndex + 2} of {selectedCase.questions.length})</span>
+                                    <ChevronRight size={14} />
                                   </button>
                                 ) : (
-                                  <div className="w-full bg-teal-50 text-teal-800 p-3 rounded-xl border border-teal-200 text-center font-bold text-xs flex items-center justify-center gap-1 select-none animate-bounce">
-                                    🎉 Case Solved Perfectly!
+                                  <div className="w-full flex flex-col sm:flex-row items-center gap-2">
+                                    <div className="flex-1 w-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-center font-extrabold text-xs flex items-center justify-center gap-1.5 select-none">
+                                      <Trophy size={14} className="text-emerald-600" />
+                                      <span>Case Scenario Completed! ({selectedCase.questions.filter(q => practiceProgress[`${selectedCase.id}-${q.id}`]?.correct).length}/{selectedCase.questions.length} Correct)</span>
+                                    </div>
+                                    {currentCaseIdx < currentCaseScenarios.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const nextCase = currentCaseScenarios[currentCaseIdx + 1];
+                                          setSelectedChapterId(nextCase.chapterId);
+                                          setSelectedCaseId(nextCase.id);
+                                          setCurrentQuestionIndex(0);
+                                          setSelectedOption(null);
+                                          setHasSubmittedPractice(false);
+                                          setShowExplanation(false);
+                                        }}
+                                        className="w-full sm:w-auto px-4 py-3 bg-[#021027] dark:bg-[#C9A84C] text-white dark:text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                                      >
+                                        <span>Next Case</span>
+                                        <ArrowRight size={14} />
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -6971,37 +7524,49 @@ export default function App() {
                   </div>
                 </>
               ) : (
-                <div className="col-span-12 text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
+                <div className="col-span-12 text-center py-20 bg-white dark:bg-[#0c1228] rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
                   <BookOpen size={48} className="mx-auto text-slate-400 mb-3" />
                   <p className="text-slate-500 font-bold">Please select a case study to practice.</p>
                 </div>
               )) : (
                 <>
-                  {/* General MCQ Split: Concept review on the left, Questions on the right */}
-                  {/* Left Column: Chapter Review Summary Notes */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[360px] max-h-[540px] md:max-h-none md:h-[650px]">
-                    <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
+                  {/* General MCQ Split: Concept & Formula Reference on the Left, Pro MCQ Console on the Right */}
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] max-h-[580px] md:max-h-none md:h-[680px]">
+                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 gap-2">
                       <div>
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4f46e5] bg-indigo-50 px-2.5 py-1 rounded">
-                          Chapter Concept Review
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded border border-indigo-200/60 dark:border-indigo-800/50">
+                          Chapter Crux &amp; Statutory Companion
                         </span>
-                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1 break-words whitespace-normal leading-snug" title={getPlainChapterName(selectedChapterObj?.name)}>
+                        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1.5 break-words whitespace-normal leading-snug" title={getPlainChapterName(selectedChapterObj?.name)}>
                           {getPlainChapterName(selectedChapterObj?.name) || "Concept Review"}
                         </h2>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRevisionChapterId(selectedChapterId);
+                          setRevisionSubView('study');
+                          setActiveTab('revision');
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                        title="Open Full Chapter Revision Deck"
+                      >
+                        <BookOpen size={12} className="text-[#C9A84C]" />
+                        <span>Full Notes</span>
+                      </button>
                     </div>
                     {/* Notes List */}
                     <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin space-y-4">
                       {selectedChapterObj?.summaryNotes && selectedChapterObj.summaryNotes.length > 0 ? (
                         selectedChapterObj.summaryNotes.map((section, sIdx) => (
-                          <div key={sIdx} className="bg-slate-50/55 rounded-xl p-4 border border-slate-100">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 mb-2.5 flex items-center gap-1.5">
+                          <div key={sIdx} className="bg-slate-50/70 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-300 mb-2.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-3 bg-indigo-600 rounded-sm inline-block"></span>
                               {section.title}
                             </h4>
                             <ul className="space-y-1.5">
                               {section.bullets.map((b, bIdx) => (
-                                <li key={bIdx} className="text-xs text-slate-600 leading-relaxed pl-3 border-l border-slate-200 font-medium font-sans break-words whitespace-normal">
+                                <li key={bIdx} className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pl-3 border-l border-slate-200 dark:border-slate-700 font-medium font-sans break-words whitespace-normal">
                                   <HighlightedText text={b} />
                                 </li>
                               ))}
@@ -7014,52 +7579,62 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Right Column: General MCQ Question & Options Answer */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] md:h-[650px]">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                      <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1 flex-shrink-0">
+                  {/* Right Column: Standalone General MCQ Pro Arena Console */}
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 sm:p-5 shadow-sm flex flex-col min-h-[400px] md:h-[680px]">
+                    <div className="flex flex-wrap justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 gap-2">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
-                          disabled={currentGeneralIndex === 0}
+                          disabled={safeGeneralIndex === 0}
                           onClick={() => {
-                            setCurrentGeneralIndex(prev => prev - 1);
+                            setCurrentGeneralIndex(Math.max(0, safeGeneralIndex - 1));
                             setSelectedGeneralOption(null);
                             setHasSubmittedGeneral(false);
                           }}
-                          className={`p-1 rounded-lg transition-all ${currentGeneralIndex === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
-                          title="Previous Question"
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${safeGeneralIndex === 0 ? 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          title="Previous Question (←)"
                         >
-                          <ChevronLeft size={15} />
+                          <ChevronLeft size={14} />
                         </button>
-                        <span className="text-[10px] font-extrabold text-slate-500 capitalize bg-slate-100 px-2 py-0.5 rounded whitespace-nowrap">
-                          G-MCQ {currentGeneralIndex + 1} / {chapterMCQs.length}
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg font-mono whitespace-nowrap">
+                          MCQ {chapterMCQs.length > 0 ? safeGeneralIndex + 1 : 0} / {chapterMCQs.length}
                         </span>
                         <button
-                          disabled={currentGeneralIndex === chapterMCQs.length - 1}
+                          disabled={safeGeneralIndex >= chapterMCQs.length - 1}
                           onClick={() => {
-                            setCurrentGeneralIndex(prev => prev + 1);
+                            setCurrentGeneralIndex(Math.min(chapterMCQs.length - 1, safeGeneralIndex + 1));
                             setSelectedGeneralOption(null);
                             setHasSubmittedGeneral(false);
                           }}
-                          className={`p-1 rounded-lg transition-all ${currentGeneralIndex === chapterMCQs.length - 1 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600 active:scale-95'}`}
-                          title="Next Question"
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${safeGeneralIndex >= chapterMCQs.length - 1 ? 'text-slate-300 dark:text-slate-600 border-slate-100 dark:border-slate-800 cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          title="Next Question (→)"
                         >
-                          <ChevronRight size={15} />
+                          <ChevronRight size={14} />
                         </button>
                       </div>
 
-                      {/* Difficulty, Topic Badge, and Bookmark Button in Right Corner */}
+                      {/* Difficulty, Topic Badge, Reset, and Bookmark Button */}
                       {currentMCQ && (
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          <span className="text-[9px] uppercase font-mono font-bold bg-slate-100 border border-slate-200/50 text-slate-750 px-1.5 py-0.5 rounded break-words" title={currentMCQ.topic}>
+                          <span className="text-[10px] uppercase font-mono font-bold bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md break-words" title={currentMCQ.topic}>
                             {currentMCQ.topic}
                           </span>
-                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded whitespace-nowrap ${
-                            currentMCQ.difficulty === 'Easy' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            currentMCQ.difficulty === 'Moderate' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                            'bg-rose-50 text-rose-700 border border-rose-100'
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md whitespace-nowrap ${
+                            currentMCQ.difficulty === 'Easy' ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' :
+                            currentMCQ.difficulty === 'Moderate' ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800' :
+                            'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                           }`}>
                             {currentMCQ.difficulty}
                           </span>
+                          {hasSubmittedGeneral && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetQuestionProgress(`general-${currentMCQ.id}`, false)}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                              title="Re-attempt this MCQ"
+                            >
+                              <RefreshCw size={12} />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               const qKey = `general-${currentMCQ.id}`;
@@ -7077,30 +7652,32 @@ export default function App() {
                                 examinerWarning: currentMCQ.examinerWarning
                               });
                             }}
-                            className={`p-1 sm:px-2 sm:py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border ${
+                            className={`p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer border ${
                               isQuestionBookmarked(`general-${currentMCQ.id}`)
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50/50'
+                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-amber-600 hover:border-amber-300'
                             }`}
-                            title={isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Remove Bookmark" : "Save this Question for Later Revision"}
+                            title={isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Remove from Saved Vault" : "Save MCQ to Vault"}
                           >
                             <Bookmark size={12} className={isQuestionBookmarked(`general-${currentMCQ.id}`) ? "fill-white" : ""} />
-                            <span className="hidden sm:inline font-mono text-[10px]">{isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Saved" : "Save MCQ"}</span>
+                            <span className="hidden sm:inline font-mono text-[10px]">{isQuestionBookmarked(`general-${currentMCQ.id}`) ? "Saved" : "Save"}</span>
                           </button>
                         </div>
                       )}
                     </div>
 
                     {currentMCQ ? (
-                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1 font-sans">
+                      <div className="flex-1 flex flex-col justify-between overflow-y-auto pr-1 font-sans scrollbar-thin">
                         <div className="space-y-4">
-                          <h3 className="text-base font-bold text-slate-900 leading-snug break-words whitespace-normal">
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-snug break-words whitespace-normal">
                             {currentMCQ.questionText}
                           </h3>
 
-                          {/* Options */}
-                          <div className="space-y-2.5 pt-2">
+                          {/* Options with Distractor Elimination Strikeout */}
+                          <div className="space-y-2.5 pt-1">
                             {(Object.keys(currentMCQ.options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
+                              const qKey = `general-${currentMCQ.id}`;
+                              const isEliminated = !!eliminatedOptions[qKey]?.[opt];
                               const isSelected = selectedGeneralOption === opt;
                               const isCorrect = opt === currentMCQ.correctOption;
                               
@@ -7110,6 +7687,10 @@ export default function App() {
                                   {opt}
                                 </div>
                               );
+
+                              if (isEliminated && !hasSubmittedGeneral) {
+                                buttonClass = "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 text-slate-400 dark:text-slate-500 opacity-55";
+                              }
 
                               if (isSelected) {
                                 buttonClass = "border-indigo-500 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/50 font-semibold text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/15";
@@ -7133,64 +7714,113 @@ export default function App() {
                               }
 
                               return (
-                                <button
-                                  key={opt}
-                                  disabled={hasSubmittedGeneral}
-                                  onClick={() => handleGeneralOptionSelect(opt)}
-                                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
-                                >
-                                  {iconEl}
-                                  <span className="flex-1 pt-0.5 leading-relaxed">{currentMCQ.options[opt]}</span>
-                                </button>
+                                <div key={opt} className="relative group flex items-stretch gap-1.5">
+                                  <button
+                                    type="button"
+                                    disabled={hasSubmittedGeneral}
+                                    onClick={() => handleGeneralOptionSelect(opt)}
+                                    className={`flex-1 text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
+                                  >
+                                    {iconEl}
+                                    <span className={`flex-1 pt-0.5 leading-relaxed ${isEliminated && !hasSubmittedGeneral ? 'line-through' : ''}`}>
+                                      {currentMCQ.options[opt]}
+                                    </span>
+                                  </button>
+                                  {!hasSubmittedGeneral && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => toggleEliminateOption(qKey, opt, e)}
+                                      className={`px-2 rounded-xl border text-[10px] font-mono font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center ${
+                                        isEliminated
+                                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                                          : 'bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border-slate-200 dark:border-slate-800'
+                                      }`}
+                                      title={isEliminated ? `Restore Option ${opt}` : `Strike out Option ${opt} as distractor`}
+                                    >
+                                      {isEliminated ? 'Undo' : '✕'}
+                                    </button>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
                         </div>
 
                         {/* Action buttons or Explanation */}
-                        <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
+                        <div className="pt-5 border-t border-slate-100 dark:border-slate-800 mt-5 space-y-3.5">
                           {!hasSubmittedGeneral ? (
-                            <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl p-3.5 text-center text-xs font-bold flex items-center justify-center gap-2">
-                              <Info size={14} className="text-indigo-500 animate-bounce" /> Select any option above to instantly submit and validate.
+                            <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl p-3 text-center text-xs font-bold flex items-center justify-center gap-2">
+                              <Info size={14} className="text-indigo-500 shrink-0" />
+                              <span>Select an option (or press <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 font-mono text-[10px]">A</kbd>–<kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 font-mono text-[10px]">D</kbd>) to validate • Use <strong className="font-mono">✕</strong> to eliminate wrong choices.</span>
                             </div>
                           ) : (
-                            <div className="space-y-4 font-sans">
+                            <div className="space-y-3.5 font-sans animate-fadeIn">
+                              {/* Verdict Banner */}
+                              <div className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-between text-xs font-extrabold ${
+                                selectedGeneralOption === currentMCQ.correctOption
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                                  : 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                              }`}>
+                                <span className="flex items-center gap-1.5">
+                                  {selectedGeneralOption === currentMCQ.correctOption ? (
+                                    <>
+                                      <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                                      <span>Correct! Official Answer Verified (Option {currentMCQ.correctOption})</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle size={15} className="text-rose-600 shrink-0" />
+                                      <span>Incorrect (Selected {selectedGeneralOption} • Correct Answer: Option {currentMCQ.correctOption})</span>
+                                    </>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetQuestionProgress(`general-${currentMCQ.id}`, false)}
+                                  className="text-[11px] underline hover:opacity-80 cursor-pointer font-bold"
+                                >
+                                  Retry MCQ
+                                </button>
+                              </div>
+
                               {/* Explanation box */}
-                              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 shadow-inner overflow-y-auto max-h-[160px] scrollbar-thin">
-                                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-2">
+                              <div className="bg-slate-50 dark:bg-slate-900/80 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-inner overflow-y-auto max-h-[160px] scrollbar-thin">
+                                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-black text-xs uppercase tracking-wider mb-1.5">
                                   <Lightbulb size={14} /> Correct Option {currentMCQ.correctOption} — Explanation
                                 </div>
-                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line font-medium">
+                                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line font-medium">
                                   <HighlightedText text={currentMCQ.explanation} boldPrefix={false} />
                                 </p>
                               </div>
 
                               {currentMCQ.examinerWarning && (
-                                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 shadow-sm animate-fadeIn">
-                                  <div className="flex items-center gap-2 text-rose-700 font-black text-xs uppercase tracking-wider mb-1.5 font-mono">
-                                    <AlertTriangle size={14} className="text-rose-600" /> Examiner's Trap & Common Pitfalls
+                                <div className="bg-rose-50 dark:bg-rose-950/35 rounded-xl p-3.5 border border-rose-200 dark:border-rose-800/60 shadow-2xs">
+                                  <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-black text-xs uppercase tracking-wider mb-1 font-mono">
+                                    <AlertTriangle size={14} className="text-rose-600 shrink-0" /> Examiner&apos;s Trap &amp; Common Pitfalls
                                   </div>
-                                  <p className="text-xs text-rose-800 leading-relaxed font-semibold font-sans">
+                                  <p className="text-xs text-rose-800 dark:text-rose-200 leading-relaxed font-semibold font-sans">
                                     <HighlightedText text={currentMCQ.examinerWarning} boldPrefix={false} />
                                   </p>
                                 </div>
                               )}
 
                               <div className="flex w-full">
-                                {currentGeneralIndex < chapterMCQs.length - 1 ? (
+                                {safeGeneralIndex < chapterMCQs.length - 1 ? (
                                   <button
                                     onClick={() => {
-                                      setCurrentGeneralIndex(prev => prev + 1);
+                                      setCurrentGeneralIndex(safeGeneralIndex + 1);
                                       setSelectedGeneralOption(null);
                                       setHasSubmittedGeneral(false);
                                     }}
-                                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow transition-all active:scale-98"
+                                    className="w-full py-3 px-4 bg-[#021027] dark:bg-[#C9A84C] hover:bg-slate-800 dark:hover:bg-[#d8b75c] text-white dark:text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
                                   >
-                                    Next Question <ChevronRight size={14} />
+                                    <span>Next Question ({safeGeneralIndex + 2} of {chapterMCQs.length})</span>
+                                    <ChevronRight size={14} />
                                   </button>
                                 ) : (
-                                  <div className="w-full bg-teal-50 text-teal-850 p-3 rounded-xl border border-teal-200 text-center font-bold text-xs flex items-center justify-center gap-1 select-none animate-bounce">
-                                    🎉 Chapter MCQ Deck Solved!
+                                  <div className="w-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-center font-extrabold text-xs flex items-center justify-center gap-1.5 select-none">
+                                    <Trophy size={14} className="text-emerald-600" />
+                                    <span>Filtered Chapter MCQ Set Completed!</span>
                                   </div>
                                 )}
                               </div>
@@ -7199,14 +7829,27 @@ export default function App() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col justify-center items-center text-slate-400">
-                        <HelpCircle size={40} className="text-slate-300 mb-3" />
-                        <p className="text-xs italic font-medium">No General MCQs loaded for this chapter yet.</p>
+                      <div className="flex-1 flex flex-col justify-center items-center text-slate-400 space-y-2">
+                        <HelpCircle size={40} className="text-slate-300" />
+                        <p className="text-xs italic font-medium">No General MCQs match your current filter selection.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGeneralTopic('ALL');
+                            setArenaGeneralDifficulty('ALL');
+                            setArenaStatusFilter('ALL');
+                            setCurrentGeneralIndex(0);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold cursor-pointer"
+                        >
+                          Show All Chapter MCQs
+                        </button>
                       </div>
                     )}
                   </div>
                 </>
               )}
+            </div>
             </div>
 
             {/* Quick Reference Floating Widget */}
@@ -7335,7 +7978,9 @@ export default function App() {
                   {/* Widget Footer */}
                   <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                     <span>Formulas in Chapter: {(selectedChapterObj?.formulas || []).length}</span>
-                    <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold text-[9px]">SCM SPE</span>
+                    <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold text-[9px]">
+                      {activeSubject === 'setA' ? 'SPOM SET A' : 'SPOM SET B'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -7355,7 +8000,8 @@ export default function App() {
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* REVISION TAB: Revision Notes & Formula Revision Deck */}
         {activeTab === 'revision' && (
