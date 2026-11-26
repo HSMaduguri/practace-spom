@@ -208,7 +208,7 @@ export default function App() {
   const [isGoogleProviderEnabled, setIsGoogleProviderEnabled] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
-  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(false);
   const [landingCurriculumTab, setLandingCurriculumTab] = useState<'setA' | 'setB'>('setA');
   const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
   const [activeLegalDoc, setActiveLegalDoc] = useState<
@@ -2121,7 +2121,6 @@ export default function App() {
         setLandingCurriculumTab(subjParam);
       }
 
-      const pageParam = params.get('page');
       const tabParam = params.get('tab') as
         | 'dashboard'
         | 'revision'
@@ -2130,9 +2129,7 @@ export default function App() {
         | 'sandbox'
         | null;
 
-      if (pageParam === 'landing' && !tabParam) {
-        setShowLandingPage(true);
-      } else if (
+      if (
         tabParam &&
         ['dashboard', 'revision', 'practice', 'mock', 'sandbox'].includes(tabParam)
       ) {
@@ -2944,10 +2941,6 @@ export default function App() {
                     <ul className="space-y-1.5 text-xs">
                       {[
                         {
-                          label: 'Home & Marketing Landing Page',
-                          action: () => { setShowLandingPage(true); setActiveLegalDoc(null); }
-                        },
-                        {
                           label: 'Portal Dashboard & KPI Overview',
                           action: () => { setShowLandingPage(false); setActiveTab('dashboard'); setActiveLegalDoc(null); }
                         },
@@ -3695,29 +3688,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Landing Section Anchor Links (Desktop) */}
-            <nav className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-3 py-1.5 text-xs font-bold text-slate-300 shrink-0">
-              <a href="#pract-method" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
-                P-R-A-C-T Method
-              </a>
-              <a href="#spom-curriculum" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
-                Set A &amp; Set B Syllabus
-              </a>
-              <a href="#live-simulators" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
-                Simulators &amp; Tools
-              </a>
-              <a href="#landing-faq" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
-                FAQ
-              </a>
-              <button
-                type="button"
-                onClick={() => setActiveLegalDoc('sitemap')}
-                className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors cursor-pointer whitespace-nowrap"
-              >
-                Site Map
-              </button>
-            </nav>
-
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <a
                 href="https://www.linkedin.com/company/pract-ace/"
@@ -3790,44 +3760,6 @@ export default function App() {
               )}
             </div>
           </div>
-
-          {/* Mobile & Tablet Horizontal Quick-Nav Strip (< lg) */}
-          <nav
-            aria-label="Landing Quick Navigation"
-            className="lg:hidden max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 mt-2 border-t border-slate-800/80 text-[11px] font-bold text-slate-300"
-          >
-            <a
-              href="#pract-method"
-              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
-            >
-              P-R-A-C-T Method
-            </a>
-            <a
-              href="#spom-curriculum"
-              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
-            >
-              Set A &amp; Set B Syllabus
-            </a>
-            <a
-              href="#live-simulators"
-              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
-            >
-              9 Live Simulators
-            </a>
-            <a
-              href="#landing-faq"
-              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
-            >
-              Student FAQ
-            </a>
-            <button
-              type="button"
-              onClick={() => setActiveLegalDoc('sitemap')}
-              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors cursor-pointer shrink-0"
-            >
-              Site Map
-            </button>
-          </nav>
         </header>
 
         <main id="top" className="flex-1">
@@ -5328,18 +5260,6 @@ export default function App() {
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);
-                        setShowLandingPage(true);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      <Sparkles size={12} className="text-[#C9A84C]" />
-                      <span>View Landing Page</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
                         setPasswordInput('');
                         setConfirmPasswordInput('');
                         setAuthError(null);
@@ -5470,18 +5390,6 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     setShowMobileMenu(false);
-                    setShowLandingPage(true);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 text-xs font-bold cursor-pointer"
-                >
-                  <Sparkles size={12} className="text-[#C9A84C]" />
-                  <span>Landing Page</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMobileMenu(false);
                     setActiveLegalDoc('sitemap');
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 text-xs font-bold cursor-pointer"
@@ -5588,17 +5496,6 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setShowLandingPage(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
-            >
-              <Sparkles size={12} className="text-[#C9A84C]" />
-              <span>Landing Page</span>
-            </button>
             <button
               type="button"
               onClick={() => setShowGlobalNotepad((prev) => !prev)}
