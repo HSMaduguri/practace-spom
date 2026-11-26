@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense, type FormEvent } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import {
   BookOpen,
   Award,
@@ -540,7 +540,7 @@ export default function App() {
   const [arenaStatusFilter, setArenaStatusFilter] = useState<'ALL' | 'PENDING' | 'SOLVED' | 'INCORRECT'>('ALL');
   const [arenaFocusMode, setArenaFocusMode] = useState<boolean>(false);
 
-  const toggleEliminateOption = (questionKey: string, opt: 'A' | 'B' | 'C' | 'D', e: React.MouseEvent) => {
+  const toggleEliminateOption = (questionKey: string, opt: 'A' | 'B' | 'C' | 'D', e: ReactMouseEvent) => {
     e.stopPropagation();
     setEliminatedOptions(prev => ({
       ...prev,
