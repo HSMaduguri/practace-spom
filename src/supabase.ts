@@ -184,9 +184,14 @@ function isValidSupabaseKey(value: unknown): value is string {
   return true;
 }
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const DEFAULT_PUBLIC_SUPABASE_URL = 'https://fzqhclnqyierfdahgaqz.supabase.co';
+const DEFAULT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_X8N8_tgSEISvPqDnrCKvAA_jaE8bT9E';
+
+const rawUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_PUBLIC_SUPABASE_URL;
 const rawKey =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  DEFAULT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export const supabaseUrl = isValidSupabaseUrl(rawUrl) ? rawUrl.trim() : null;
 export const supabaseKey = isValidSupabaseKey(rawKey) ? rawKey.trim() : null;
