@@ -83,7 +83,19 @@ export interface BookmarkedQuestion {
 }
 
 // Supabase core configuration
-import { supabase, supabaseUrl, supabaseKey, isSupabaseConfigured, toAppUser, type AppUser, type ProgressSection } from './supabase';
+import {
+  supabase,
+  supabaseUrl,
+  supabaseKey,
+  isSupabaseConfigured,
+  toAppUser,
+  initialUrlAuthSnapshot,
+  setPasswordRecoveryActive,
+  clearInitialAuthError,
+  isRecoverySession,
+  type AppUser,
+  type ProgressSection
+} from './supabase';
 
 
 const getFormulaDetails = (name: string, formulaMap: Record<string, FormulaDetail>): FormulaDetail => {
@@ -158,12 +170,9 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
   const [fullNameInput, setFullNameInput] = useState<string>('');
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const searchParams = new URLSearchParams(window.location.search);
-    return hashParams.get('type') === 'recovery' || searchParams.get('type') === 'recovery';
-  });
+  const [recoveryLinkOrCodeInput, setRecoveryLinkOrCodeInput] = useState<string>('');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => initialUrlAuthSnapshot.isRecovery);
+  const [isAuthErrorGate, setIsAuthErrorGate] = useState<boolean>(() => Boolean(initialUrlAuthSnapshot.errorDescription));
   const [isGoogleProviderEnabled, setIsGoogleProviderEnabled] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
@@ -174,15 +183,52 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const searchParams = new URLSearchParams(window.location.search);
-    const errorDescription =
-      hashParams.get('error_description') || searchParams.get('error_description');
-    if (errorDescription) {
-      setAuthError(errorDescription.replace(/\+/g, ' '));
+    if (initialUrlAuthSnapshot.errorDescription) {
+      const friendlyError =
+        initialUrlAuthSnapshot.errorCode === 'otp_expired'
+          ? 'This password reset link has expired or has already been used. Please request a fresh reset link below, or paste your reset link/code.'
+          : initialUrlAuthSnapshot.errorDescription;
+      setAuthError(friendlyError);
       setAuthMode('forgot');
+      setIsAuthErrorGate(true);
+      clearInitialAuthError();
       window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !initialUrlAuthSnapshot.tokenHash) return;
+    const tokenHash = initialUrlAuthSnapshot.tokenHash;
+    const verifyType = (initialUrlAuthSnapshot.verifyType as 'recovery' | 'email' | 'invite' | 'email_change') || 'recovery';
+    initialUrlAuthSnapshot.tokenHash = null;
+    if (verifyType === 'recovery') {
+      setPasswordRecoveryActive(true);
+      setIsPasswordRecovery(true);
+    }
+    supabase.auth
+      .verifyOtp({ token_hash: tokenHash, type: verifyType })
+      .then(({ data, error }) => {
+        if (error) {
+          setPasswordRecoveryActive(false);
+          setIsPasswordRecovery(false);
+          setIsAuthErrorGate(true);
+          setAuthMode('forgot');
+          setAuthError(error.message || 'This password reset link is invalid or has expired. Please request a new one.');
+        } else if (verifyType === 'recovery' || isRecoverySession(data.session)) {
+          setPasswordRecoveryActive(true);
+          setIsPasswordRecovery(true);
+          setIsAuthErrorGate(false);
+          setAuthError(null);
+        }
+        window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
+      })
+      .catch((err: any) => {
+        setPasswordRecoveryActive(false);
+        setIsPasswordRecovery(false);
+        setIsAuthErrorGate(true);
+        setAuthMode('forgot');
+        setAuthError(err?.message || 'Unable to verify password reset link.');
+      });
   }, []);
 
   useEffect(() => {
@@ -631,6 +677,11 @@ export default function App() {
         if (error) {
           console.error('Failed to read Supabase session:', error);
         }
+        if (isRecoverySession(data.session)) {
+          setPasswordRecoveryActive(true);
+          setIsPasswordRecovery(true);
+          setIsAuthErrorGate(false);
+        }
         setSessionUser(data.session?.user ? toAppUser(data.session.user) : null);
         setIsAuthLoading(false);
       })
@@ -644,13 +695,16 @@ export default function App() {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || isRecoverySession(session)) {
+        setPasswordRecoveryActive(true);
         setIsPasswordRecovery(true);
+        setIsAuthErrorGate(false);
         setAuthError(null);
         setAuthMessage(null);
         setPasswordInput('');
         setConfirmPasswordInput('');
       } else if (event === 'SIGNED_OUT') {
+        setPasswordRecoveryActive(false);
         setIsPasswordRecovery(false);
       }
       setSessionUser(session?.user ? toAppUser(session.user) : null);
@@ -665,7 +719,7 @@ export default function App() {
 
   // Hydrate or initialize cloud profile & progress whenever authenticated sessionUser changes
   useEffect(() => {
-    if (!supabase || !sessionUser || isPasswordRecovery) {
+    if (!supabase || !sessionUser || isPasswordRecovery || isAuthErrorGate) {
       hydratedUidRef.current = null;
       lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
       setCurrentUser(null);
@@ -794,7 +848,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [sessionUser, isPasswordRecovery]);
+  }, [sessionUser, isPasswordRecovery, isAuthErrorGate]);
 
   // Real-time cross-device cloud listeners via Supabase Realtime (keeps mobile & desktop synchronized live while signed in)
   useEffect(() => {
@@ -1078,6 +1132,16 @@ export default function App() {
     }
   };
 
+  const validatePasswordPolicy = (pwd: string): string | null => {
+    if (pwd.length < 8) {
+      return 'Password must be at least 8 characters long.';
+    }
+    if (!/[a-z]/.test(pwd) || !/[A-Z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[^A-Za-z0-9]/.test(pwd)) {
+      return 'Password must include at least one uppercase letter, one lowercase letter, one number, and one special character (e.g. @, #, !, $).';
+    }
+    return null;
+  };
+
   const handleEmailAuth = async (e: FormEvent) => {
     e.preventDefault();
     if (!supabase) {
@@ -1090,7 +1154,13 @@ export default function App() {
       setAuthError('Please enter a valid email address.');
       return;
     }
-    if (password.length < 6) {
+    if (authMode === 'signup') {
+      const policyErr = validatePasswordPolicy(password);
+      if (policyErr) {
+        setAuthError(policyErr);
+        return;
+      }
+    } else if (password.length < 6) {
       setAuthError('Password must be at least 6 characters long.');
       return;
     }
@@ -1098,6 +1168,7 @@ export default function App() {
     setIsSigningIn(true);
     setAuthError(null);
     setAuthMessage(null);
+    setIsAuthErrorGate(false);
     try {
       if (authMode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -1154,12 +1225,137 @@ export default function App() {
         setAuthError(error.message || 'Unable to send password reset email. Please try again.');
       } else {
         setAuthMessage(
-          'If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder.'
+          'Password reset email sent! Click the link in your email to open the password reset screen—or if the link fails to open on your device, copy and paste the email link below.'
         );
       }
     } catch (error: any) {
       console.error('Password reset request failed:', error);
       setAuthError(error?.message || 'Unable to send password reset email. Please try again.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleManualRecoveryVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      setAuthError('Authentication service is not configured for this environment.');
+      return;
+    }
+    const raw = recoveryLinkOrCodeInput.trim();
+    if (!raw) {
+      setAuthError('Please paste the reset link from your email or enter your 6-digit recovery code.');
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthMessage(null);
+    try {
+      // Case 1: User pasted a full URL (either the Supabase /auth/v1/verify?token=... link or the redirected #access_token=... URL)
+      if (raw.includes('http://') || raw.includes('https://') || raw.includes('access_token=') || raw.includes('token=')) {
+        let parsedSearch = new URLSearchParams();
+        let parsedHash = new URLSearchParams();
+        try {
+          const urlObj = new URL(raw.startsWith('http') ? raw : `https://placeholder.local/${raw.startsWith('?') || raw.startsWith('#') ? raw : `?${raw}`}`);
+          parsedSearch = new URLSearchParams(urlObj.search);
+          parsedHash = new URLSearchParams(urlObj.hash.replace(/^#/, ''));
+        } catch {
+          parsedHash = new URLSearchParams(raw.replace(/^#/, ''));
+        }
+
+        const errDesc = parsedHash.get('error_description') || parsedSearch.get('error_description');
+        if (errDesc) {
+          setAuthError(`${errDesc.replace(/\+/g, ' ')}. Please click "Send Reset Link" above to request a fresh email.`);
+          return;
+        }
+
+        const accessToken = parsedHash.get('access_token') || parsedSearch.get('access_token');
+        const refreshToken = parsedHash.get('refresh_token') || parsedSearch.get('refresh_token');
+        if (accessToken && refreshToken) {
+          setPasswordRecoveryActive(true);
+          setIsPasswordRecovery(true);
+          setIsAuthErrorGate(false);
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          if (error) {
+            setPasswordRecoveryActive(false);
+            setIsPasswordRecovery(false);
+            setAuthError(error.message || 'This reset link has expired. Please request a new reset link.');
+          } else {
+            setRecoveryLinkOrCodeInput('');
+          }
+          return;
+        }
+
+        const tokenHash =
+          parsedSearch.get('token_hash') ||
+          parsedSearch.get('token') ||
+          parsedHash.get('token_hash') ||
+          parsedHash.get('token');
+        if (tokenHash) {
+          setPasswordRecoveryActive(true);
+          setIsPasswordRecovery(true);
+          setIsAuthErrorGate(false);
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery'
+          });
+          if (error) {
+            setPasswordRecoveryActive(false);
+            setIsPasswordRecovery(false);
+            setAuthError(error.message || 'This reset link has already been used or expired. Please request a new reset link.');
+          } else {
+            setRecoveryLinkOrCodeInput('');
+          }
+          return;
+        }
+      }
+
+      // Case 2: User entered a 6-digit OTP code or raw token hash
+      if (/^\d{6}$/.test(raw)) {
+        const email = emailInput.trim();
+        if (!email || !email.includes('@')) {
+          setAuthError('Please enter your email address above along with the 6-digit recovery code.');
+          return;
+        }
+        setPasswordRecoveryActive(true);
+        setIsPasswordRecovery(true);
+        setIsAuthErrorGate(false);
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token: raw,
+          type: 'recovery'
+        });
+        if (error) {
+          setPasswordRecoveryActive(false);
+          setIsPasswordRecovery(false);
+          setAuthError(error.message || 'Invalid or expired 6-digit recovery code.');
+        } else {
+          setRecoveryLinkOrCodeInput('');
+        }
+      } else {
+        setPasswordRecoveryActive(true);
+        setIsPasswordRecovery(true);
+        setIsAuthErrorGate(false);
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: raw,
+          type: 'recovery'
+        });
+        if (error) {
+          setPasswordRecoveryActive(false);
+          setIsPasswordRecovery(false);
+          setAuthError(error.message || 'Invalid or expired reset link/token. Please request a new reset link.');
+        } else {
+          setRecoveryLinkOrCodeInput('');
+        }
+      }
+    } catch (error: any) {
+      setPasswordRecoveryActive(false);
+      setIsPasswordRecovery(false);
+      setAuthError(error?.message || 'Could not verify the reset link or code. Please request a fresh link.');
     } finally {
       setIsSigningIn(false);
     }
@@ -1171,8 +1367,9 @@ export default function App() {
       setAuthError('Authentication service is not configured for this environment.');
       return;
     }
-    if (passwordInput.length < 6) {
-      setAuthError('New password must be at least 6 characters long.');
+    const policyErr = validatePasswordPolicy(passwordInput);
+    if (policyErr) {
+      setAuthError(policyErr);
       return;
     }
     if (passwordInput !== confirmPasswordInput) {
@@ -1184,6 +1381,7 @@ export default function App() {
     setAuthError(null);
     setAuthMessage(null);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
       const { error } = await supabase.auth.updateUser({ password: passwordInput });
       if (error) {
         setAuthError(error.message || 'Could not update your password. Please request a new reset link.');
@@ -1191,6 +1389,8 @@ export default function App() {
         setPasswordInput('');
         setConfirmPasswordInput('');
         setAuthError(null);
+        setPasswordRecoveryActive(false, sessionData?.session);
+        setIsAuthErrorGate(false);
         window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
         setIsPasswordRecovery(false);
         if (!sessionUser) {
@@ -1209,12 +1409,19 @@ export default function App() {
   const handleCancelPasswordRecovery = async () => {
     if (supabase) {
       try {
-        await supabase.auth.signOut();
+        const { data: sessionData } = await supabase.auth.getSession();
+        setPasswordRecoveryActive(false, sessionData?.session);
+        if (!currentUser) {
+          await supabase.auth.signOut();
+        }
       } catch (error) {
         console.error('Recovery sign out error:', error);
       }
+    } else {
+      setPasswordRecoveryActive(false);
     }
     setIsPasswordRecovery(false);
+    setIsAuthErrorGate(false);
     setAuthMode('signin');
     setPasswordInput('');
     setConfirmPasswordInput('');
@@ -2736,7 +2943,7 @@ export default function App() {
     );
   }
 
-  if (!currentUser || isPasswordRecovery) {
+  if (!currentUser || isPasswordRecovery || isAuthErrorGate) {
     return (
       <div
         onContextMenu={(e) => e.preventDefault()}
@@ -2921,7 +3128,7 @@ export default function App() {
                           Create a New Password
                         </h2>
                         <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                          Enter a new password (minimum 6 characters) to regain access to your practACE account.
+                          Enter a strong password (at least 8 characters with uppercase, lowercase, number &amp; special symbol) to secure your practACE account.
                         </p>
                       </div>
 
@@ -2933,11 +3140,11 @@ export default function App() {
                           <input
                             type="password"
                             required
-                            minLength={6}
+                            minLength={8}
                             autoComplete="new-password"
                             value={passwordInput}
                             onChange={(e) => setPasswordInput(e.target.value)}
-                            placeholder="Minimum 6 characters"
+                            placeholder="Min 8 chars (A-Z, a-z, 0-9 & symbol)"
                             disabled={isSigningIn || !isSupabaseConfigured}
                             className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
                           />
@@ -2949,7 +3156,7 @@ export default function App() {
                           <input
                             type="password"
                             required
-                            minLength={6}
+                            minLength={8}
                             autoComplete="new-password"
                             value={confirmPasswordInput}
                             onChange={(e) => setConfirmPasswordInput(e.target.value)}
@@ -2984,7 +3191,7 @@ export default function App() {
                         disabled={isSigningIn}
                         className="w-full py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
                       >
-                        Cancel &amp; Back to Sign In
+                        {currentUser ? 'Cancel & Return to Dashboard' : 'Cancel & Back to Sign In'}
                       </button>
                     </>
                   ) : authMode === 'forgot' ? (
@@ -2994,6 +3201,7 @@ export default function App() {
                           type="button"
                           onClick={() => {
                             setAuthMode('signin');
+                            setIsAuthErrorGate(false);
                             setAuthError(null);
                             setAuthMessage(null);
                           }}
@@ -3048,6 +3256,29 @@ export default function App() {
                           )}
                         </button>
                       </form>
+
+                      <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800 text-left space-y-2">
+                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          Link not opening on your device? Paste the email reset link or 6-digit recovery code here:
+                        </p>
+                        <form onSubmit={handleManualRecoveryVerify} className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            value={recoveryLinkOrCodeInput}
+                            onChange={(e) => setRecoveryLinkOrCodeInput(e.target.value)}
+                            placeholder="Paste email reset link URL or 6-digit code"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isSigningIn || !isSupabaseConfigured || !recoveryLinkOrCodeInput.trim()}
+                            className="px-3.5 py-2 rounded-lg bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-[#C9A84C] border border-[#C9A84C]/40 text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors"
+                          >
+                            Verify Link / Code
+                          </button>
+                        </form>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -3512,6 +3743,23 @@ export default function App() {
                         </span>
                       )}
                     </div>
+
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setPasswordInput('');
+                        setConfirmPasswordInput('');
+                        setAuthError(null);
+                        setAuthMessage(null);
+                        setPasswordRecoveryActive(true);
+                        setIsPasswordRecovery(true);
+                      }}
+                      aria-label="Change Account Password"
+                      className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Lock size={12} className="text-[#C9A84C]" />
+                      <span>Change Password</span>
+                    </button>
 
                     <button
                       onClick={handleSignOut}
