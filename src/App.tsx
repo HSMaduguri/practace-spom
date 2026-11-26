@@ -4259,35 +4259,260 @@ export default function App() {
           </section>
         </main>
 
-        {/* Landing Page Footer with Site Map, Legal, Security & Compliance Links */}
-        <footer className="bg-[#021027] text-slate-400 text-xs py-8 px-6 border-t border-[#C9A84C]/30">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col sm:items-start items-center gap-1 text-center sm:text-left">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-100 font-black text-sm tracking-wide">
-                  pract<span className="text-[#C9A84C]">ACE</span>
-                </span>
-                <span className="text-slate-600">|</span>
-                <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#C9A84C]">
-                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
-                </span>
+        {/* Landing Page Footer — Full 4-Column Executive Sitemap, Community & Legal Governance */}
+        <footer className="bg-[#021027] text-slate-400 text-xs pt-9 pb-7 px-6 border-t border-[#C9A84C]/35 tracking-wide relative">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C]/80 via-amber-300/60 to-blue-500/80" />
+          <div className="max-w-7xl mx-auto space-y-7">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-7 text-left">
+              {/* Column 1: Brand Identity, Motto & Community (4 cols) */}
+              <div className="md:col-span-4 space-y-3.5">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={practAceLogoImg}
+                    alt="practACE Logo"
+                    width={386}
+                    height={100}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-9 sm:h-10 w-auto object-contain shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="text-left space-y-0.5">
+                    <span className="text-white font-black text-sm tracking-wide block leading-tight">
+                      pract<span className="text-[#C9A84C]">ACE</span>
+                    </span>
+                    <span className="text-[10px] uppercase font-extrabold tracking-widest text-[#C9A84C] block">
+                      Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Complete CA Final Self-Paced Online Module (SPOM) preparation workspace for <strong className="text-slate-200">Set A (Corporate &amp; Economic Laws)</strong> and <strong className="text-slate-200">Set B (Strategic Cost &amp; Performance Management)</strong>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <a
+                    href="https://www.linkedin.com/company/pract-ace/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#0A66C2]/25 text-slate-200 hover:text-sky-300 border border-slate-700 hover:border-[#0A66C2]/60 text-[11px] font-bold transition-all"
+                    title="Visit practACE on LinkedIn"
+                  >
+                    <Linkedin size={12} className="text-sky-400" />
+                    <span>LinkedIn</span>
+                    <ExternalLink size={10} className="opacity-70" />
+                  </a>
+                  <a
+                    href="https://discord.gg/buecjd45u"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#5865F2]/25 text-slate-200 hover:text-indigo-300 border border-slate-700 hover:border-[#5865F2]/60 text-[11px] font-bold transition-all"
+                    title="Join practACE Discord Community"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      className="w-3.5 h-3.5 text-indigo-400"
+                    >
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                    </svg>
+                    <span>Discord</span>
+                    <ExternalLink size={10} className="opacity-70" />
+                  </a>
+                  <a
+                    href="https://forms.gle/PzWDLK1F3PsobrFL6"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#C9A84C]/20 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-[#C9A84C]/60 text-[11px] font-bold transition-all whitespace-nowrap"
+                    title="Share Feedback on practACE"
+                  >
+                    <MessageSquare size={12} className="text-[#C9A84C]" />
+                    <span>Feedback</span>
+                    <ExternalLink size={10} className="opacity-70" />
+                  </a>
+                </div>
               </div>
-              <span className="text-[11px] text-slate-400">
-                © {new Date().getFullYear()} practACE — Independent CA Final SPOM study suite (not affiliated with ICAI)
-              </span>
+
+              {/* Column 2: Sitemap — Study & Revision Modules (3 cols) */}
+              <div className="md:col-span-3 space-y-2.5">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                  Site Map — Study &amp; Revision
+                </h4>
+                <ul className="space-y-1.5 text-[11px] font-semibold">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('dashboard')}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Portal Dashboard &amp; Analytics
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: 'study' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Revision Deck &amp; Crux Notes
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: activeSubject === 'setA' ? 'study' : 'frameworks' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Statutory &amp; Concept Blueprints
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: 'flashcards' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Active Recall Flashcards (220+)
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('sandbox')}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Statutory &amp; Decision Calculators
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Column 3: Sitemap — Practice, Mocks & Tools (3 cols) */}
+              <div className="md:col-span-3 space-y-2.5">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                  Practice &amp; Exam Engines
+                </h4>
+                <ul className="space-y-1.5 text-[11px] font-semibold">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'cases' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      ICAI Case Scenarios Vault (80)
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'general' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Standalone Chapter-Wise MCQs
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'saved' })}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Saved Questions Revision Vault
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('mock')}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Timed SPOM Mock Simulator
+                    </button>
+                  </li>
+                  <li>
+                    <a
+                      href="#landing-simulators"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Interactive Simulators Preview
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Column 4: Subjects & Sitemap Directory (2 cols) */}
+              <div className="md:col-span-2 space-y-2.5">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                  SPOM Subjects
+                </h4>
+                <ul className="space-y-1.5 text-[11px] font-semibold">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('dashboard', 'setA')}
+                      className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      Set A: Laws (14 Chaps)
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => openAppWorkspaceFromLanding('dashboard', 'setB')}
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Set B: SCMPE (10 Chaps)
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setActiveLegalDoc('sitemap')}
+                      className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer"
+                    >
+                      Full Interactive Site Map →
+                    </button>
+                  </li>
+                  <li>
+                    <a
+                      href="#landing-faq"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    >
+                      Student FAQ &amp; Cloud Sync
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="./sitemap.xml"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1 transition-colors"
+                    >
+                      <span>sitemap.xml</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] font-bold">
-              {legalDocTabs.map((doc) => (
-                <button
-                  key={doc.id}
-                  type="button"
-                  onClick={() => setActiveLegalDoc(doc.id)}
-                  className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
-                >
-                  {doc.shortLabel}
-                </button>
-              ))}
+            {/* Bottom Legal, Security & Governance Bar */}
+            <div className="pt-4 border-t border-slate-800/90 flex flex-col lg:flex-row items-center justify-between gap-3 text-[11px]">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 font-bold">
+                {legalDocTabs.map((doc) => (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    onClick={() => setActiveLegalDoc(doc.id)}
+                    className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
+                  >
+                    {doc.shortLabel}
+                  </button>
+                ))}
+              </div>
+              <p className="text-slate-400 text-center lg:text-right">
+                © {new Date().getFullYear()} practACE. Independent educational preparation platform; not affiliated with or endorsed by ICAI.
+              </p>
             </div>
           </div>
         </footer>
@@ -5392,7 +5617,7 @@ export default function App() {
 
         {/* TAB 2: INTERACTIVE PRACTICE COMPANION */}
         {activeTab === 'practice' && (
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0 animate-tabEnter">
             {/* Left Column - Side Chapter & Case Selector (col-span-3) */}
             <div className="lg:col-span-3 space-y-4">
               <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
@@ -6140,23 +6365,31 @@ export default function App() {
                               const isSelected = selectedOption === opt;
                               const isCorrect = opt === currentQuestion.correctOption;
                               
-                              let buttonClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
-                              let iconEl = <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-500 bg-slate-50">{opt}</div>;
+                              let buttonClass = "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/60 hover:border-blue-400 dark:hover:border-blue-500/70 hover:bg-slate-50/90 dark:hover:bg-slate-800/70 text-slate-800 dark:text-slate-200 shadow-2xs";
+                              let iconEl = (
+                                <div className="w-6 h-6 rounded-lg border border-slate-300 dark:border-slate-600 flex items-center justify-center text-xs font-black text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 shrink-0 transition-colors">
+                                  {opt}
+                                </div>
+                              );
 
                               if (isSelected) {
-                                buttonClass = "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-950";
-                                iconEl = <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">{opt}</div>;
+                                buttonClass = "border-indigo-500 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/50 font-semibold text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/15";
+                                iconEl = (
+                                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
+                                    {opt}
+                                  </div>
+                                );
                               }
 
                               if (hasSubmittedPractice) {
                                 if (isCorrect) {
-                                  buttonClass = "border-emerald-500 bg-emerald-500/10 text-emerald-900 font-semibold";
-                                  iconEl = <CheckCircle2 className="text-emerald-600 fill-emerald-100" size={20} />;
+                                  buttonClass = "border-emerald-500 dark:border-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/45 text-emerald-950 dark:text-emerald-200 font-semibold ring-2 ring-emerald-500/15";
+                                  iconEl = <CheckCircle2 className="text-emerald-600 dark:text-emerald-400 fill-emerald-100 dark:fill-emerald-950 shrink-0" size={22} />;
                                 } else if (isSelected) {
-                                  buttonClass = "border-rose-500 bg-rose-500/10 text-rose-900 font-semibold";
-                                  iconEl = <XCircle className="text-rose-600 fill-rose-100" size={20} />;
+                                  buttonClass = "border-rose-500 dark:border-rose-400 bg-rose-50/90 dark:bg-rose-950/45 text-rose-950 dark:text-rose-200 font-semibold ring-2 ring-rose-500/15";
+                                  iconEl = <XCircle className="text-rose-600 dark:text-rose-400 fill-rose-100 dark:fill-rose-950 shrink-0" size={22} />;
                                 } else {
-                                  buttonClass = "border-slate-100 bg-slate-50/50 opacity-60";
+                                  buttonClass = "border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-500 opacity-60";
                                 }
                               }
 
@@ -6165,10 +6398,10 @@ export default function App() {
                                   key={opt}
                                   disabled={hasSubmittedPractice}
                                   onClick={() => handleOptionSelect(opt)}
-                                  className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all ${buttonClass}`}
+                                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
                                 >
                                   {iconEl}
-                                  <span className="flex-1 mt-0.5 leading-tight">{currentQuestion.options[opt]}</span>
+                                  <span className="flex-1 pt-0.5 leading-relaxed">{currentQuestion.options[opt]}</span>
                                 </button>
                               );
                             })}
@@ -6364,23 +6597,31 @@ export default function App() {
                               const isSelected = selectedGeneralOption === opt;
                               const isCorrect = opt === currentMCQ.correctOption;
                               
-                              let buttonClass = "border-slate-200 hover:border-slate-300 hover:bg-slate-50";
-                              let iconEl = <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-500">{opt}</div>;
+                              let buttonClass = "border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/60 hover:border-blue-400 dark:hover:border-blue-500/70 hover:bg-slate-50/90 dark:hover:bg-slate-800/70 text-slate-800 dark:text-slate-200 shadow-2xs";
+                              let iconEl = (
+                                <div className="w-6 h-6 rounded-lg border border-slate-300 dark:border-slate-600 flex items-center justify-center text-xs font-black text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 shrink-0 transition-colors">
+                                  {opt}
+                                </div>
+                              );
 
                               if (isSelected) {
-                                buttonClass = "border-indigo-500 bg-indigo-500/10 font-medium text-indigo-950";
-                                iconEl = <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">{opt}</div>;
+                                buttonClass = "border-indigo-500 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/50 font-semibold text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/15";
+                                iconEl = (
+                                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
+                                    {opt}
+                                  </div>
+                                );
                               }
 
                               if (hasSubmittedGeneral) {
                                 if (isCorrect) {
-                                  buttonClass = "border-emerald-500 bg-emerald-500/10 text-emerald-950 font-semibold";
-                                  iconEl = <CheckCircle2 className="text-emerald-600 fill-emerald-100" size={20} />;
+                                  buttonClass = "border-emerald-500 dark:border-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/45 text-emerald-950 dark:text-emerald-200 font-semibold ring-2 ring-emerald-500/15";
+                                  iconEl = <CheckCircle2 className="text-emerald-600 dark:text-emerald-400 fill-emerald-100 dark:fill-emerald-950 shrink-0" size={22} />;
                                 } else if (isSelected) {
-                                  buttonClass = "border-rose-500 bg-rose-500/10 text-rose-950 font-semibold";
-                                  iconEl = <XCircle className="text-rose-600 fill-rose-100" size={20} />;
+                                  buttonClass = "border-rose-500 dark:border-rose-400 bg-rose-50/90 dark:bg-rose-950/45 text-rose-950 dark:text-rose-200 font-semibold ring-2 ring-rose-500/15";
+                                  iconEl = <XCircle className="text-rose-600 dark:text-rose-400 fill-rose-100 dark:fill-rose-950 shrink-0" size={22} />;
                                 } else {
-                                  buttonClass = "border-slate-100 bg-slate-50/50 opacity-60";
+                                  buttonClass = "border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-500 opacity-60";
                                 }
                               }
 
@@ -6389,10 +6630,10 @@ export default function App() {
                                   key={opt}
                                   disabled={hasSubmittedGeneral}
                                   onClick={() => handleGeneralOptionSelect(opt)}
-                                  className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all ${buttonClass}`}
+                                  className={`w-full text-left p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm flex items-start gap-3 transition-all cursor-pointer ${buttonClass}`}
                                 >
                                   {iconEl}
-                                  <span className="flex-1 mt-0.5 leading-tight">{currentMCQ.options[opt]}</span>
+                                  <span className="flex-1 pt-0.5 leading-relaxed">{currentMCQ.options[opt]}</span>
                                 </button>
                               );
                             })}
@@ -6611,32 +6852,51 @@ export default function App() {
 
         {/* REVISION TAB: Revision Notes & Formula Revision Deck */}
         {activeTab === 'revision' && (
-          <div className="space-y-6 flex-1 flex flex-col mb-6">
+          <div className="space-y-5 flex-1 flex flex-col mb-6 animate-tabEnter">
             {/* Header Banner */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-6 sm:p-8 shadow-md relative overflow-hidden">
-              <div className="absolute right-0 bottom-0 top-0 opacity-10 flex items-center pr-10">
-                <Bookmark size={150} className="text-emerald-400" />
+            <div className="bg-gradient-to-r from-[#021027] via-[#091e3a] to-[#0f172a] text-white rounded-2xl border border-[#C9A84C]/35 p-5 sm:p-6 shadow-md relative overflow-hidden">
+              <div className="absolute right-0 bottom-0 top-0 opacity-10 flex items-center pr-8 pointer-events-none">
+                <Bookmark size={130} className="text-[#C9A84C]" />
               </div>
-              <div className="relative z-10 max-w-3xl">
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  Formula & Concept Revision Companion
-                </h2>
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 border border-[#C9A84C]/35 text-[#C9A84C] text-[10px] font-black uppercase tracking-widest">
+                    <span>{activeSubject === 'setA' ? 'SPOM Set A : Corporate & Economic Laws' : 'SPOM Set B : Strategic Cost & Performance Management'}</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                    {activeSubject === 'setA' ? 'Statutory Sections, Thresholds & Case Law Companion' : 'Formula, Concept & Strategic Framework Companion'}
+                  </h2>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    High-yield revision notes, interactive 3D active-recall flashcards, and examiner trap warnings aligned with ICAI modules.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const targetChapId = selectedRevisionChapterId > 0 ? selectedRevisionChapterId : (currentChapters[0]?.id || (activeSubject === 'setA' ? 101 : 1));
+                    handleOpenPracticeForChapter(targetChapId, 'cases');
+                  }}
+                  className="self-start sm:self-center px-4 py-2.5 text-xs font-black rounded-xl bg-[#C9A84C] hover:bg-[#d8b75c] text-slate-950 shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0"
+                  title="Ready to solve problems? Switch to Practice Cases for this Set"
+                >
+                  <span>Practice Chapter Cases</span>
+                  <ArrowRight size={14} />
+                </button>
               </div>
             </div>
 
-            {/* Sub-view Navigation Tabs */}
-            <div className="flex border-b border-slate-200 gap-2 sm:gap-6 pb-0 px-2 overflow-x-auto scrollbar-none">
+            {/* Sub-view Navigation Bar — Unified Segmented Pill Bar */}
+            <div className="bg-white dark:bg-[#0c1228] p-1.5 rounded-2xl border border-slate-200 dark:border-[#1c243f] shadow-2xs flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <button
                 id="tab-concept-reader"
                 onClick={() => setRevisionSubView('study')}
-                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 font-sans whitespace-nowrap cursor-pointer ${
                   revisionSubView === 'study'
-                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-[#021027] dark:bg-indigo-600 text-white shadow-sm')
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                 }`}
               >
-                <BookOpen size={15} />
-                Concept & Formula Reader
+                <BookOpen size={15} className={revisionSubView === 'study' ? 'text-[#C9A84C]' : 'text-slate-400'} />
+                <span>Concept &amp; Formula Reader</span>
               </button>
               <button
                 id="tab-formula-flashcards"
@@ -6650,14 +6910,14 @@ export default function App() {
                     handleGenerateQuizQuestion();
                   }
                 }}
-                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 font-sans whitespace-nowrap cursor-pointer ${
                   revisionSubView === 'flashcards'
-                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-[#021027] dark:bg-indigo-600 text-white shadow-sm')
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                 }`}
               >
-                <Calculator size={15} />
-                {activeSubject === 'setA' ? 'Statutory Limit & Formula Flashcards' : 'Formula Flashcards & Quizzes'}
+                <Calculator size={15} className={revisionSubView === 'flashcards' ? 'text-[#C9A84C]' : 'text-slate-400'} />
+                <span>{activeSubject === 'setA' ? 'Statutory Limit & Formula Flashcards' : 'Formula Flashcards & Quizzes'}</span>
               </button>
               <button
                 id="tab-framework-flashcards"
@@ -6666,26 +6926,14 @@ export default function App() {
                   setCurrentFrameworkCardIndex(0);
                   setIsFrameworkCardFlipped(false);
                 }}
-                className={`pb-3 text-xs sm:text-sm font-black transition-all relative flex items-center gap-2 border-b-2 font-sans whitespace-nowrap ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 font-sans whitespace-nowrap cursor-pointer ${
                   revisionSubView === 'frameworks'
-                    ? 'border-indigo-600 text-indigo-600 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-[#021027] dark:bg-indigo-600 text-white shadow-sm')
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70'
                 }`}
               >
                 <Award size={15} className="text-amber-500" />
-                ⚡ Theoretical Frameworks Deck
-              </button>
-
-              <button
-                onClick={() => {
-                  const targetChapId = selectedRevisionChapterId > 0 ? selectedRevisionChapterId : (currentChapters[0]?.id || (activeSubject === 'setA' ? 101 : 1));
-                  handleOpenPracticeForChapter(targetChapId, 'cases');
-                }}
-                className="ml-auto pb-2.5 px-3 py-1.5 mb-1 text-xs font-extrabold rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-                title="Ready to solve problems? Switch to Practice Cases for this Set"
-              >
-                <span>Go to Practice Cases</span>
-                <ArrowRight size={13} />
+                <span>{activeSubject === 'setA' ? 'Case Law & Statutory Precedents Deck' : 'Theoretical Frameworks Deck'}</span>
               </button>
             </div>
 
@@ -7952,68 +8200,79 @@ export default function App() {
 
         {/* TAB 3: timed mock EXAM simulator */}
         {activeTab === 'mock' && (
-          <div className="flex-1 flex flex-col space-y-4">
+          <div className="flex-1 flex flex-col space-y-4 animate-tabEnter">
             
             {/* Setting Screen if not started */}
             {!examStarted ? (
-              <div className="max-w-2xl w-full mx-auto bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg text-center space-y-6">
-                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                  <Timer size={32} />
-                </div>
-                
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                    SCM & PM Full-Length MCQ Mock Exam
+              <div className="max-w-2xl w-full mx-auto bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] overflow-hidden shadow-lg text-center">
+                <div className="bg-gradient-to-r from-[#021027] via-[#091e3a] to-[#0f172a] px-6 py-6 text-white border-b border-[#C9A84C]/35 relative">
+                  <div className="w-14 h-14 bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+                    <Timer size={28} />
+                  </div>
+                  <span className="inline-block text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-white/10 text-[#C9A84C] mb-1.5">
+                    {activeSubject === 'setA' ? 'SPOM Set A : Corporate & Economic Laws' : 'SPOM Set B : Strategic Cost & Performance Management'}
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    {activeSubject === 'setA' ? 'Corporate & Economic Laws Timed SPOM Mock' : 'SCM & PM Full-Length SPOM Mock Exam'}
                   </h2>
-                  <p className="text-slate-500 text-sm max-w-lg mx-auto">
-                    Simulate actual self-paced exam conditions. Questions are dynamically drawn across all chapters, enforcing logical timers. Passing requires scoring 50% or above.
+                  <p className="text-slate-300 text-xs sm:text-sm max-w-lg mx-auto mt-1.5 leading-relaxed">
+                    Simulate actual ICAI Self-Paced Online Module exam conditions. Questions are dynamically drawn across all chapters with automated countdown enforcement. Passing requires 50% or above.
                   </p>
                 </div>
 
-                {/* Exam Settings */}
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 max-w-md mx-auto grid grid-cols-2 gap-4 text-left">
-                  <div className="space-y-1.5 col-span-2">
-                    <label className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Total Questions Pool</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[10, 15, 25].map(cnt => (
-                        <button
-                          key={cnt}
-                          onClick={() => setTotalMockQuestionsCount(cnt)}
-                          className={`py-2 rounded-xl text-xs font-bold transition-all border ${totalMockQuestionsCount === cnt ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'}`}
-                        >
-                          {cnt} Qs
-                        </button>
-                      ))}
+                <div className="p-6 sm:p-8 space-y-6">
+                  {/* Exam Settings */}
+                  <div className="bg-slate-50 dark:bg-slate-900/70 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md mx-auto grid grid-cols-2 gap-4 text-left">
+                    <div className="space-y-2 col-span-2">
+                      <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                        Select Assessment Question Pool
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[10, 15, 25].map(cnt => (
+                          <button
+                            key={cnt}
+                            onClick={() => setTotalMockQuestionsCount(cnt)}
+                            className={`py-2.5 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
+                              totalMockQuestionsCount === cnt
+                                ? (activeSubject === 'setA' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-indigo-600 text-white border-indigo-600 shadow-sm')
+                                : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {cnt} MCQs
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Time Limit</span>
+                      <p className="text-lg font-black text-slate-800 dark:text-white mt-0.5">{totalMockQuestionsCount * 1} Mins</p>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Passing Mark</span>
+                      <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">50% (No Neg.)</p>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Duration</span>
-                    <p className="text-lg font-black text-slate-800">{totalMockQuestionsCount * 1} Min</p>
+                  <div className="bg-amber-50 dark:bg-amber-950/35 rounded-xl p-4 border border-amber-200 dark:border-amber-800/60 text-left flex gap-3 max-w-lg mx-auto">
+                    <AlertTriangle className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" size={18} />
+                    <div>
+                      <h5 className="text-xs font-extrabold text-amber-900 dark:text-amber-300 uppercase">Exam Simulation Integrity</h5>
+                      <p className="text-xs text-amber-800 dark:text-amber-200/90 tracking-wide mt-1 leading-relaxed">
+                        The countdown timer runs continuously once initialized. Flag tricky case questions for review and submit before time expires.
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Standard</span>
-                    <p className="text-lg font-black text-slate-800">4 Choices (A-D)</p>
-                  </div>
+                  <button
+                    onClick={handleStartMockExam}
+                    className="bg-[#021027] dark:bg-[#C9A84C] hover:bg-slate-800 dark:hover:bg-[#d8b75c] text-white dark:text-slate-950 font-black px-8 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer text-xs sm:text-sm uppercase tracking-wider"
+                  >
+                    <Play size={16} className="text-[#C9A84C] dark:text-slate-950 fill-current" />
+                    <span>Initialize Assessment Session</span>
+                  </button>
                 </div>
-
-                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-left flex gap-3 max-w-lg mx-auto">
-                  <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
-                  <div>
-                    <h5 className="text-xs font-extrabold text-amber-900 uppercase">Fiduciary Testing Integrity</h5>
-                    <p className="text-xs text-amber-800 tracking-wide mt-1 leading-relaxed">
-                      You cannot pause the timer once the mock test starts. Ensure you have a quiet environment. Closing this tab or switching panels will cancel progress.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleStartMockExam}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-8 py-3.5 rounded-xl shadow-lg transition-all active:scale-98 flex items-center justify-center gap-2 mx-auto"
-                >
-                  <Play size={18} /> Initialize Assessment Session
-                </button>
               </div>
             ) : examFinished ? (
               /* Review / Score Card screen */
@@ -8217,21 +8476,29 @@ export default function App() {
                 {/* Left Panel: Active Case + Question (col-span-8) */}
                 <div className="lg:col-span-9 flex flex-col gap-4">
                   {/* Top Bar showing Active Timer & Progress */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Timer className="text-slate-400 animate-spin" size={16} />
-                      <span className="text-sm font-black text-slate-800 tracking-tight font-mono">
+                  <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                        <Timer className="animate-spin-slow" size={16} />
+                      </div>
+                      <span className="text-sm sm:text-base font-black text-slate-800 dark:text-white tracking-tight font-mono">
                         {formatTime(timeRemaining)}
                       </span>
-                      <span className="text-xs text-slate-400 font-medium pl-2 hidden sm:inline">Remaining</span>
+                      <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider pl-1">Remaining</span>
                     </div>
 
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full sm:w-auto pb-1 sm:pb-0">
                       {mockQuestions.map((_, idx) => (
                         <button
                           key={idx}
                           onClick={() => setCurrentMockIndex(idx)}
-                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border flex items-center justify-center ${currentMockIndex === idx ? 'bg-indigo-600 text-white border-indigo-600 shadow' : mockAnswers[idx] ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                          className={`w-8 h-8 shrink-0 rounded-lg text-xs font-extrabold transition-all border flex items-center justify-center cursor-pointer ${
+                            currentMockIndex === idx
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                              : mockAnswers[idx]
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                          }`}
                         >
                           {idx + 1}
                         </button>
@@ -8241,19 +8508,19 @@ export default function App() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                     {/* Panel 1: Case Detail context */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm overflow-hidden flex flex-col h-[520px]">
-                      <div className="border-b border-slate-100 pb-2.5 mb-3 flex justify-between items-center">
-                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
-                          Reference case context
+                    <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-5 shadow-sm overflow-hidden flex flex-col h-[460px] sm:h-[520px]">
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-2.5 mb-3 flex justify-between items-center">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-md">
+                          Reference Case Scenario
                         </span>
                         {flaggedQuestions[currentMockIndex] && (
-                          <span className="text-[10px] font-extrabold uppercase text-amber-700 bg-amber-50 border border-amber-200 px-2 rounded-full">
-                            ★ Review flagged
+                          <span className="text-[10px] font-extrabold uppercase text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700 px-2.5 py-0.5 rounded-full">
+                            ★ Flagged for Review
                           </span>
                         )}
                       </div>
-                      <div className="overflow-y-auto text-xs text-slate-600 whitespace-pre-line pr-1 leading-relaxed scrollbar-thin">
-                        <h4 className="font-extrabold text-sm text-slate-900 mb-2">
+                      <div className="overflow-y-auto text-xs sm:text-[13px] text-slate-600 dark:text-slate-300 whitespace-pre-line pr-1.5 leading-relaxed scrollbar-thin">
+                        <h4 className="font-extrabold text-sm text-slate-900 dark:text-white mb-2">
                           {mockQuestions[currentMockIndex]?.caseTitle}
                         </h4>
                         {mockQuestions[currentMockIndex]?.caseText}
@@ -8261,17 +8528,24 @@ export default function App() {
                     </div>
 
                     {/* Panel 2: Active question & answering choices */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[520px] justify-between">
+                    <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-5 shadow-sm flex flex-col h-[460px] sm:h-[520px] justify-between">
                       <div className="space-y-4 overflow-y-auto pr-1">
-                        <span className="bg-slate-100 text-slate-500 text-xs px-2.5 py-0.5 rounded font-extrabold">
-                          MCQ {currentMockIndex + 1} of {mockQuestions.length}
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs px-2.5 py-1 rounded-md font-extrabold font-mono">
+                            Question {currentMockIndex + 1} of {mockQuestions.length}
+                          </span>
+                          {mockAnswers[currentMockIndex] && (
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 size={13} /> Option {mockAnswers[currentMockIndex]} Selected
+                            </span>
+                          )}
+                        </div>
                         
-                        <p className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug">
+                        <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
                           {mockQuestions[currentMockIndex]?.questionText}
                         </p>
 
-                        <div className="space-y-2 pt-2">
+                        <div className="space-y-2.5 pt-1">
                           {mockQuestions[currentMockIndex] ? (
                             (Object.keys(mockQuestions[currentMockIndex].options) as Array<'A' | 'B' | 'C' | 'D'>).map(opt => {
                               const isSelected = mockAnswers[currentMockIndex] === opt;
@@ -8284,12 +8558,20 @@ export default function App() {
                                       [currentMockIndex]: opt
                                     }));
                                   }}
-                                  className={`w-full text-left p-3 rounded-xl border text-xs flex items-start gap-2.5 transition-all ${isSelected ? 'border-indigo-600 bg-indigo-600/10 text-indigo-950 font-bold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                                  className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-[13px] flex items-start gap-3 transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'border-indigo-600 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/50 text-indigo-950 dark:text-indigo-200 font-bold ring-2 ring-indigo-500/15'
+                                      : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/50 hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-200'
+                                  }`}
                                 >
-                                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                  }`}>
                                     {opt}
                                   </span>
-                                  <span className="flex-1 leading-normal">{mockQuestions[currentMockIndex].options[opt]}</span>
+                                  <span className="flex-1 pt-0.5 leading-relaxed">{mockQuestions[currentMockIndex].options[opt]}</span>
                                 </button>
                               );
                             })
@@ -8402,18 +8684,19 @@ export default function App() {
 
         {/* TAB 4: INTERACTIVE CALCULATIONS SANDBOX */}
         {activeTab === 'sandbox' && (
-          <div className="space-y-6 text-left">
+          <div className="space-y-6 text-left animate-tabEnter">
             {activeSubject === 'setA' ? (
               <div className="space-y-4">
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Scale size={20} className="text-blue-600 dark:text-blue-400" />
-                    <h2 className="text-base font-black text-slate-900 dark:text-white">
-                      SPOM Set A: Statutory Limits, Board Quotas & Penalty Diagnostic Engine
-                    </h2>
+                <div className="bg-gradient-to-r from-[#021027] via-[#091e3a] to-[#0f172a] text-white rounded-2xl border border-[#C9A84C]/35 p-5 sm:p-6 shadow-md">
+                  <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/35 text-blue-300 text-[10px] font-black uppercase tracking-widest mb-2">
+                    <Scale size={12} />
+                    <span>SPOM Set A : Statutory Compliance Simulators</span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Audit compliance against key statutory thresholds under Companies Act, 2013, SEBI (LODR), and IBC, 2016. Adjust numerical values to verify applicability triggers.
+                  <h2 className="text-lg sm:text-xl font-black text-white">
+                    Statutory Limits, Board Quotas &amp; Penalty Diagnostic Engine
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                    Audit compliance against key statutory thresholds under the Companies Act, 2013, SEBI (LODR), and IBC, 2016. Adjust numerical parameters to test real-time applicability triggers.
                   </p>
                 </div>
 
@@ -8423,31 +8706,62 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-wrap gap-2 justify-center sm:justify-start">
-                  <button
-                    onClick={() => setSandboxType('pareto')}
-                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'pareto' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
-                  >
-                    Pareto Defect Graph (Case 32)
-                  </button>
-                  <button
-                    onClick={() => setSandboxType('oee')}
-                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'oee' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
-                  >
-                    TPM / OEE Loss Calculator (Case 46)
-                  </button>
-                  <button
-                    onClick={() => setSandboxType('relevant')}
-                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'relevant' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
-                  >
-                    Airlines Relevant Costing (Case 9)
-                  </button>
-                  <button
-                    onClick={() => setSandboxType('target')}
-                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all border ${sandboxType === 'target' ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-600'}`}
-                  >
-                    Target Cost Gap Explorer (Case 4)
-                  </button>
+                <div className="bg-gradient-to-r from-[#021027] via-[#091e3a] to-[#0f172a] text-white rounded-2xl border border-[#C9A84C]/35 p-5 sm:p-6 shadow-md flex flex-col gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#C9A84C]/15 border border-[#C9A84C]/35 text-[#C9A84C] text-[10px] font-black uppercase tracking-widest mb-2">
+                      <Calculator size={12} />
+                      <span>SPOM Set B : Interactive Costing &amp; Operations Sandboxes</span>
+                    </div>
+                    <h2 className="text-lg sm:text-xl font-black text-white">
+                      Live What-If Decision &amp; Performance Models
+                    </h2>
+                    <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                      Modify operational variables to dynamically visualize Pareto 80/20 vital defects, TPM Overall Equipment Effectiveness (OEE), Relevant Costing cash flows, and Target Costing gaps.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950/70 p-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                    <button
+                      onClick={() => setSandboxType('pareto')}
+                      className={`px-3.5 py-2 text-xs font-extrabold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                        sandboxType === 'pareto'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      Pareto Defect Graph (Case 32)
+                    </button>
+                    <button
+                      onClick={() => setSandboxType('oee')}
+                      className={`px-3.5 py-2 text-xs font-extrabold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                        sandboxType === 'oee'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      TPM / OEE Loss Calculator (Case 46)
+                    </button>
+                    <button
+                      onClick={() => setSandboxType('relevant')}
+                      className={`px-3.5 py-2 text-xs font-extrabold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                        sandboxType === 'relevant'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      Airlines Relevant Costing (Case 9)
+                    </button>
+                    <button
+                      onClick={() => setSandboxType('target')}
+                      className={`px-3.5 py-2 text-xs font-extrabold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                        sandboxType === 'target'
+                          ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      Target Cost Gap Explorer (Case 4)
+                    </button>
+                  </div>
                 </div>
 
                 {/* Sandbox Panel 1: Pareto Chart Defect Analyzer */}

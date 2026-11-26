@@ -569,3 +569,61 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(201, 168, 76, 0.8);
 }
+
+/* ============================================================================
+   SMOOTH TRANSITIONS, INTERACTIVE MICRO-ANIMATIONS & PRO ELEMENT ALIGNMENT
+   ============================================================================ */
+
+/* Smooth spring-like transition curve for interactive buttons, pills, and cards */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  transition-duration: 180ms;
+}
+
+/* Subtle tactile press feedback for interactive controls */
+button:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+/* Clean accessible focus rings matching the executive palette */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(201, 168, 76, 0.65);
+  outline-offset: 2px;
+}
+
+/* Smooth view/panel entrance animation */
+@keyframes tabSlideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tabEnter {
+  animation: tabSlideFadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Consistent dark-mode surface & border normalization for internal tab cards */
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80 {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+}
+
+.dark .border-slate-150 {
+  border-color: #1e293b !important;
+}
+
