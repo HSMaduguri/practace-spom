@@ -3149,9 +3149,9 @@ export default function App() {
         className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
       >
         {/* Sticky Executive Landing Navbar */}
-        <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/30 text-white shadow-lg z-40 px-4 sm:px-6 py-3">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+        <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/30 text-white shadow-lg z-40 px-3 sm:px-6 py-2.5 sm:py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <a
                 href="#top"
                 onClick={(e) => {
@@ -3167,44 +3167,44 @@ export default function App() {
                   height={100}
                   fetchPriority="high"
                   decoding="sync"
-                  className="h-[42px] sm:h-[48px] w-auto object-contain"
+                  className="h-8 sm:h-[42px] md:h-[46px] w-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
               </a>
-              <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3">
-                <span className="text-xs font-extrabold text-slate-100 tracking-wide">
+              <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3 min-w-0">
+                <span className="text-xs font-extrabold text-slate-100 tracking-wide truncate">
                   pract<span className="text-[#C9A84C]">ACE</span> — CA Final SPOM Set A &amp; Set B Suite
                 </span>
-                <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest">
+                <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest truncate">
                   Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
                 </span>
               </div>
             </div>
 
-            {/* Landing Section Anchor Links */}
-            <nav className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-3 py-1.5 text-xs font-bold text-slate-300">
-              <a href="#pract-method" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+            {/* Landing Section Anchor Links (Desktop) */}
+            <nav className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-3 py-1.5 text-xs font-bold text-slate-300 shrink-0">
+              <a href="#pract-method" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
                 P-R-A-C-T Method
               </a>
-              <a href="#spom-curriculum" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+              <a href="#spom-curriculum" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
                 Set A &amp; Set B Syllabus
               </a>
-              <a href="#live-simulators" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+              <a href="#live-simulators" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
                 Simulators &amp; Tools
               </a>
-              <a href="#landing-faq" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+              <a href="#landing-faq" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors whitespace-nowrap">
                 FAQ
               </a>
               <button
                 type="button"
                 onClick={() => setActiveLegalDoc('sitemap')}
-                className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors cursor-pointer"
+                className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors cursor-pointer whitespace-nowrap"
               >
                 Site Map
               </button>
             </nav>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <a
                 href="https://www.linkedin.com/company/pract-ace/"
                 target="_blank"
@@ -3250,9 +3250,9 @@ export default function App() {
                     setShowLandingPage(false);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 flex items-center gap-1.5 cursor-pointer transition-all"
+                  className="px-3 sm:px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap"
                 >
-                  <span>Open Dashboard</span>
+                  <span>Dashboard</span>
                   <ArrowRight size={13} />
                 </button>
               ) : (
@@ -3260,107 +3260,151 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => scrollToAuthPortal('signin')}
-                    className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold cursor-pointer transition-colors"
+                    className="px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] sm:text-xs font-bold cursor-pointer transition-colors whitespace-nowrap"
                   >
                     Sign In
                   </button>
                   <button
                     type="button"
                     onClick={() => scrollToAuthPortal('signup')}
-                    className="hidden sm:inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 cursor-pointer transition-all"
+                    className="inline-flex items-center gap-1 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-[11px] sm:text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 cursor-pointer transition-all whitespace-nowrap"
                   >
-                    <span>Get Started</span>
+                    <span>Start Free</span>
                     <ArrowRight size={12} />
                   </button>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Mobile & Tablet Horizontal Quick-Nav Strip (< lg) */}
+          <nav
+            aria-label="Landing Quick Navigation"
+            className="lg:hidden max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 mt-2 border-t border-slate-800/80 text-[11px] font-bold text-slate-300"
+          >
+            <a
+              href="#pract-method"
+              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
+            >
+              P-R-A-C-T Method
+            </a>
+            <a
+              href="#spom-curriculum"
+              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
+            >
+              Set A &amp; Set B Syllabus
+            </a>
+            <a
+              href="#live-simulators"
+              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
+            >
+              9 Live Simulators
+            </a>
+            <a
+              href="#landing-faq"
+              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors shrink-0"
+            >
+              Student FAQ
+            </a>
+            <button
+              type="button"
+              onClick={() => setActiveLegalDoc('sitemap')}
+              className="px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 hover:border-[#C9A84C]/50 hover:text-[#C9A84C] whitespace-nowrap transition-colors cursor-pointer shrink-0"
+            >
+              Site Map
+            </button>
+          </nav>
         </header>
 
         <main id="top" className="flex-1">
           {/* HERO SECTION: 2-Column Split (Brand Value Proposition Left + Interactive Auth / Launch Portal Right) */}
-          <section className="relative overflow-hidden py-10 sm:py-16 lg:py-20 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+          <section className="relative overflow-hidden py-8 sm:py-14 lg:py-18 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
               {/* Left Column: Hero Pitch, Motto & Live Metrics (7 Cols) */}
-              <div className="lg:col-span-7 space-y-6 text-left pt-2">
-                <div className="inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#021027] text-white border border-[#C9A84C]/40 shadow-sm">
+              <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
+                <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#021027] text-white border border-[#C9A84C]/40 shadow-sm max-w-full">
                   <Sparkles size={13} className="text-[#C9A84C] shrink-0" />
-                  <span className="text-[11px] font-black uppercase tracking-wider text-[#C9A84C]">
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#C9A84C]">
                     ICAI CA Final SPOM Companion
                   </span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-[11px] font-bold text-slate-200">
+                  <span className="text-slate-500 hidden xs:inline">•</span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-200">
                     Set A (Laws) &amp; Set B (SCMPE)
                   </span>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5">
                     <span className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
                       pract<span className="text-[#C9A84C]">ACE</span>
                     </span>
-                    <span className="text-xs sm:text-sm font-black uppercase tracking-[0.22em] text-[#9a7b24] dark:text-[#C9A84C]">
-                      Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
-                    </span>
+                    <div className="flex flex-wrap items-center gap-x-2.5 sm:gap-x-3.5 gap-y-1 text-[11px] sm:text-sm font-black uppercase tracking-[0.14em] sm:tracking-[0.2em] text-[#9a7b24] dark:text-[#C9A84C]">
+                      <span>Plan</span>
+                      <span>Revise</span>
+                      <span>Analyse</span>
+                      <span>Correct</span>
+                      <span>Track</span>
+                    </div>
                   </div>
 
-                  <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-black text-slate-900 dark:text-white tracking-tight leading-[1.15]">
+                  <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-black text-slate-900 dark:text-white tracking-tight leading-[1.18]">
                     Conquer CA Final SPOM{' '}
                     <span className="text-blue-600 dark:text-blue-400">Set A (Corporate Laws)</span> &amp;{' '}
                     <span className="text-[#9a7b24] dark:text-[#C9A84C]">Set B (SCMPE)</span> in One Unified Workspace.
                   </h1>
 
-                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
+                  <p className="text-xs sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
                     Built specifically for the ICAI Self-Paced Online Modules CBT format. Practise 2-mark integrated case scenarios, drill standalone statutory &amp; costing MCQs, test numerical sensitivity on 9 live simulators, and benchmark your speed with timed 25-minute mock exams.
                   </p>
                 </div>
 
                 {/* Primary Hero CTAs */}
-                <div className="flex flex-wrap items-center gap-3 pt-1">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1">
                   {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
                     <>
                       <button
                         type="button"
                         onClick={() => handleLaunchFromLanding('dashboard')}
-                        className="px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
+                        className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
                       >
                         <LayoutDashboard size={17} />
                         <span>Launch Study Dashboard</span>
                         <ArrowRight size={16} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleLaunchFromLanding('practice', 'setA')}
-                        className="px-5 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all"
-                      >
-                        <Scale size={16} />
-                        <span>Practise Set A (Laws)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleLaunchFromLanding('practice', 'setB')}
-                        className="px-5 py-3.5 rounded-xl bg-[#021027] hover:bg-slate-800 text-[#C9A84C] border border-[#C9A84C]/40 text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
-                      >
-                        <Calculator size={16} />
-                        <span>Practise Set B (SCMPE)</span>
-                      </button>
+                      <div className="grid grid-cols-2 sm:flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchFromLanding('practice', 'setA')}
+                          className="w-full sm:w-auto justify-center px-4 sm:px-5 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                        >
+                          <Scale size={15} className="shrink-0" />
+                          <span>Set A (Laws)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchFromLanding('practice', 'setB')}
+                          className="w-full sm:w-auto justify-center px-4 sm:px-5 py-3.5 rounded-xl bg-[#021027] hover:bg-slate-800 text-[#C9A84C] border border-[#C9A84C]/40 text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
+                        >
+                          <Calculator size={15} className="shrink-0" />
+                          <span>Set B (SCMPE)</span>
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>
                       <button
                         type="button"
                         onClick={() => scrollToAuthPortal('signup')}
-                        className="px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
+                        className="w-full sm:w-auto justify-center px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs sm:text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
                       >
                         <span>Start Practising Free</span>
                         <ArrowRight size={16} />
                       </button>
                       <a
                         href="#spom-curriculum"
-                        className="px-5 py-3.5 rounded-xl bg-white dark:bg-[#0c1228] hover:bg-slate-100 dark:hover:bg-[#141d3b] text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-sm font-bold flex items-center gap-2 transition-colors"
+                        className="w-full sm:w-auto justify-center px-5 py-3.5 rounded-xl bg-white dark:bg-[#0c1228] hover:bg-slate-100 dark:hover:bg-[#141d3b] text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors"
                       >
-                        <BookOpen size={16} className="text-[#C9A84C]" />
+                        <BookOpen size={16} className="text-[#C9A84C] shrink-0" />
                         <span>Explore Set A &amp; Set B Syllabus</span>
                       </a>
                     </>
@@ -3368,26 +3412,34 @@ export default function App() {
                 </div>
 
                 {/* 4 Key Curriculum Metric Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-lg sm:text-xl font-black text-blue-600 dark:text-blue-400">Set A + Set B</div>
-                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">22 Core Modules</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Laws &amp; SCMPE Full Syllabus</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2">
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
+                    <div className="text-base sm:text-xl font-black text-blue-600 dark:text-blue-400 leading-tight">Set A + Set B</div>
+                    <div className="mt-1">
+                      <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">24 Core Chapters</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Laws &amp; SCMPE Full Syllabus</div>
+                    </div>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-lg sm:text-xl font-black text-[#9a7b24] dark:text-[#C9A84C]">115+ Cases</div>
-                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">&amp; General MCQs</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400">With Examiner Trap Warnings</div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
+                    <div className="text-base sm:text-xl font-black text-[#9a7b24] dark:text-[#C9A84C] leading-tight">80+ Cases</div>
+                    <div className="mt-1">
+                      <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">&amp; 800+ MCQs</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">With Examiner Trap Warnings</div>
+                    </div>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">220+ Cards</div>
-                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">3D Active Recall</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Flashcards &amp; Formula Quizzes</div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
+                    <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">220+ Cards</div>
+                    <div className="mt-1">
+                      <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">3D Active Recall</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Flashcards &amp; Formula Quizzes</div>
+                    </div>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
-                    <div className="text-lg sm:text-xl font-black text-indigo-600 dark:text-indigo-400">9 Simulators</div>
-                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">+ 25-Min CBT Mock</div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Live Sensitivity &amp; Cloud Sync</div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
+                    <div className="text-base sm:text-xl font-black text-indigo-600 dark:text-indigo-400 leading-tight">9 Simulators</div>
+                    <div className="mt-1">
+                      <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">+ 25-Min CBT Mock</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">Live Sensitivity &amp; Cloud Sync</div>
+                    </div>
                   </div>
                 </div>
 
@@ -3947,29 +3999,29 @@ export default function App() {
                 </div>
 
                 {/* Subject Switcher Pills */}
-                <div className="inline-flex items-center gap-1.5 bg-slate-200/80 dark:bg-[#0c1228] p-1.5 rounded-xl border border-slate-300/70 dark:border-slate-800 self-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:inline-flex items-center gap-1.5 bg-slate-200/80 dark:bg-[#0c1228] p-1.5 rounded-xl border border-slate-300/70 dark:border-slate-800 w-full md:w-auto">
                   <button
                     type="button"
                     onClick={() => setLandingCurriculumTab('setA')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                       landingCurriculumTab === 'setA'
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <Scale size={14} />
+                    <Scale size={14} className="shrink-0" />
                     <span>SPOM Set A: Corporate &amp; Economic Laws</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setLandingCurriculumTab('setB')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
                       landingCurriculumTab === 'setB'
                         ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <Calculator size={14} />
+                    <Calculator size={14} className="shrink-0" />
                     <span>SPOM Set B: SCMPE</span>
                   </button>
                 </div>
@@ -4250,208 +4302,182 @@ export default function App() {
       className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
     >
       {/* Premium Corporate Top Navbar - Official practACE Branding with Set A / Set B Switcher */}
-      <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/35 text-white shadow-lg z-30 px-4 xl:px-6 py-3 flex flex-col md:flex-row md:flex-wrap xl:flex-nowrap md:items-center justify-between gap-3 xl:gap-4 transition-colors duration-200 dark:bg-[#021027]/95 dark:border-[#C9A84C]/35 relative">
+      <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/35 text-white shadow-lg z-30 px-3 sm:px-5 xl:px-6 py-2.5 sm:py-3 transition-colors duration-200 dark:bg-[#021027]/95 dark:border-[#C9A84C]/35 relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500 opacity-90" />
-        {/* Left Side: practACE branding with logo & Subject Switcher */}
-        <div className="flex items-center justify-between w-full md:w-auto shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              aria-label="practACE Home — Go to Dashboard"
-              className="relative flex-shrink-0 select-none flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
-              title="practACE — Plan Revise Analyse Correct Track"
-            >
-              <img 
-                src={practAceLogoImg} 
-                alt="practACE — Plan Revise Analyse Correct Track" 
-                width={386}
-                height={100}
-                fetchPriority="high"
-                decoding="sync"
-                className="h-[42px] sm:h-[48px] w-auto object-contain transition-transform duration-200 group-hover:scale-[1.02]" 
-                referrerPolicy="no-referrer" 
-              />
-            </button>
 
-            {/* Persistent Set A / Set B Switcher */}
-            <div className="flex items-center bg-slate-950/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-700/80 shadow-inner shrink-0">
+        <div className="max-w-7xl w-full mx-auto flex flex-col gap-2.5">
+          {/* Primary Header Row: Logo + Desktop Subject Switcher + Desktop Nav + Profile & Theme Controls */}
+          <div className="flex items-center justify-between gap-2 sm:gap-3 w-full">
+            {/* Left Side: practACE Logo, Desktop Set A/B Switcher & What's New */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
               <button
-                onClick={() => setActiveSubject('setA')}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
-                  activeSubject === 'setA'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-                title="SPOM Set A: Corporate and Economic Laws"
+                onClick={() => setActiveTab('dashboard')}
+                aria-label="practACE Home — Go to Dashboard"
+                className="relative flex-shrink-0 select-none flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
+                title="practACE — Plan Revise Analyse Correct Track"
               >
-                <BookOpen size={13} className={activeSubject === 'setA' ? 'text-white shrink-0' : 'text-slate-400 shrink-0'} />
-                <span>Set A : Laws</span>
+                <img
+                  src={practAceLogoImg}
+                  alt="practACE — Plan Revise Analyse Correct Track"
+                  width={386}
+                  height={100}
+                  fetchPriority="high"
+                  decoding="sync"
+                  className="h-8 sm:h-[42px] md:h-[46px] w-auto object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                  referrerPolicy="no-referrer"
+                />
               </button>
 
-              <button
-                onClick={() => setActiveSubject('setB')}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
-                  activeSubject === 'setB'
-                    ? 'bg-[#C9A84C] text-slate-950 shadow-md shadow-amber-500/20 ring-1 ring-amber-300'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-                title="SPOM Set B: Strategic Cost & Performance Management"
-              >
-                <Calculator size={13} className={activeSubject === 'setB' ? 'text-slate-950 shrink-0' : 'text-slate-400 shrink-0'} />
-                <span>Set B : SCMPE</span>
-              </button>
-            </div>
+              {/* Desktop & Tablet Persistent Set A / Set B Switcher (md+) */}
+              <div className="hidden md:flex items-center bg-slate-950/90 dark:bg-slate-900 p-1 rounded-xl border border-slate-700/80 shadow-inner shrink-0">
+                <button
+                  onClick={() => setActiveSubject('setA')}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
+                    activeSubject === 'setA'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="SPOM Set A: Corporate and Economic Laws"
+                >
+                  <BookOpen size={13} className={activeSubject === 'setA' ? 'text-white shrink-0' : 'text-slate-400 shrink-0'} />
+                  <span>Set A : Laws</span>
+                </button>
 
-            {/* What's New Trigger Button */}
-            <button
-              onClick={() => setShowSetAAnnouncement(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-lg transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0"
-              title="View What's New — practACE Rebrand & Set A Addition"
-            >
-              <Sparkles size={12} className="text-[#C9A84C] shrink-0" />
-              <span>What's New</span>
-            </button>
-            
-            {/* Tagline divider & text - shown on 2xl+ screens so 1280px-1535px desktop navbar remains single-row */}
-            <div className="hidden 2xl:block h-6 w-[1px] bg-slate-800 self-center"></div>
-            <div className="hidden 2xl:flex flex-col text-left">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-slate-200 dark:text-slate-200 tracking-wide font-extrabold leading-tight whitespace-nowrap">
-                  {activeSubject === 'setA' ? "SPOM Set A: Corporate & Economic Laws" : "SPOM Set B: Strategic Cost Management"}
-                </span>
-                <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none whitespace-nowrap">
-                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
-                </span>
+                <button
+                  onClick={() => setActiveSubject('setB')}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
+                    activeSubject === 'setB'
+                      ? 'bg-[#C9A84C] text-slate-950 shadow-md shadow-amber-500/20 ring-1 ring-amber-300'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                  title="SPOM Set B: Strategic Cost & Performance Management"
+                >
+                  <Calculator size={13} className={activeSubject === 'setB' ? 'text-slate-950 shrink-0' : 'text-slate-400 shrink-0'} />
+                  <span>Set B : SCMPE</span>
+                </button>
+              </div>
+
+              {/* What's New Trigger Button (sm+) */}
+              <button
+                onClick={() => setShowSetAAnnouncement(true)}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-black text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-lg transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0"
+                title="View What's New — practACE Rebrand & Set A Addition"
+              >
+                <Sparkles size={12} className="text-[#C9A84C] shrink-0" />
+                <span>What&apos;s New</span>
+              </button>
+
+              {/* Tagline divider & text on 2xl+ screens */}
+              <div className="hidden 2xl:block h-6 w-[1px] bg-slate-800 self-center"></div>
+              <div className="hidden 2xl:flex flex-col text-left">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] text-slate-200 tracking-wide font-extrabold leading-tight whitespace-nowrap">
+                    {activeSubject === 'setA' ? 'SPOM Set A: Corporate & Economic Laws' : 'SPOM Set B: Strategic Cost Management'}
+                  </span>
+                  <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none whitespace-nowrap">
+                    Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Hamburger Menu & Theme Toggle UI for Mobile and Tablets (< md) */}
-          <div className="flex items-center gap-2 md:hidden">
-            {/* Theme Toggle for Mobile */}
-            <button
-              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
-              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
-            >
-              {theme === 'light' ? <Moon size={13} className="text-sky-400" /> : <Sun size={13} className="text-[#C9A84C]" />}
-            </button>
+            {/* Right Side: Desktop Nav Tabs + Community Links + Always-Visible Theme & Profile Avatar */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+              {/* Desktop Study Navigation Tabs (lg+) */}
+              <nav className="hidden lg:flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800/90">
+                {[
+                  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                  { id: 'revision', label: 'Revision Deck', icon: BookOpen },
+                  { id: 'practice', label: 'Practice Cases', icon: ClipboardList },
+                  { id: 'mock', label: 'SPOM Mock', icon: Timer },
+                  { id: 'sandbox', label: 'Simulators', icon: Calculator }
+                ].map((navItem) => {
+                  const isActive = activeTab === navItem.id;
+                  const NavIcon = navItem.icon;
+                  return (
+                    <button
+                      key={navItem.id}
+                      onClick={() => {
+                        setActiveTab(navItem.id as any);
+                        setShowMobileMenu(false);
+                        if (navItem.id === 'dashboard' && examStarted) {
+                          setHasSubmittedPractice(false);
+                        }
+                      }}
+                      className={`group px-2.5 xl:px-3 py-1.5 rounded-lg text-xs tracking-wide whitespace-nowrap transition-all relative cursor-pointer font-sans select-none shrink-0 flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-[#C9A84C]/15 text-[#C9A84C] font-black border border-[#C9A84C]/40 shadow-sm'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60 font-semibold border border-transparent'
+                      }`}
+                    >
+                      <NavIcon size={13} className={isActive ? 'text-[#C9A84C] shrink-0' : 'text-slate-400 group-hover:text-slate-200 shrink-0'} />
+                      <span>{navItem.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
 
-            {/* Hamburger Button */}
-            <button
-              onClick={() => setShowMobileMenu(prev => !prev)}
-              aria-label={showMobileMenu ? 'Close Menu' : 'Open Menu'}
-              aria-expanded={showMobileMenu}
-              title={showMobileMenu ? 'Close Navigation Menu' : 'Open Navigation Menu'}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60"
-            >
-              {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation & Actions Container */}
-        <div className={`w-full md:w-auto md:flex flex-col md:flex-row items-center gap-3 xl:gap-4 ${showMobileMenu ? 'flex animate-fadeIn' : 'hidden md:flex'}`}>
-          <div className="flex flex-col md:flex-row items-center gap-3 xl:gap-4 w-full md:w-auto pt-2 md:pt-0">
-            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-1.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800/90 w-full md:w-auto">
-              {[
-                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                { id: 'revision', label: 'Revision Deck', icon: BookOpen },
-                { id: 'practice', label: 'Practice Cases', icon: ClipboardList }
-              ].map(navItem => {
-                const isActive = activeTab === navItem.id;
-                const NavIcon = navItem.icon;
-                return (
-                  <button
-                    key={navItem.id}
-                    onClick={() => {
-                       setActiveTab(navItem.id as any);
-                       setShowMobileMenu(false);
-                       if (navItem.id === 'dashboard' && examStarted) {
-                         setHasSubmittedPractice(false);
-                       }
-                    }}
-                    className={`group px-3 py-1.5 rounded-lg text-xs xl:text-[13px] tracking-wide whitespace-nowrap transition-all relative cursor-pointer font-sans select-none shrink-0 flex items-center gap-1.5 ${
-                      isActive 
-                        ? 'bg-[#C9A84C]/15 text-[#C9A84C] font-black border border-[#C9A84C]/40 shadow-sm' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60 font-semibold border border-transparent'
-                    }`}
-                  >
-                    <NavIcon size={13} className={isActive ? 'text-[#C9A84C] shrink-0' : 'text-slate-400 group-hover:text-slate-200 shrink-0'} />
-                    <span>{navItem.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="flex items-center gap-2 xl:gap-2.5 w-full md:w-auto justify-center md:justify-end border-t border-slate-800 pt-3 md:border-t-0 md:pt-0 shrink-0">
-              {/* Official Feedback Form Link */}
-              <a
-                href="https://forms.gle/PzWDLK1F3PsobrFL6"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Share practACE Feedback"
-                onClick={() => setShowMobileMenu(false)}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 hover:text-amber-300 rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
-                title="Share Feedback on practACE"
-              >
-                <MessageSquare size={13} className="text-[#C9A84C] shrink-0" />
-                <span>Feedback</span>
-              </a>
-
-              {/* Official LinkedIn Link */}
-              <a
-                href="https://www.linkedin.com/company/pract-ace/"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Follow practACE on LinkedIn"
-                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
-                title="Follow practACE on LinkedIn"
-              >
-                <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400 shrink-0" />
-                <span className="hidden 2xl:inline">LinkedIn</span>
-              </a>
-
-              {/* Official Discord Link */}
-              <a
-                href="https://discord.gg/buecjd45u"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Join practACE Discord Community"
-                className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
-                title="Join practACE Discord Community"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                  className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400 shrink-0"
+              {/* Desktop Community & Feedback Pills (xl+) */}
+              <div className="hidden xl:flex items-center gap-1.5">
+                <a
+                  href="https://forms.gle/PzWDLK1F3PsobrFL6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share practACE Feedback"
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 hover:text-amber-300 rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
+                  title="Share Feedback on practACE"
                 >
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-                </svg>
-                <span className="hidden 2xl:inline">Discord</span>
-              </a>
+                  <MessageSquare size={13} className="text-[#C9A84C] shrink-0" />
+                  <span>Feedback</span>
+                </a>
+                <a
+                  href="https://www.linkedin.com/company/pract-ace/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Follow practACE on LinkedIn"
+                  className="flex items-center justify-center p-2 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                  title="Follow practACE on LinkedIn"
+                >
+                  <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400 shrink-0" />
+                </a>
+                <a
+                  href="https://discord.gg/buecjd45u"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Join practACE Discord Community"
+                  className="flex items-center justify-center p-2 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0 select-none"
+                  title="Join practACE Discord Community"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400 shrink-0"
+                  >
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                  </svg>
+                </a>
+              </div>
 
-              {/* Theme Switcher Icon (Desktop view) */}
+              {/* Theme Switcher Icon (All Viewports) */}
               <button
                 id="global-theme-toggle"
                 onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
                 aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
-                className="hidden md:flex items-center justify-center p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
+                className="flex items-center justify-center p-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 text-xs font-bold cursor-pointer shrink-0 select-none"
                 title={theme === 'light' ? 'Switch to Dark Mode for study sessions' : 'Switch to Light Mode'}
               >
                 {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
               </button>
 
-              {/* Compact Single-Circle User Account Icon & Popover */}
+              {/* Always-Visible User Account Icon & Popover (Mobile + Desktop) */}
               <div className="relative shrink-0" ref={profileMenuRef}>
                 <button
                   onClick={() => setShowProfileMenu(prev => !prev)}
                   aria-label={`User Profile (${currentUser.email || currentUser.displayName || 'Account'})`}
                   aria-expanded={showProfileMenu}
                   title={`${currentUser.displayName || 'Student'} (${currentUser.email || ''}) — ${syncError ? 'Sync Error' : (cloudSyncing || isSavingCloud) ? 'Saving...' : 'Saved'}`}
-                  className="relative w-9 h-9 rounded-full flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 border border-[#C9A84C]/50 hover:border-[#C9A84C] transition-all cursor-pointer select-none shadow-sm focus:outline-none"
+                  className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 border border-[#C9A84C]/50 hover:border-[#C9A84C] transition-all cursor-pointer select-none shadow-sm focus:outline-none"
                 >
                   {currentUser.photoURL ? (
                     <img
@@ -4479,7 +4505,7 @@ export default function App() {
                 </button>
 
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl p-3.5 z-50 text-left space-y-3 animate-fadeIn">
+                  <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl p-3.5 z-50 text-left space-y-3 animate-fadeIn">
                     <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
                       {currentUser.photoURL ? (
                         <img
@@ -4526,6 +4552,18 @@ export default function App() {
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);
+                        setShowLandingPage(true);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles size={12} className="text-[#C9A84C]" />
+                      <span>View Landing Page</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
                         setPasswordInput('');
                         setConfirmPasswordInput('');
                         setAuthError(null);
@@ -4550,8 +4588,152 @@ export default function App() {
                   </div>
                 )}
               </div>
+
+              {/* Mobile & Tablet Menu Button (< lg) */}
+              <button
+                onClick={() => setShowMobileMenu(prev => !prev)}
+                aria-label={showMobileMenu ? 'Close Menu' : 'Open Menu'}
+                aria-expanded={showMobileMenu}
+                title={showMobileMenu ? 'Close Navigation Menu' : 'Open Navigation Menu'}
+                className="lg:hidden p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60 cursor-pointer"
+              >
+                {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
+              </button>
             </div>
           </div>
+
+          {/* Mobile Set A / Set B Subject Switcher Row (< md) */}
+          <div className="md:hidden flex items-center gap-1.5 w-full">
+            <div className="grid grid-cols-2 gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-700/80 flex-1">
+              <button
+                onClick={() => setActiveSubject('setA')}
+                className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
+                  activeSubject === 'setA'
+                    ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BookOpen size={12} className="shrink-0" />
+                <span>Set A : Laws</span>
+              </button>
+              <button
+                onClick={() => setActiveSubject('setB')}
+                className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
+                  activeSubject === 'setB'
+                    ? 'bg-[#C9A84C] text-slate-950 shadow-sm ring-1 ring-amber-300'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Calculator size={12} className="shrink-0" />
+                <span>Set B : SCMPE</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSetAAnnouncement(true)}
+              className="sm:hidden flex items-center justify-center p-2 text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 rounded-xl transition-all cursor-pointer shrink-0"
+              title="What's New"
+              aria-label="What's New"
+            >
+              <Sparkles size={14} className="text-[#C9A84C]" />
+            </button>
+          </div>
+
+          {/* Mobile & Tablet Horizontal Quick-Tab Bar (< lg) */}
+          <nav
+            aria-label="Mobile Study Navigation"
+            className="lg:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1.5 border-t border-slate-800/80 w-full"
+          >
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'revision', label: 'Revision Deck', icon: BookOpen },
+              { id: 'practice', label: 'Practice Cases', icon: ClipboardList },
+              { id: 'mock', label: 'SPOM Mock', icon: Timer },
+              { id: 'sandbox', label: 'Simulators', icon: Calculator }
+            ].map((navItem) => {
+              const isActive = activeTab === navItem.id;
+              const NavIcon = navItem.icon;
+              return (
+                <button
+                  key={navItem.id}
+                  onClick={() => {
+                    setActiveTab(navItem.id as any);
+                    setShowMobileMenu(false);
+                    if (navItem.id === 'dashboard' && examStarted) {
+                      setHasSubmittedPractice(false);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs tracking-wide whitespace-nowrap transition-all cursor-pointer font-sans select-none shrink-0 flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-[#C9A84C]/20 text-[#C9A84C] font-black border border-[#C9A84C]/40 shadow-xs'
+                      : 'bg-slate-900/80 text-slate-300 hover:text-white font-semibold border border-slate-800'
+                  }`}
+                >
+                  <NavIcon size={12} className={isActive ? 'text-[#C9A84C] shrink-0' : 'text-slate-400 shrink-0'} />
+                  <span>{navItem.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Expandable Mobile Drawer for Community, Feedback & Quick Links */}
+          {showMobileMenu && (
+            <div className="lg:hidden pt-2.5 pb-1 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 animate-fadeIn">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    setShowLandingPage(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  <Sparkles size={12} className="text-[#C9A84C]" />
+                  <span>Landing Page</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    setActiveLegalDoc('sitemap');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full border border-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  <FileText size={12} className="text-[#C9A84C]" />
+                  <span>Site Map</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://forms.gle/PzWDLK1F3PsobrFL6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 rounded-full border border-slate-700 text-xs font-bold"
+                >
+                  <MessageSquare size={12} className="text-[#C9A84C]" />
+                  <span>Feedback</span>
+                </a>
+                <a
+                  href="https://www.linkedin.com/company/pract-ace/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 text-slate-300 rounded-full border border-slate-700 text-xs font-bold"
+                >
+                  <Linkedin size={12} className="text-sky-400" />
+                  <span>LinkedIn</span>
+                </a>
+                <a
+                  href="https://discord.gg/buecjd45u"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 text-slate-300 rounded-full border border-slate-700 text-xs font-bold"
+                >
+                  <span>Discord</span>
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -5771,7 +5953,7 @@ export default function App() {
                 selectedCase ? (
                 <>
                   {/* Column 1: Case Detail Reading */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[360px] max-h-[540px] md:max-h-none md:h-[650px]">
                     <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
                       <div className="flex-1 pr-3">
                         <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
@@ -5859,7 +6041,7 @@ export default function App() {
                   </div>
 
                   {/* Column 2: Question & Options Answer */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] md:h-[650px]">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
                       <div className="flex items-center gap-1">
                         <button
@@ -6057,7 +6239,7 @@ export default function App() {
                 <>
                   {/* General MCQ Split: Concept review on the left, Questions on the right */}
                   {/* Left Column: Chapter Review Summary Notes */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[360px] max-h-[540px] md:max-h-none md:h-[650px]">
                     <div className="flex justify-between items-start border-b border-slate-100 pb-3 mb-4">
                       <div>
                         <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#4f46e5] bg-indigo-50 px-2.5 py-1 rounded">
@@ -6093,7 +6275,7 @@ export default function App() {
                   </div>
 
                   {/* Right Column: General MCQ Question & Options Answer */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col h-[650px]">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col min-h-[380px] md:h-[650px]">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
                       <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1 flex-shrink-0">
                         <button
@@ -6280,10 +6462,10 @@ export default function App() {
             </div>
 
             {/* Quick Reference Floating Widget */}
-            <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 select-none">
+            <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex flex-col items-end gap-3 select-none">
               {showQuickRef && (
                 <div 
-                  className="w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[460px] overflow-hidden transition-all duration-300 transform scale-100 origin-bottom-right"
+                  className="w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col max-h-[460px] overflow-hidden transition-all duration-300 transform scale-100 origin-bottom-right"
                   style={{ boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
                 >
                   {/* Widget Header */}
@@ -6793,7 +6975,7 @@ export default function App() {
                                             </span>
                                             
                                             {/* Floating interactive tooltip card */}
-                                            <div className="absolute right-0 bottom-full mb-2 w-80 bg-slate-900 border border-slate-800 text-slate-100 rounded-xl shadow-2xl p-3.5 z-50 pointer-events-none group-hover/tooltip:pointer-events-auto opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-1 translate-y-2 transition-all duration-300 scale-95 group-hover/tooltip:scale-100 leading-normal flex flex-col space-y-2.5">
+                                            <div className="absolute right-0 bottom-full mb-2 w-72 sm:w-80 max-w-[calc(100vw-3rem)] bg-slate-900 border border-slate-800 text-slate-100 rounded-xl shadow-2xl p-3.5 z-50 pointer-events-none group-hover/tooltip:pointer-events-auto opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-1 translate-y-2 transition-all duration-300 scale-95 group-hover/tooltip:scale-100 leading-normal flex flex-col space-y-2.5">
                                               <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
                                                 <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1">
                                                   <BookOpen size={12} className="text-emerald-400" /> High-Yield Syllabus Focus
