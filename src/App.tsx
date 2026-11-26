@@ -1960,7 +1960,6 @@ export default function App() {
   // Sandbox Calculators State
   const [sandboxType, setSandboxType] = useState<'pareto' | 'oee' | 'relevant' | 'target'>('pareto');
   const [setACalcType, setSetACalcType] = useState<'csr' | 'board' | 'remuneration' | 'cirp'>('csr');
-  const [copiedUrlBadge, setCopiedUrlBadge] = useState<boolean>(false);
   const isApplyingUrlRef = useRef<boolean>(false);
   const skipSubjectResetRef = useRef<boolean>(false);
 
@@ -2411,15 +2410,6 @@ export default function App() {
     setACalcType,
     activeLegalDoc
   ]);
-
-  const handleCopyCurrentRouteUrl = () => {
-    if (typeof window === 'undefined') return;
-    const fullUrl = `${window.location.origin}${window.location.pathname}${currentSitemapSearch}`;
-    navigator.clipboard?.writeText(fullUrl).then(() => {
-      setCopiedUrlBadge(true);
-      setTimeout(() => setCopiedUrlBadge(false), 2000);
-    }).catch(() => {});
-  };
 
   // Handle Mock Exam Timer
   useEffect(() => {
@@ -2917,109 +2907,76 @@ export default function App() {
           <div className="p-5 sm:p-7 overflow-y-auto space-y-5 text-left text-xs sm:text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
             {activeLegalDoc === 'sitemap' && (
               <div className="space-y-5">
-                {/* Top Header + Live Active Browser URL Banner */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                        <LayoutDashboard size={16} className="text-[#C9A84C]" />
-                        <span>practACE Interactive Site Map &amp; Live Browser URL Directory</span>
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Every page, revision deck view, chapter change, practice case, mock exam pool, and simulator updates the browser address bar URL in real time.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-                      <button
-                        type="button"
-                        onClick={handleCopyCurrentRouteUrl}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-[#C9A84C] text-[11px] font-black cursor-pointer"
-                      >
-                        {copiedUrlBadge ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} className="text-[#C9A84C]" />}
-                        <span>{copiedUrlBadge ? 'Copied Live URL!' : 'Copy Current URL'}</span>
-                      </button>
-                      <a
-                        href="./sitemap.xml"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 text-[11px] font-black whitespace-nowrap"
-                      >
-                        <span>sitemap.xml</span>
-                        <ExternalLink size={11} />
-                      </a>
-                    </div>
+                {/* Top Header */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <LayoutDashboard size={16} className="text-[#C9A84C]" />
+                      <span>practACE Interactive Site Map &amp; Study Directory</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Complete navigation directory for SPOM Set A (Laws) &amp; Set B (SCMPE) modules, revision decks, practice engines, simulators, and policies.
+                    </p>
                   </div>
-
-                  {/* Active Route URL Bar */}
-                  <div className="px-3 py-2 rounded-lg bg-[#021027] text-slate-200 border border-[#C9A84C]/35 flex items-center justify-between gap-2 text-[11px] font-mono">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="px-1.5 py-0.5 rounded bg-[#C9A84C]/20 text-[#C9A84C] text-[9px] font-black uppercase tracking-wider shrink-0">
-                        Live Browser URL
-                      </span>
-                      <span className="truncate text-emerald-300">
-                        {typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}${currentSitemapSearch}` : `https://practace.in/${currentSitemapSearch}`}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
-                      Auto-Synced
-                    </span>
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    <a
+                      href="./sitemap.xml"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 text-[11px] font-black whitespace-nowrap"
+                    >
+                      <span>XML Sitemap</span>
+                      <ExternalLink size={11} />
+                    </a>
                   </div>
                 </div>
 
-                {/* 3-Column Core Architecture Grid with Deep-Link URLs */}
+                {/* 3-Column Core Architecture Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Section 1: Core Study & Revision Modules */}
                   <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <BookOpen size={14} className="text-[#C9A84C]" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        1. Study &amp; Revision Deck Routes
+                        1. Study &amp; Revision Deck
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
                       {[
                         {
                           label: 'Home & Marketing Landing Page',
-                          url: `?page=landing&subject=${activeSubject}`,
                           action: () => { setShowLandingPage(true); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Portal Dashboard & KPI Overview',
-                          url: `?subject=${activeSubject}&tab=dashboard`,
                           action: () => { setShowLandingPage(false); setActiveTab('dashboard'); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Continuous Full-Syllabus Revision Deck',
-                          url: `?subject=${activeSubject}&tab=revision&view=study&chapter=-1`,
                           action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-1); setActiveLegalDoc(null); }
                         },
                         ...(activeSubject === 'setA'
                           ? [
                               {
                                 label: 'Set-A Statutory Time Limits Chart',
-                                url: '?subject=setA&tab=revision&view=study&chapter=-101',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-101); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'Set-A Monetary & Penalty Limits Chart',
-                                url: '?subject=setA&tab=revision&view=study&chapter=-102',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-102); setActiveLegalDoc(null); }
                               }
                             ]
                           : []),
                         {
                           label: '3D Active Recall Flashcards (Drill)',
-                          url: `?subject=${activeSubject}&tab=revision&view=flashcards&mode=drill`,
                           action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('flashcards'); setFlashcardMode('drill'); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Statutory & Formula Derivation Quiz',
-                          url: `?subject=${activeSubject}&tab=revision&view=flashcards&mode=quiz`,
                           action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('flashcards'); setFlashcardMode('quiz'); setActiveLegalDoc(null); }
                         },
                         {
                           label: activeSubject === 'setA' ? 'Case Law & Precedents Deck' : 'Theoretical Frameworks Deck',
-                          url: `?subject=${activeSubject}&tab=revision&view=frameworks`,
                           action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('frameworks'); setActiveLegalDoc(null); }
                         }
                       ].map((item) => (
@@ -3027,15 +2984,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={item.action}
-                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#9a7b24] dark:hover:text-[#C9A84C] font-semibold flex flex-col gap-0.5 group transition-colors cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#9a7b24] dark:hover:text-[#C9A84C] font-semibold flex items-center justify-between group transition-colors cursor-pointer"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span>{item.label}</span>
-                              <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate w-full">
-                              {item.url}
-                            </span>
+                            <span>{item.label}</span>
+                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
                           </button>
                         </li>
                       ))}
@@ -3047,73 +2999,61 @@ export default function App() {
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <ClipboardList size={14} className="text-blue-500" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        2. Practice, Mock &amp; Simulator Routes
+                        2. Practice, Mocks &amp; Simulators
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
                       {[
                         {
                           label: 'ICAI Case Scenarios Vault (80 Cases)',
-                          url: `?subject=${activeSubject}&tab=practice&subtab=cases`,
                           action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('cases'); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Standalone Chapter-Wise General MCQs',
-                          url: `?subject=${activeSubject}&tab=practice&subtab=general`,
                           action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('general'); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Saved Questions Revision Vault',
-                          url: `?subject=${activeSubject}&tab=practice&subtab=saved`,
                           action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('saved'); setActiveLegalDoc(null); }
                         },
                         {
                           label: 'Timed SPOM Mock Exam (10 / 15 / 25 Qs)',
-                          url: `?subject=${activeSubject}&tab=mock&pool=${totalMockQuestionsCount}`,
                           action: () => { setShowLandingPage(false); setActiveTab('mock'); setActiveLegalDoc(null); }
                         },
                         ...(activeSubject === 'setA'
                           ? [
                               {
                                 label: 'CSR Applicability & Spend Calculator (Sec 135)',
-                                url: '?subject=setA&tab=sandbox&calc=csr',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('csr'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'Board Quotas & Audit Committee (Sec 149/177)',
-                                url: '?subject=setA&tab=sandbox&calc=board',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('board'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'Managerial Remuneration Ceilings (Sec 197)',
-                                url: '?subject=setA&tab=sandbox&calc=remuneration',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('remuneration'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'IBC CIRP Default & 330-Day Timeline (Sec 4/12)',
-                                url: '?subject=setA&tab=sandbox&calc=cirp',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('cirp'); setActiveLegalDoc(null); }
                               }
                             ]
                           : [
                               {
                                 label: 'Pareto 80/20 Vital Defect Graph (Case 32)',
-                                url: '?subject=setB&tab=sandbox&sim=pareto',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('pareto'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'TPM / OEE 6 Big Losses Calculator (Case 46)',
-                                url: '?subject=setB&tab=sandbox&sim=oee',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('oee'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'Airlines Relevant Costing Ledger (Case 9)',
-                                url: '?subject=setB&tab=sandbox&sim=relevant',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('relevant'); setActiveLegalDoc(null); }
                               },
                               {
                                 label: 'Target Costing & Waste Gap Explorer (Case 4)',
-                                url: '?subject=setB&tab=sandbox&sim=target',
                                 action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('target'); setActiveLegalDoc(null); }
                               }
                             ])
@@ -3122,15 +3062,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={item.action}
-                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex flex-col gap-0.5 group transition-colors cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center justify-between group transition-colors cursor-pointer"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span>{item.label}</span>
-                              <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate w-full">
-                              {item.url}
-                            </span>
+                            <span>{item.label}</span>
+                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
                           </button>
                         </li>
                       ))}
@@ -3142,7 +3077,7 @@ export default function App() {
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <ShieldCheck size={14} className="text-emerald-500" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        3. Subjects &amp; Governance Routes
+                        3. Subjects &amp; Governance
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
@@ -3150,26 +3085,20 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
-                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold flex flex-col gap-0.5 cursor-pointer"
+                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-between cursor-pointer"
                         >
-                          <div className="flex items-center justify-between w-full">
-                            <span>SPOM Set A: Corporate &amp; Economic Laws</span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950">14 Chaps</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?subject=setA&amp;tab=dashboard</span>
+                          <span>SPOM Set A: Corporate &amp; Economic Laws</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950">14 Chaps</span>
                         </button>
                       </li>
                       <li>
                         <button
                           type="button"
                           onClick={() => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
-                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-[#C9A84C] font-bold flex flex-col gap-0.5 cursor-pointer"
+                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-[#C9A84C] font-bold flex items-center justify-between cursor-pointer"
                         >
-                          <div className="flex items-center justify-between w-full">
-                            <span>SPOM Set B: Strategic Cost Management</span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950">10 Chaps</span>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?subject=setB&amp;tab=dashboard</span>
+                          <span>SPOM Set B: Strategic Cost Management</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950">10 Chaps</span>
                         </button>
                       </li>
                       {legalDocTabs.filter(t => t.id !== 'sitemap').map((doc) => (
@@ -3177,13 +3106,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setActiveLegalDoc(doc.id)}
-                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#C9A84C] font-semibold flex flex-col gap-0.5 cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#C9A84C] font-semibold flex items-center justify-between cursor-pointer"
                           >
-                            <div className="flex items-center justify-between w-full">
-                              <span>{doc.label}</span>
-                              <ChevronRight size={12} className="opacity-50" />
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?doc={doc.id}</span>
+                            <span>{doc.label}</span>
+                            <ChevronRight size={12} className="opacity-50" />
                           </button>
                         </li>
                       ))}
@@ -3191,7 +3117,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Complete 24-Chapter Deep-Link Sitemap Directory (Set A 14 Chapters & Set B 10 Chapters) */}
+                {/* Complete 24-Chapter Sitemap Directory (Set A 14 Chapters & Set B 10 Chapters) */}
                 {(() => {
                   const staticChapters = activeSubject === 'setA' ? SITEMAP_SET_A_CHAPTERS : SITEMAP_SET_B_CHAPTERS;
                   return (
@@ -3199,10 +3125,10 @@ export default function App() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                           <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                            Chapter-Level URL Sitemap Index — {activeSubject === 'setA' ? 'SPOM Set A: Corporate & Economic Laws (14 Chapters)' : 'SPOM Set B: Strategic Cost & Performance Management (10 Chapters)'}
+                            Chapter-Level Syllabus Index — {activeSubject === 'setA' ? 'SPOM Set A: Corporate & Economic Laws (14 Chapters)' : 'SPOM Set B: Strategic Cost & Performance Management (10 Chapters)'}
                           </h4>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Click any chapter action below to jump directly to its Revision Deck, Case Scenarios, or General MCQs and update the browser URL.
+                            Select any chapter action below to open its Revision Deck, Case Scenarios, or Standalone General MCQs directly.
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -3230,14 +3156,9 @@ export default function App() {
                             className="p-3 rounded-xl bg-white dark:bg-[#0b1124] border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between gap-2.5 hover:border-[#C9A84C]/50 transition-all"
                           >
                             <div className="space-y-0.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[10px] font-mono font-extrabold text-blue-600 dark:text-blue-400">
-                                  {chap.code}
-                                </span>
-                                <span className="text-[9px] font-mono text-slate-400 truncate">
-                                  ?subject={activeSubject}&amp;chapter={chap.id}
-                                </span>
-                              </div>
+                              <span className="text-[10px] font-mono font-extrabold text-blue-600 dark:text-blue-400 block">
+                                {chap.code}
+                              </span>
                               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug block">
                                 {chap.title}
                               </span>
@@ -3254,7 +3175,6 @@ export default function App() {
                                   setActiveLegalDoc(null);
                                 }}
                                 className="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 cursor-pointer"
-                                title={`?subject=${activeSubject}&tab=revision&view=study&chapter=${chap.id}`}
                               >
                                 Revise Notes
                               </button>
@@ -3266,7 +3186,6 @@ export default function App() {
                                   setActiveLegalDoc(null);
                                 }}
                                 className="px-2 py-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 cursor-pointer"
-                                title={`?subject=${activeSubject}&tab=practice&subtab=cases&chapter=${chap.id}`}
                               >
                                 Practice Cases
                               </button>
@@ -3278,7 +3197,6 @@ export default function App() {
                                   setActiveLegalDoc(null);
                                 }}
                                 className="px-2 py-1 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 cursor-pointer"
-                                title={`?subject=${activeSubject}&tab=practice&subtab=general&chapter=${chap.id}`}
                               >
                                 General MCQs
                               </button>
@@ -5650,14 +5568,6 @@ export default function App() {
                   ? `Statutory Simulator (${setACalcType.toUpperCase()})`
                   : `Costing Simulator (${sandboxType.toUpperCase()})`
               )}
-            </span>
-            <span
-              onClick={handleCopyCurrentRouteUrl}
-              title="Click to copy live browser URL for this view"
-              className="hidden md:inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-[10px] font-mono text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:border-[#C9A84C] cursor-pointer max-w-[260px] truncate"
-            >
-              {copiedUrlBadge ? <Check size={10} className="text-emerald-500 shrink-0" /> : <Copy size={10} className="text-[#C9A84C] shrink-0" />}
-              <span className="truncate">{copiedUrlBadge ? 'URL Copied!' : currentSitemapSearch}</span>
             </span>
           </div>
 
