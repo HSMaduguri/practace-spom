@@ -4773,13 +4773,14 @@ export default function App() {
           </section>
         </main>
 
-        {/* Landing Page Footer — Full 4-Column Executive Sitemap, Community & Legal Governance */}
-        <footer className="bg-[#021027] text-slate-400 text-xs pt-9 pb-7 px-6 border-t border-[#C9A84C]/35 tracking-wide relative">
+        {/* Landing Page Footer — Full-Width Evenly Distributed Executive Footer */}
+        <footer className="w-full bg-[#021027] text-slate-400 text-xs pt-10 pb-8 px-6 sm:px-10 lg:px-14 xl:px-20 border-t border-[#C9A84C]/35 tracking-wide relative">
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C]/80 via-amber-300/60 to-blue-500/80" />
-          <div className="max-w-7xl mx-auto space-y-7">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-7 text-left">
-              {/* Column 1: Brand Identity, Motto & Community (4 cols) */}
-              <div className="md:col-span-4 space-y-3.5">
+          <div className="w-full max-w-[1600px] mx-auto space-y-8">
+            {/* Top 4-Column Evenly Spread Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 xl:gap-16 items-start justify-between text-left w-full">
+              {/* Column 1: Brand Identity, Motto & Community */}
+              <div className="space-y-3.5">
                 <div className="flex items-center gap-3">
                   <img
                     src={practAceLogoImg}
@@ -4800,7 +4801,7 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-slate-400 leading-relaxed max-w-sm">
                   Complete CA Final Self-Paced Online Module (SPOM) preparation workspace for <strong className="text-slate-200">Set A (Corporate &amp; Economic Laws)</strong> and <strong className="text-slate-200">Set B (Strategic Cost &amp; Performance Management)</strong>.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -4847,152 +4848,166 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Column 2: Sitemap — Study & Revision Modules (3 cols) */}
-              <div className="md:col-span-3 space-y-2.5">
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
-                  Site Map — Study &amp; Revision
+              {/* Column 2: Study & Revision Modules */}
+              <div className="space-y-3 lg:justify-self-center">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
+                  Study &amp; Revision Modules
                 </h4>
-                <ul className="space-y-1.5 text-[11px] font-semibold">
+                <ul className="space-y-2 text-[11px] font-semibold">
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('dashboard')}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Portal Dashboard &amp; Analytics
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Portal Dashboard &amp; Analytics</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: 'study' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Revision Deck &amp; Crux Notes
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Revision Deck &amp; Crux Notes</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: activeSubject === 'setA' ? 'study' : 'frameworks' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Statutory &amp; Concept Blueprints
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Statutory &amp; Concept Blueprints</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('revision', activeSubject, { revisionView: 'flashcards' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Active Recall Flashcards (220+)
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Active Recall Flashcards (220+)</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('sandbox')}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Statutory &amp; Decision Calculators
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Statutory &amp; Decision Calculators</span>
                     </button>
                   </li>
                 </ul>
               </div>
 
-              {/* Column 3: Sitemap — Practice, Mocks & Tools (3 cols) */}
-              <div className="md:col-span-3 space-y-2.5">
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+              {/* Column 3: Practice, Mocks & Tools */}
+              <div className="space-y-3 lg:justify-self-center">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
                   Practice &amp; Exam Engines
                 </h4>
-                <ul className="space-y-1.5 text-[11px] font-semibold">
+                <ul className="space-y-2 text-[11px] font-semibold">
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'cases' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      ICAI Case Scenarios Vault (80)
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>ICAI Case Scenarios Vault (80)</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'general' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Standalone Chapter-Wise MCQs
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Standalone Chapter-Wise MCQs</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('practice', activeSubject, { practiceView: 'saved' })}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Saved Questions Revision Vault
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Saved Questions Revision Vault</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('mock')}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Timed SPOM Mock Simulator
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Timed SPOM Mock Simulator</span>
                     </button>
                   </li>
                   <li>
                     <a
-                      href="#landing-simulators"
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      href="#live-simulators"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Interactive Simulators Preview
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Interactive Simulators Preview</span>
                     </a>
                   </li>
                 </ul>
               </div>
 
-              {/* Column 4: Subjects & Sitemap Directory (2 cols) */}
-              <div className="md:col-span-2 space-y-2.5">
-                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
-                  SPOM Subjects
+              {/* Column 4: Subjects & Sitemap Directory */}
+              <div className="space-y-3 lg:justify-self-end">
+                <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
+                  SPOM Subjects &amp; Directory
                 </h4>
-                <ul className="space-y-1.5 text-[11px] font-semibold">
+                <ul className="space-y-2 text-[11px] font-semibold">
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('dashboard', 'setA')}
-                      className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Set A: Laws (14 Chaps)
+                      <span className="w-1 h-1 rounded-full bg-blue-400" />
+                      <span>Set A: Corporate &amp; Economic Laws (14 Chaps)</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => openAppWorkspaceFromLanding('dashboard', 'setB')}
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Set B: SCMPE (10 Chaps)
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]" />
+                      <span>Set B: Strategic Cost Management (10 Chaps)</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => setActiveLegalDoc('sitemap')}
-                      className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer"
+                      className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Full Interactive Site Map →
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]" />
+                      <span>Full Interactive Site Map →</span>
                     </button>
                   </li>
                   <li>
                     <a
                       href="#landing-faq"
-                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                      className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      Student FAQ &amp; Cloud Sync
+                      <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                      <span>Student FAQ &amp; Cloud Sync</span>
                     </a>
                   </li>
                   <li>
@@ -5000,9 +5015,10 @@ export default function App() {
                       href="./sitemap.xml"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1 transition-colors"
+                      className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1.5 transition-colors"
                     >
-                      <span>sitemap.xml</span>
+                      <span className="w-1 h-1 rounded-full bg-slate-500" />
+                      <span>XML Sitemap Index</span>
                       <ExternalLink size={10} />
                     </a>
                   </li>
@@ -5010,21 +5026,21 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bottom Legal, Security & Governance Bar */}
-            <div className="pt-4 border-t border-slate-800/90 flex flex-col lg:flex-row items-center justify-between gap-3 text-[11px]">
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 font-bold">
+            {/* Bottom Legal, Security & Governance Bar — Evenly Distributed Full Width */}
+            <div className="pt-5 border-t border-slate-800/90 flex flex-col xl:flex-row items-center justify-between gap-4 text-[11px] w-full">
+              <div className="flex flex-wrap items-center justify-center xl:justify-start gap-x-6 gap-y-2 font-bold">
                 {legalDocTabs.map((doc) => (
                   <button
                     key={doc.id}
                     type="button"
                     onClick={() => setActiveLegalDoc(doc.id)}
-                    className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer whitespace-nowrap"
                   >
                     {doc.shortLabel}
                   </button>
                 ))}
               </div>
-              <p className="text-slate-400 text-center lg:text-right">
+              <p className="text-slate-400 text-center xl:text-right">
                 © {new Date().getFullYear()} practACE. Independent educational preparation platform; not affiliated with or endorsed by ICAI.
               </p>
             </div>
@@ -10295,14 +10311,14 @@ Your text persists continuously in your browser and stays accessible across all 
         )}
       </div>
 
-      {/* Premium Multi-Column Sitemap Footer with practACE Branding, Direct Navigation & Legal Governance */}
-      <footer className="bg-[#021027] text-slate-400 text-xs pt-9 pb-7 px-6 border-t border-[#C9A84C]/35 tracking-wide mt-12 relative">
+      {/* Full-Width Evenly Distributed Sitemap Footer with practACE Branding, Direct Navigation & Legal Governance */}
+      <footer className="w-full bg-[#021027] text-slate-400 text-xs pt-10 pb-8 px-6 sm:px-10 lg:px-14 xl:px-20 border-t border-[#C9A84C]/35 tracking-wide mt-12 relative">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C]/80 via-amber-300/60 to-blue-500/80" />
-        <div className="max-w-7xl mx-auto space-y-7">
-          {/* 4-Column Sitemap Architecture Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-7 text-left">
-            {/* Column 1: Brand Identity, Motto & Community (4 cols) */}
-            <div className="md:col-span-4 space-y-3.5">
+        <div className="w-full max-w-[1600px] mx-auto space-y-8">
+          {/* Top 4-Column Evenly Spread Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 xl:gap-16 items-start justify-between text-left w-full">
+            {/* Column 1: Brand Identity, Motto & Community */}
+            <div className="space-y-3.5">
               <div className="flex items-center gap-3">
                 <img
                   src={practAceLogoImg}
@@ -10323,7 +10339,7 @@ Your text persists continuously in your browser and stays accessible across all 
                   </span>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-400 leading-relaxed max-w-sm">
                 Complete CA Final Self-Paced Online Module (SPOM) preparation workspace for <strong className="text-slate-200">Set A (Corporate &amp; Economic Laws)</strong> and <strong className="text-slate-200">Set B (Strategic Cost &amp; Performance Management)</strong>.
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -10370,154 +10386,168 @@ Your text persists continuously in your browser and stays accessible across all 
               </div>
             </div>
 
-            {/* Column 2: Sitemap — Study & Revision Modules (3 cols) */}
-            <div className="md:col-span-3 space-y-2.5">
-              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
-                Site Map — Study &amp; Revision
+            {/* Column 2: Study & Revision Modules */}
+            <div className="space-y-3 lg:justify-self-center">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
+                Study &amp; Revision Modules
               </h4>
-              <ul className="space-y-1.5 text-[11px] font-semibold">
+              <ul className="space-y-2 text-[11px] font-semibold">
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Portal Dashboard &amp; Analytics
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Portal Dashboard &amp; Analytics</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('revision'); setRevisionSubView('study'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Revision Deck &amp; Crux Notes
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Revision Deck &amp; Crux Notes</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Statutory &amp; Concept Blueprints
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Statutory &amp; Concept Blueprints</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('revision'); setRevisionSubView('flashcards'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Active Recall Flashcards (220+)
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Active Recall Flashcards (220+)</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('sandbox'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Statutory &amp; Decision Calculators
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Statutory &amp; Decision Calculators</span>
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Column 3: Sitemap — Practice, Mocks & Tools (3 cols) */}
-            <div className="md:col-span-3 space-y-2.5">
-              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+            {/* Column 3: Practice, Mocks & Tools */}
+            <div className="space-y-3 lg:justify-self-center">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
                 Practice &amp; Exam Engines
               </h4>
-              <ul className="space-y-1.5 text-[11px] font-semibold">
+              <ul className="space-y-2 text-[11px] font-semibold">
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    ICAI Case Scenarios Vault (80)
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>ICAI Case Scenarios Vault (80)</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('practice'); setPracticeSubTab('general'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Standalone Chapter-Wise MCQs
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Standalone Chapter-Wise MCQs</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('practice'); setPracticeSubTab('saved'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Saved Questions Revision Vault
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Saved Questions Revision Vault</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveTab('mock'); handleStartMockExam(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Timed SPOM Mock Simulator
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Timed SPOM Mock Simulator</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => setShowGlobalNotepad((prev) => !prev)}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Global Study Scratchpad &amp; PDF
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>Global Study Scratchpad &amp; PDF</span>
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Column 4: Subjects & Sitemap Directory (2 cols) */}
-            <div className="md:col-span-2 space-y-2.5">
-              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
-                SPOM Subjects
+            {/* Column 4: Subjects & Sitemap Directory */}
+            <div className="space-y-3 lg:justify-self-end">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C] pb-1 border-b border-slate-800/80">
+                SPOM Subjects &amp; Directory
               </h4>
-              <ul className="space-y-1.5 text-[11px] font-semibold">
+              <ul className="space-y-2 text-[11px] font-semibold">
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveSubject('setA'); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Set A: Laws (14 Chaps)
+                    <span className="w-1 h-1 rounded-full bg-blue-400" />
+                    <span>Set A: Corporate &amp; Economic Laws (14 Chaps)</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => { setActiveSubject('setB'); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Set B: SCMPE (10 Chaps)
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]" />
+                    <span>Set B: Strategic Cost Management (10 Chaps)</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => setActiveLegalDoc('sitemap')}
-                    className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer"
+                    className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    Full Interactive Site Map →
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]" />
+                    <span>Full Interactive Site Map →</span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
                     onClick={() => setShowSetAAnnouncement(true)}
-                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    What&apos;s New in practACE
+                    <span className="w-1 h-1 rounded-full bg-[#C9A84C]/70" />
+                    <span>What&apos;s New in practACE</span>
                   </button>
                 </li>
                 <li>
@@ -10525,9 +10555,10 @@ Your text persists continuously in your browser and stays accessible across all 
                     href="./sitemap.xml"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1 transition-colors"
+                    className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1.5 transition-colors"
                   >
-                    <span>sitemap.xml</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-500" />
+                    <span>XML Sitemap Index</span>
                     <ExternalLink size={10} />
                   </a>
                 </li>
@@ -10535,21 +10566,21 @@ Your text persists continuously in your browser and stays accessible across all 
             </div>
           </div>
 
-          {/* Bottom Legal, Security & Governance Bar */}
-          <div className="pt-4 border-t border-slate-800/90 flex flex-col lg:flex-row items-center justify-between gap-3 text-[11px]">
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 font-bold">
+          {/* Bottom Legal, Security & Governance Bar — Evenly Distributed Full Width */}
+          <div className="pt-5 border-t border-slate-800/90 flex flex-col xl:flex-row items-center justify-between gap-4 text-[11px] w-full">
+            <div className="flex flex-wrap items-center justify-center xl:justify-start gap-x-6 gap-y-2 font-bold">
               {legalDocTabs.map((doc) => (
                 <button
                   key={doc.id}
                   type="button"
                   onClick={() => setActiveLegalDoc(doc.id)}
-                  className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
+                  className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer whitespace-nowrap"
                 >
                   {doc.shortLabel}
                 </button>
               ))}
             </div>
-            <p className="text-slate-400 text-center lg:text-right">
+            <p className="text-slate-400 text-center xl:text-right">
               © {new Date().getFullYear()} practACE. Independent educational preparation platform; not affiliated with or endorsed by ICAI.
             </p>
           </div>
