@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense, type FormEvent } from 'react';
 import {
   BookOpen,
   Award,
@@ -53,8 +53,8 @@ import type { GeneralMCQ } from './generalMCQs';
 import type { Flashcard } from './flashcardData';
 import type { FormulaDetail } from './data/setBFormulaDetails';
 import { loadSubjectDataset, type SubjectDataset } from './data/subjectLoader';
-// practACE official brand logo asset (optimized 336x112 WebP)
-const practAceLogoImg = `${import.meta.env.BASE_URL}assets/aistudio/PractACE_Logo_336x112.webp`;
+// practACE official brand logo asset (subtitle-free, high-contrast 2x Retina WebP, 772x200)
+const practAceLogoImg = `${import.meta.env.BASE_URL}assets/aistudio/PractACE_Logo_336x112.webp?v=3`;
 const ChapterVisualizer = lazy(() => import('./components/ChapterVisualizer'));
 const SetATimeLimitsChart = lazy(() =>
   import('./components/ChapterVisualizer').then((m) => ({ default: m.SetATimeLimitsChart }))
@@ -82,19 +82,8 @@ export interface BookmarkedQuestion {
   savedAt: number;
 }
 
-// Firebase core configuration & connection testing
-import { auth, db, googleProvider, isFirebaseConfigured, handleFirestoreError, OperationType } from './firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocFromServer, onSnapshot, serverTimestamp, type DocumentReference } from 'firebase/firestore';
-
-async function testConnection() {
-  if (!db) return;
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    console.warn("Gracefully logged non-blocking firebase connection status:", error);
-  }
-}
+// Supabase core configuration
+import { supabase, supabaseUrl, supabaseKey, isSupabaseConfigured, toAppUser, type AppUser, type ProgressSection } from './supabase';
 
 
 const getFormulaDetails = (name: string, formulaMap: Record<string, FormulaDetail>): FormulaDetail => {
@@ -112,19 +101,20 @@ const getFormulaDetails = (name: string, formulaMap: Record<string, FormulaDetai
 };
 
 export default function App() {
-  // Theme State (light / dark)
+  // Theme State (light / dark — defaults to light mode)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
-      const saved = localStorage.getItem('theme');
-      return (saved as 'light' | 'dark') || 'dark';
+      const saved = localStorage.getItem('practace_theme');
+      return saved === 'dark' || saved === 'light' ? saved : 'light';
     } catch (e) {
-      return 'dark';
+      return 'light';
     }
   });
 
   // Sync theme to HTML root element for tailwind v4 class-based dark mode
   useEffect(() => {
     try {
+      localStorage.setItem('practace_theme', theme);
       localStorage.setItem('theme', theme);
       const root = window.document.documentElement;
       if (theme === 'dark') {
@@ -136,11 +126,6 @@ export default function App() {
       console.error("Failed to sync theme class to document element", e);
     }
   }, [theme]);
-
-  // Test database connection gracefully in non-blocking effect
-  useEffect(() => {
-    testConnection();
-  }, []);
 
   // Navigation State
   const [activeSubject, setActiveSubject] = useState<'setA' | 'setB'>(() => {
@@ -159,16 +144,64 @@ export default function App() {
     }
   }, [activeSubject]);
 
-  // Firebase Authentication & Synchronization States
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [isFirebaseLoading, setIsFirebaseLoading] = useState<boolean>(true);
+  // Supabase Authentication & Synchronization States
+  const [sessionUser, setSessionUser] = useState<AppUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [cloudSyncing, setCloudSyncing] = useState<boolean>(false);
   const [isSavingCloud, setIsSavingCloud] = useState<boolean>(false);
   const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [emailInput, setEmailInput] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
+  const [fullNameInput, setFullNameInput] = useState<string>('');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const searchParams = new URLSearchParams(window.location.search);
+    return hashParams.get('type') === 'recovery' || searchParams.get('type') === 'recovery';
+  });
+  const [isGoogleProviderEnabled, setIsGoogleProviderEnabled] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState<
+    'sitemap' | 'security' | 'privacy' | 'terms' | 'disclaimer' | 'cookies' | null
+  >(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const searchParams = new URLSearchParams(window.location.search);
+    const errorDescription =
+      hashParams.get('error_description') || searchParams.get('error_description');
+    if (errorDescription) {
+      setAuthError(errorDescription.replace(/\+/g, ' '));
+      setAuthMode('forgot');
+      window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser || !isSupabaseConfigured || !supabaseUrl || !supabaseKey) return;
+    let cancelled = false;
+    fetch(`${supabaseUrl}/auth/v1/settings`, {
+      headers: { apikey: supabaseKey }
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.external) {
+          setIsGoogleProviderEnabled(Boolean(data.external.google));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!showProfileMenu) return;
@@ -571,242 +604,264 @@ export default function App() {
     notes: ''
   });
 
-  const fetchDocServerFirst = async (docRef: DocumentReference) => {
-    try {
-      return await getDocFromServer(docRef);
-    } catch (err: any) {
-      const code = err?.code || '';
-      const msg = String(err?.message || '').toLowerCase();
-      if (code === 'unavailable' || msg.includes('offline')) {
-        return await getDoc(docRef);
-      }
-      throw err;
-    }
+  const upsertProgressSection = async (
+    userId: string,
+    section: ProgressSection,
+    payload: Record<string, unknown>
+  ) => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('user_progress')
+      .upsert({ user_id: userId, section, payload }, { onConflict: 'user_id,section' });
+    if (error) throw error;
   };
 
-  // Listen for Authentication state changes and retrieve/initialize Cloud data
+  // Listen for Supabase Authentication state changes (synchronous callback to avoid auth lock contention)
   useEffect(() => {
-    if (!auth || !db) {
-      setIsFirebaseLoading(false);
+    if (!supabase) {
+      setIsAuthLoading(false);
       return;
     }
-    const firestore = db;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        hydratedUidRef.current = null;
-        setCloudSyncing(true);
+
+    let mounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!mounted) return;
+        if (error) {
+          console.error('Failed to read Supabase session:', error);
+        }
+        setSessionUser(data.session?.user ? toAppUser(data.session.user) : null);
+        setIsAuthLoading(false);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        console.error('Unexpected session check error:', err);
+        setIsAuthLoading(false);
+      });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
         setAuthError(null);
-        setSyncError(null);
-        const userPath = `users/${user.uid}`;
-        try {
-          const userDocRef = doc(firestore, 'users', user.uid);
-          let userSnap;
-          try {
-            userSnap = await fetchDocServerFirst(userDocRef);
-          } catch (error) {
-            handleFirestoreError(error, OperationType.GET, userPath);
-            return;
-          }
+        setAuthMessage(null);
+        setPasswordInput('');
+        setConfirmPasswordInput('');
+      } else if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+      }
+      setSessionUser(session?.user ? toAppUser(session.user) : null);
+      setIsAuthLoading(false);
+    });
 
-          if (!userSnap.exists()) {
-            // New cloud account: initialize profile and push any current non-empty client progress up to the cloud
-            const snapshot = latestProgressRef.current;
-            const practicePayload = {
-              practiceProgress: snapshot.practiceProgress,
-              savedBookmarks: snapshot.savedBookmarks
-            };
-            const flashcardsPayload = {
-              flashcardPerformance: snapshot.flashcardPerformance,
-              frameworkCardAssessments: snapshot.frameworkCardAssessments
-            };
-            const notesPayload = {
-              caseNotes: snapshot.caseNotes,
-              globalNotepadText: snapshot.globalNotepadText
-            };
-            try {
-              await setDoc(userDocRef, {
-                uid: user.uid,
-                email: user.email || '',
-                displayName: user.displayName || '',
-                photoURL: user.photoURL || '',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-              });
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
-              await Promise.all([
-                setDoc(doc(firestore, 'users', user.uid, 'progress', 'practice'), {
-                  userId: user.uid,
-                  ...practicePayload,
-                  updatedAt: serverTimestamp()
-                }),
-                setDoc(doc(firestore, 'users', user.uid, 'progress', 'flashcards'), {
-                  userId: user.uid,
-                  ...flashcardsPayload,
-                  updatedAt: serverTimestamp()
-                }),
-                setDoc(doc(firestore, 'users', user.uid, 'progress', 'notes'), {
-                  userId: user.uid,
-                  ...notesPayload,
-                  updatedAt: serverTimestamp()
-                })
-              ]);
+  // Hydrate or initialize cloud profile & progress whenever authenticated sessionUser changes
+  useEffect(() => {
+    if (!supabase || !sessionUser || isPasswordRecovery) {
+      hydratedUidRef.current = null;
+      lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
+      setCurrentUser(null);
+      setCloudSyncing(false);
+      return;
+    }
 
-              lastSyncedJsonRef.current = {
-                practice: JSON.stringify(practicePayload),
-                flashcards: JSON.stringify(flashcardsPayload),
-                notes: JSON.stringify(notesPayload)
-              };
-              hydratedUidRef.current = user.uid;
-            } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, userPath);
-              return;
-            }
-          } else {
-            // Existing cloud account: fetch fresh server records so another device's latest progress is always loaded
-            const practiceRef = doc(firestore, 'users', user.uid, 'progress', 'practice');
-            const flashcardsRef = doc(firestore, 'users', user.uid, 'progress', 'flashcards');
-            const notesRef = doc(firestore, 'users', user.uid, 'progress', 'notes');
+    const client = supabase;
+    let cancelled = false;
 
-            let practiceSnap, flashcardsSnap, notesSnap;
-            try {
-              [practiceSnap, flashcardsSnap, notesSnap] = await Promise.all([
-                fetchDocServerFirst(practiceRef),
-                fetchDocServerFirst(flashcardsRef),
-                fetchDocServerFirst(notesRef)
-              ]);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.GET, `${userPath}/progress`);
-              return;
-            }
+    const hydrateCloudState = async () => {
+      hydratedUidRef.current = null;
+      setCloudSyncing(true);
+      setAuthError(null);
+      setAuthMessage(null);
+      setSyncError(null);
 
-            const practiceData = practiceSnap.exists() ? practiceSnap.data() : {};
-            const nextPractice = practiceData?.practiceProgress ?? {};
-            const nextBookmarks = practiceData?.savedBookmarks ?? {};
-            lastSyncedJsonRef.current.practice = JSON.stringify({
+      try {
+        const { error: profileError } = await client.from('profiles').upsert(
+          {
+            id: sessionUser.id,
+            email: sessionUser.email,
+            display_name: sessionUser.displayName,
+            photo_url: sessionUser.photoURL
+          },
+          { onConflict: 'id' }
+        );
+        if (profileError) throw profileError;
+
+        const { data: rows, error: progressError } = await client
+          .from('user_progress')
+          .select('section, payload')
+          .eq('user_id', sessionUser.id);
+        if (progressError) throw progressError;
+        if (cancelled) return;
+
+        if (!rows || rows.length === 0) {
+          // New cloud account: initialize 3 progress buckets from current client snapshot
+          const snapshot = latestProgressRef.current;
+          const practicePayload = {
+            practiceProgress: snapshot.practiceProgress,
+            savedBookmarks: snapshot.savedBookmarks
+          };
+          const flashcardsPayload = {
+            flashcardPerformance: snapshot.flashcardPerformance,
+            frameworkCardAssessments: snapshot.frameworkCardAssessments
+          };
+          const notesPayload = {
+            caseNotes: snapshot.caseNotes,
+            globalNotepadText: snapshot.globalNotepadText
+          };
+
+          const { error: seedError } = await client.from('user_progress').upsert(
+            [
+              { user_id: sessionUser.id, section: 'practice', payload: practicePayload },
+              { user_id: sessionUser.id, section: 'flashcards', payload: flashcardsPayload },
+              { user_id: sessionUser.id, section: 'notes', payload: notesPayload }
+            ],
+            { onConflict: 'user_id,section' }
+          );
+          if (seedError) throw seedError;
+
+          lastSyncedJsonRef.current = {
+            practice: JSON.stringify(practicePayload),
+            flashcards: JSON.stringify(flashcardsPayload),
+            notes: JSON.stringify(notesPayload)
+          };
+          hydratedUidRef.current = sessionUser.id;
+        } else {
+          // Existing cloud account: apply server progress buckets
+          const sectionMap = new Map<string, any>();
+          rows.forEach((row) => {
+            sectionMap.set(row.section, row.payload ?? {});
+          });
+
+          const practiceData = sectionMap.get('practice') ?? {};
+          const nextPractice = practiceData?.practiceProgress ?? {};
+          const nextBookmarks = practiceData?.savedBookmarks ?? {};
+          lastSyncedJsonRef.current.practice = JSON.stringify({
+            practiceProgress: nextPractice,
+            savedBookmarks: nextBookmarks
+          });
+          setPracticeProgress(nextPractice);
+          setSavedBookmarks(nextBookmarks);
+
+          const flashcardsData = sectionMap.get('flashcards') ?? {};
+          const nextFlashcards = flashcardsData?.flashcardPerformance ?? {};
+          const nextFrameworks = flashcardsData?.frameworkCardAssessments ?? {};
+          lastSyncedJsonRef.current.flashcards = JSON.stringify({
+            flashcardPerformance: nextFlashcards,
+            frameworkCardAssessments: nextFrameworks
+          });
+          setFlashcardPerformance(nextFlashcards);
+          setFrameworkCardAssessments(nextFrameworks);
+
+          const notesData = sectionMap.get('notes') ?? {};
+          const nextCaseNotes = notesData?.caseNotes ?? {};
+          const nextGlobalNotepad = notesData?.globalNotepadText ?? '';
+          lastSyncedJsonRef.current.notes = JSON.stringify({
+            caseNotes: nextCaseNotes,
+            globalNotepadText: nextGlobalNotepad
+          });
+          setCaseNotes(nextCaseNotes);
+          setGlobalNotepadText(nextGlobalNotepad);
+
+          hydratedUidRef.current = sessionUser.id;
+        }
+
+        if (!cancelled) {
+          setCurrentUser(sessionUser);
+        }
+      } catch (error) {
+        console.error('Supabase cloud synchronisation failure:', error);
+        if (!cancelled) {
+          setSyncError('Could not load saved cloud progress. Please check your connection or retry.');
+          setCurrentUser(sessionUser);
+        }
+      } finally {
+        if (!cancelled) {
+          setCloudSyncing(false);
+        }
+      }
+    };
+
+    hydrateCloudState();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser, isPasswordRecovery]);
+
+  // Real-time cross-device cloud listeners via Supabase Realtime (keeps mobile & desktop synchronized live while signed in)
+  useEffect(() => {
+    if (!supabase || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.id) {
+      return;
+    }
+    const client = supabase;
+    const uid = currentUser.id;
+
+    const channel = client
+      .channel(`user-progress-${uid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_progress',
+          filter: `user_id=eq.${uid}`
+        },
+        (change) => {
+          const row = change.new as { section?: string; payload?: any } | null;
+          if (!row || !row.section) return;
+          const data = row.payload ?? {};
+
+          if (row.section === 'practice') {
+            const nextPractice = data?.practiceProgress ?? {};
+            const nextBookmarks = data?.savedBookmarks ?? {};
+            const incomingJson = JSON.stringify({
               practiceProgress: nextPractice,
               savedBookmarks: nextBookmarks
             });
-            setPracticeProgress(nextPractice);
-            setSavedBookmarks(nextBookmarks);
-
-            const flashcardsData = flashcardsSnap.exists() ? flashcardsSnap.data() : {};
-            const nextFlashcards = flashcardsData?.flashcardPerformance ?? {};
-            const nextFrameworks = flashcardsData?.frameworkCardAssessments ?? {};
-            lastSyncedJsonRef.current.flashcards = JSON.stringify({
+            if (incomingJson !== lastSyncedJsonRef.current.practice) {
+              lastSyncedJsonRef.current.practice = incomingJson;
+              setPracticeProgress(nextPractice);
+              setSavedBookmarks(nextBookmarks);
+            }
+          } else if (row.section === 'flashcards') {
+            const nextFlashcards = data?.flashcardPerformance ?? {};
+            const nextFrameworks = data?.frameworkCardAssessments ?? {};
+            const incomingJson = JSON.stringify({
               flashcardPerformance: nextFlashcards,
               frameworkCardAssessments: nextFrameworks
             });
-            setFlashcardPerformance(nextFlashcards);
-            setFrameworkCardAssessments(nextFrameworks);
-
-            const notesData = notesSnap.exists() ? notesSnap.data() : {};
-            const nextCaseNotes = notesData?.caseNotes ?? {};
-            const nextGlobalNotepad = notesData?.globalNotepadText ?? '';
-            lastSyncedJsonRef.current.notes = JSON.stringify({
+            if (incomingJson !== lastSyncedJsonRef.current.flashcards) {
+              lastSyncedJsonRef.current.flashcards = incomingJson;
+              setFlashcardPerformance(nextFlashcards);
+              setFrameworkCardAssessments(nextFrameworks);
+            }
+          } else if (row.section === 'notes') {
+            const nextCaseNotes = data?.caseNotes ?? {};
+            const nextGlobalNotepad = data?.globalNotepadText ?? '';
+            const incomingJson = JSON.stringify({
               caseNotes: nextCaseNotes,
               globalNotepadText: nextGlobalNotepad
             });
-            setCaseNotes(nextCaseNotes);
-            setGlobalNotepadText(nextGlobalNotepad);
-
-            hydratedUidRef.current = user.uid;
+            if (incomingJson !== lastSyncedJsonRef.current.notes) {
+              lastSyncedJsonRef.current.notes = incomingJson;
+              setCaseNotes(nextCaseNotes);
+              setGlobalNotepadText(nextGlobalNotepad);
+            }
           }
-          setCurrentUser(user);
-        } catch (error) {
-          console.error("Cloud synchronisation failure: ", error);
-          setSyncError("Could not load saved cloud progress. Please check your connection or retry.");
-          setCurrentUser(user);
-        } finally {
-          setIsFirebaseLoading(false);
-          setCloudSyncing(false);
         }
-      } else {
-        hydratedUidRef.current = null;
-        lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
-        setCurrentUser(null);
-        setIsFirebaseLoading(false);
-        setCloudSyncing(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Real-time cross-device cloud listeners (keeps mobile & desktop synchronized live while signed in)
-  useEffect(() => {
-    if (!db || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.uid) {
-      return;
-    }
-    const firestore = db;
-    const uid = currentUser.uid;
-    const practicePath = `users/${uid}/progress/practice`;
-    const flashcardsPath = `users/${uid}/progress/flashcards`;
-    const notesPath = `users/${uid}/progress/notes`;
-
-    const unsubPractice = onSnapshot(
-      doc(firestore, 'users', uid, 'progress', 'practice'),
-      (snap) => {
-        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
-        const data = snap.data();
-        const nextPractice = data?.practiceProgress ?? {};
-        const nextBookmarks = data?.savedBookmarks ?? {};
-        const incomingJson = JSON.stringify({
-          practiceProgress: nextPractice,
-          savedBookmarks: nextBookmarks
-        });
-        if (incomingJson !== lastSyncedJsonRef.current.practice) {
-          lastSyncedJsonRef.current.practice = incomingJson;
-          setPracticeProgress(nextPractice);
-          setSavedBookmarks(nextBookmarks);
-        }
-      },
-      (error) => handleFirestoreError(error, OperationType.GET, practicePath)
-    );
-
-    const unsubFlashcards = onSnapshot(
-      doc(firestore, 'users', uid, 'progress', 'flashcards'),
-      (snap) => {
-        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
-        const data = snap.data();
-        const nextFlashcards = data?.flashcardPerformance ?? {};
-        const nextFrameworks = data?.frameworkCardAssessments ?? {};
-        const incomingJson = JSON.stringify({
-          flashcardPerformance: nextFlashcards,
-          frameworkCardAssessments: nextFrameworks
-        });
-        if (incomingJson !== lastSyncedJsonRef.current.flashcards) {
-          lastSyncedJsonRef.current.flashcards = incomingJson;
-          setFlashcardPerformance(nextFlashcards);
-          setFrameworkCardAssessments(nextFrameworks);
-        }
-      },
-      (error) => handleFirestoreError(error, OperationType.GET, flashcardsPath)
-    );
-
-    const unsubNotes = onSnapshot(
-      doc(firestore, 'users', uid, 'progress', 'notes'),
-      (snap) => {
-        if (snap.metadata.hasPendingWrites || !snap.exists()) return;
-        const data = snap.data();
-        const nextCaseNotes = data?.caseNotes ?? {};
-        const nextGlobalNotepad = data?.globalNotepadText ?? '';
-        const incomingJson = JSON.stringify({
-          caseNotes: nextCaseNotes,
-          globalNotepadText: nextGlobalNotepad
-        });
-        if (incomingJson !== lastSyncedJsonRef.current.notes) {
-          lastSyncedJsonRef.current.notes = incomingJson;
-          setCaseNotes(nextCaseNotes);
-          setGlobalNotepadText(nextGlobalNotepad);
-        }
-      },
-      (error) => handleFirestoreError(error, OperationType.GET, notesPath)
-    );
+      )
+      .subscribe();
 
     return () => {
-      unsubPractice();
-      unsubFlashcards();
-      unsubNotes();
+      client.removeChannel(channel);
     };
   }, [currentUser, cloudSyncing]);
 
@@ -817,13 +872,11 @@ export default function App() {
   });
 
   // Immediate flush helper used before Sign Out, tab hide, or manual retry
-  const flushAllProgressToCloud = async (userToFlush: FirebaseUser | null) => {
-    if (!db || !userToFlush || hydratedUidRef.current !== userToFlush.uid) return;
-    const firestore = db;
+  const flushAllProgressToCloud = async (userToFlush: AppUser | null) => {
+    if (!supabase || !userToFlush || hydratedUidRef.current !== userToFlush.id) return;
     const snapshot = latestProgressRef.current;
     setIsSavingCloud(true);
     setSyncError(null);
-    const basePath = `users/${userToFlush.uid}/progress`;
     const practicePayload = {
       practiceProgress: snapshot.practiceProgress,
       savedBookmarks: snapshot.savedBookmarks
@@ -837,23 +890,15 @@ export default function App() {
       globalNotepadText: snapshot.globalNotepadText
     };
     try {
-      await Promise.all([
-        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'practice'), {
-          userId: userToFlush.uid,
-          ...practicePayload,
-          updatedAt: serverTimestamp()
-        }),
-        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'flashcards'), {
-          userId: userToFlush.uid,
-          ...flashcardsPayload,
-          updatedAt: serverTimestamp()
-        }),
-        setDoc(doc(firestore, 'users', userToFlush.uid, 'progress', 'notes'), {
-          userId: userToFlush.uid,
-          ...notesPayload,
-          updatedAt: serverTimestamp()
-        })
-      ]);
+      const { error } = await supabase.from('user_progress').upsert(
+        [
+          { user_id: userToFlush.id, section: 'practice', payload: practicePayload },
+          { user_id: userToFlush.id, section: 'flashcards', payload: flashcardsPayload },
+          { user_id: userToFlush.id, section: 'notes', payload: notesPayload }
+        ],
+        { onConflict: 'user_id,section' }
+      );
+      if (error) throw error;
       lastSyncedJsonRef.current = {
         practice: JSON.stringify(practicePayload),
         flashcards: JSON.stringify(flashcardsPayload),
@@ -861,50 +906,52 @@ export default function App() {
       };
       hasPendingCloudWriteRef.current = { practice: false, flashcards: false, notes: false };
     } catch (error) {
-      setSyncError("Progress sync interrupted.");
-      handleFirestoreError(error, OperationType.WRITE, basePath);
+      console.error('Supabase flushAllProgressToCloud error:', error);
+      setSyncError('Progress sync interrupted.');
     } finally {
       setIsSavingCloud(false);
     }
   };
 
   useEffect(() => {
-    if (!db || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.uid) return;
-    const firestore = db;
+    if (!supabase || !currentUser || cloudSyncing || hydratedUidRef.current !== currentUser.id) return;
+    const client = supabase;
     const flushPendingOnLeave = () => {
-      if (hydratedUidRef.current !== currentUser.uid) return;
+      if (hydratedUidRef.current !== currentUser.id) return;
       const pending = hasPendingCloudWriteRef.current;
       if (!pending.practice && !pending.flashcards && !pending.notes) return;
       const snapshot = latestProgressRef.current;
+      const rowsToUpsert: { user_id: string; section: ProgressSection; payload: Record<string, unknown> }[] = [];
+
       if (pending.practice) {
         hasPendingCloudWriteRef.current.practice = false;
         const payload = { practiceProgress: snapshot.practiceProgress, savedBookmarks: snapshot.savedBookmarks };
         lastSyncedJsonRef.current.practice = JSON.stringify(payload);
-        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'practice'), {
-          userId: currentUser.uid,
-          ...payload,
-          updatedAt: serverTimestamp()
-        }).catch(() => {});
+        rowsToUpsert.push({ user_id: currentUser.id, section: 'practice', payload });
       }
       if (pending.flashcards) {
         hasPendingCloudWriteRef.current.flashcards = false;
-        const payload = { flashcardPerformance: snapshot.flashcardPerformance, frameworkCardAssessments: snapshot.frameworkCardAssessments };
+        const payload = {
+          flashcardPerformance: snapshot.flashcardPerformance,
+          frameworkCardAssessments: snapshot.frameworkCardAssessments
+        };
         lastSyncedJsonRef.current.flashcards = JSON.stringify(payload);
-        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'flashcards'), {
-          userId: currentUser.uid,
-          ...payload,
-          updatedAt: serverTimestamp()
-        }).catch(() => {});
+        rowsToUpsert.push({ user_id: currentUser.id, section: 'flashcards', payload });
       }
       if (pending.notes) {
         hasPendingCloudWriteRef.current.notes = false;
         const payload = { caseNotes: snapshot.caseNotes, globalNotepadText: snapshot.globalNotepadText };
         lastSyncedJsonRef.current.notes = JSON.stringify(payload);
-        setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'notes'), {
-          userId: currentUser.uid,
-          ...payload,
-          updatedAt: serverTimestamp()
-        }).catch(() => {});
+        rowsToUpsert.push({ user_id: currentUser.id, section: 'notes', payload });
+      }
+
+      if (rowsToUpsert.length > 0) {
+        client
+          .from('user_progress')
+          .upsert(rowsToUpsert, { onConflict: 'user_id,section' })
+          .then(({ error }) => {
+            if (error) console.warn('Leave flush failed:', error);
+          });
       }
     };
     const handleVisibilityChange = () => {
@@ -926,30 +973,24 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Sync state changes back up to the cloud securely (using 800ms debounces + hash check to prevent echo loops)
+  // Sync state changes back up to Supabase (using 800ms debounces + hash check to prevent echo loops)
   // Practice Progress & Saved Bookmarks synchronization
   useEffect(() => {
-    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+    if (supabase && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.id) {
       const payload = { practiceProgress, savedBookmarks };
       const nextJson = JSON.stringify(payload);
       if (nextJson === lastSyncedJsonRef.current.practice) return;
-      const firestore = db;
       hasPendingCloudWriteRef.current.practice = true;
       const upload = async () => {
-        const path = `users/${currentUser.uid}/progress/practice`;
         setIsSavingCloud(true);
         try {
           lastSyncedJsonRef.current.practice = nextJson;
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'practice'), {
-            userId: currentUser.uid,
-            ...payload,
-            updatedAt: serverTimestamp()
-          });
+          await upsertProgressSection(currentUser.id, 'practice', payload);
           hasPendingCloudWriteRef.current.practice = false;
           setSyncError(null);
         } catch (error) {
-          setSyncError("Could not sync practice progress.");
-          handleFirestoreError(error, OperationType.WRITE, path);
+          console.error('Could not sync practice progress:', error);
+          setSyncError('Could not sync practice progress.');
         } finally {
           setIsSavingCloud(false);
         }
@@ -961,27 +1002,21 @@ export default function App() {
 
   // Flashcards progress synchronization
   useEffect(() => {
-    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+    if (supabase && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.id) {
       const payload = { flashcardPerformance, frameworkCardAssessments };
       const nextJson = JSON.stringify(payload);
       if (nextJson === lastSyncedJsonRef.current.flashcards) return;
-      const firestore = db;
       hasPendingCloudWriteRef.current.flashcards = true;
       const upload = async () => {
-        const path = `users/${currentUser.uid}/progress/flashcards`;
         setIsSavingCloud(true);
         try {
           lastSyncedJsonRef.current.flashcards = nextJson;
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'flashcards'), {
-            userId: currentUser.uid,
-            ...payload,
-            updatedAt: serverTimestamp()
-          });
+          await upsertProgressSection(currentUser.id, 'flashcards', payload);
           hasPendingCloudWriteRef.current.flashcards = false;
           setSyncError(null);
         } catch (error) {
-          setSyncError("Could not sync flashcard progress.");
-          handleFirestoreError(error, OperationType.WRITE, path);
+          console.error('Could not sync flashcard progress:', error);
+          setSyncError('Could not sync flashcard progress.');
         } finally {
           setIsSavingCloud(false);
         }
@@ -993,27 +1028,21 @@ export default function App() {
 
   // User Notes & Notebook synchronization
   useEffect(() => {
-    if (db && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.uid) {
+    if (supabase && currentUser && !cloudSyncing && hydratedUidRef.current === currentUser.id) {
       const payload = { caseNotes, globalNotepadText };
       const nextJson = JSON.stringify(payload);
       if (nextJson === lastSyncedJsonRef.current.notes) return;
-      const firestore = db;
       hasPendingCloudWriteRef.current.notes = true;
       const upload = async () => {
-        const path = `users/${currentUser.uid}/progress/notes`;
         setIsSavingCloud(true);
         try {
           lastSyncedJsonRef.current.notes = nextJson;
-          await setDoc(doc(firestore, 'users', currentUser.uid, 'progress', 'notes'), {
-            userId: currentUser.uid,
-            ...payload,
-            updatedAt: serverTimestamp()
-          });
+          await upsertProgressSection(currentUser.id, 'notes', payload);
           hasPendingCloudWriteRef.current.notes = false;
           setSyncError(null);
         } catch (error) {
-          setSyncError("Could not sync study notes.");
-          handleFirestoreError(error, OperationType.WRITE, path);
+          console.error('Could not sync study notes:', error);
+          setSyncError('Could not sync study notes.');
         } finally {
           setIsSavingCloud(false);
         }
@@ -1024,52 +1053,201 @@ export default function App() {
   }, [caseNotes, globalNotepadText, currentUser, cloudSyncing]);
 
   // Sign in and out handlers
-  const handleSignIn = async () => {
-    if (!auth || !googleProvider) {
-      setAuthError("Authentication service is not configured for this environment.");
+  const handleGoogleSignIn = async () => {
+    if (!supabase) {
+      setAuthError('Authentication service is not configured for this environment.');
       return;
     }
     setIsSigningIn(true);
     setAuthError(null);
+    setAuthMessage(null);
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error("Sign in failed: ", error);
-      const code = error?.code || '';
-      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        setAuthError("Sign-in popup was closed before completing. Click Continue with Google to try again.");
-      } else if (code === 'auth/popup-blocked') {
-        setAuthError("Browser blocked the Google sign-in popup. Please allow popups for this site and retry.");
-      } else if (code === 'auth/unauthorized-domain') {
-        setAuthError("This domain is not authorized in Firebase Authentication settings.");
-      } else {
-        setAuthError(error?.message || "Unable to sign in with Google right now. Please try again.");
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo }
+      });
+      if (error) {
+        setAuthError(error.message || 'Unable to sign in with Google right now. Please try again.');
+        setIsSigningIn(false);
       }
+    } catch (error: any) {
+      console.error('Google sign in failed:', error);
+      setAuthError(error?.message || 'Unable to sign in with Google right now. Please try again.');
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      setAuthError('Authentication service is not configured for this environment.');
+      return;
+    }
+    const email = emailInput.trim();
+    const password = passwordInput;
+    if (!email || !email.includes('@')) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 6) {
+      setAuthError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthMessage(null);
+    try {
+      if (authMode === 'signin') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setAuthError(error.message || 'Invalid email or password.');
+        }
+      } else {
+        const redirectTo = `${window.location.origin}${window.location.pathname}`;
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullNameInput.trim() },
+            emailRedirectTo: redirectTo
+          }
+        });
+        if (error) {
+          setAuthError(error.message || 'Could not create your account. Please try again.');
+        } else if (!data.session) {
+          setAuthMessage(
+            'Account created! Please check your email inbox to confirm your address before signing in.'
+          );
+          setAuthMode('signin');
+          setPasswordInput('');
+        }
+      }
+    } catch (error: any) {
+      console.error('Email authentication failed:', error);
+      setAuthError(error?.message || 'Authentication failed. Please try again.');
     } finally {
       setIsSigningIn(false);
     }
   };
 
+  const handlePasswordResetRequest = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      setAuthError('Authentication service is not configured for this environment.');
+      return;
+    }
+    const email = emailInput.trim();
+    if (!email || !email.includes('@')) {
+      setAuthError('Please enter a valid email address.');
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthMessage(null);
+    try {
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) {
+        setAuthError(error.message || 'Unable to send password reset email. Please try again.');
+      } else {
+        setAuthMessage(
+          'If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder.'
+        );
+      }
+    } catch (error: any) {
+      console.error('Password reset request failed:', error);
+      setAuthError(error?.message || 'Unable to send password reset email. Please try again.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      setAuthError('Authentication service is not configured for this environment.');
+      return;
+    }
+    if (passwordInput.length < 6) {
+      setAuthError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (passwordInput !== confirmPasswordInput) {
+      setAuthError('Passwords do not match. Please re-enter them.');
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthMessage(null);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordInput });
+      if (error) {
+        setAuthError(error.message || 'Could not update your password. Please request a new reset link.');
+      } else {
+        setPasswordInput('');
+        setConfirmPasswordInput('');
+        setAuthError(null);
+        window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
+        setIsPasswordRecovery(false);
+        if (!sessionUser) {
+          setAuthMode('signin');
+          setAuthMessage('Password updated successfully! You can now sign in with your new password.');
+        }
+      }
+    } catch (error: any) {
+      console.error('Password update failed:', error);
+      setAuthError(error?.message || 'Could not update your password. Please try again.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleCancelPasswordRecovery = async () => {
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.error('Recovery sign out error:', error);
+      }
+    }
+    setIsPasswordRecovery(false);
+    setAuthMode('signin');
+    setPasswordInput('');
+    setConfirmPasswordInput('');
+    setAuthError(null);
+    setAuthMessage(null);
+    window.history.replaceState(null, '', `${window.location.origin}${window.location.pathname}`);
+  };
+
   const handleSignOut = async () => {
-    if (!auth) return;
+    if (!supabase) return;
     try {
       if (currentUser && !cloudSyncing) {
         await flushAllProgressToCloud(currentUser);
       }
     } catch (error) {
-      console.error("Pre-signout progress flush failed: ", error);
+      console.error('Pre-signout progress flush failed:', error);
     }
     try {
       hydratedUidRef.current = null;
       lastSyncedJsonRef.current = { practice: '', flashcards: '', notes: '' };
-      await signOut(auth);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+      }
+      setSessionUser(null);
+      setCurrentUser(null);
       // Clear local user progress & session state so next student starts cleanly
       setPracticeProgress({});
       setSavedBookmarks({});
       setFlashcardPerformance({});
       setFrameworkCardAssessments({});
       setCaseNotes({});
-      setGlobalNotepadText("");
+      setGlobalNotepadText('');
       setQuizScore({ correct: 0, total: 0 });
       setExamStarted(false);
       setExamFinished(false);
@@ -1085,10 +1263,10 @@ export default function App() {
         localStorage.removeItem('caseNotes');
         localStorage.removeItem('global_notepad_text');
       } catch (e) {
-        console.error("Failed to clear local progress cache on sign-out", e);
+        console.error('Failed to clear local progress cache on sign-out', e);
       }
     } catch (error) {
-      console.error("Sign out failed: ", error);
+      console.error('Sign out failed:', error);
     }
   };
 
@@ -1177,7 +1355,7 @@ export default function App() {
           doc.setFont("Helvetica", "oblique");
           doc.setFontSize(8);
           doc.setTextColor(148, 163, 184); // light Gray
-          doc.text("practACE — Plan. Revise. Analyse. Correct. Track. | ICAI SPOM Study Companion", margin, 12);
+          doc.text("practACE — Plan Revise Analyse Correct Track | ICAI SPOM Study Companion", margin, 12);
           doc.setDrawColor(241, 245, 249);
           doc.line(margin, 14, pageWidth - margin, 14);
         }
@@ -1350,7 +1528,7 @@ export default function App() {
           doc.setFont("Helvetica", "oblique");
           doc.setFontSize(8);
           doc.setTextColor(148, 163, 184); // light slate-400
-          doc.text("practACE — Plan. Revise. Analyse. Correct. Track. | Concept & Formula Revision", margin, 12);
+          doc.text("practACE — Plan Revise Analyse Correct Track | Concept & Formula Revision", margin, 12);
           doc.setDrawColor(241, 245, 249);
           doc.line(margin, 14, pageWidth - margin, 14);
         }
@@ -2024,22 +2202,528 @@ export default function App() {
     };
   }).filter(item => item.hasMatch);
 
-  if (isFirebaseLoading) {
+  const legalDocTabs: Array<{
+    id: 'sitemap' | 'security' | 'privacy' | 'terms' | 'disclaimer' | 'cookies';
+    label: string;
+    shortLabel: string;
+  }> = [
+    { id: 'sitemap', label: 'Interactive Platform Site Map', shortLabel: 'Site Map' },
+    { id: 'security', label: 'Security Policy', shortLabel: 'Security Policy' },
+    { id: 'privacy', label: 'Privacy Policy', shortLabel: 'Privacy Policy' },
+    { id: 'terms', label: 'Terms of Service & Legal Use', shortLabel: 'Terms & Legal Use' },
+    { id: 'disclaimer', label: 'Academic & ICAI Disclaimer', shortLabel: 'ICAI Disclaimer' },
+    { id: 'cookies', label: 'Cookie & Local Storage Policy', shortLabel: 'Cookie & Storage Policy' }
+  ];
+
+  const renderLegalDocumentationModal = () => {
+    if (!activeLegalDoc) return null;
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
+        role="dialog"
+        aria-modal="true"
+        aria-label="practACE Legal, Security & Compliance Documentation"
+        onClick={() => setActiveLegalDoc(null)}
+      >
+        <div
+          className="relative w-full max-w-4xl bg-white dark:bg-[#0b1124] rounded-2xl border border-slate-200 dark:border-[#C9A84C]/50 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Top Executive Header */}
+          <div className="bg-[#021027] border-b border-[#C9A84C]/35 px-5 sm:px-7 py-4 relative shrink-0">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] shrink-0">
+                  <ShieldCheck size={20} />
+                </div>
+                <div className="text-left">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#C9A84C] block">
+                    Trust, Security &amp; Governance Center
+                  </span>
+                  <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                    practACE Legal, Security &amp; Compliance Documentation
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveLegalDoc(null)}
+                aria-label="Close Legal Documentation Modal"
+                className="p-1.5 text-slate-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/15 rounded-lg transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Document Switcher Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-slate-800/90">
+              {legalDocTabs.map((tab) => {
+                const isActive = activeLegalDoc === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveLegalDoc(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black tracking-wide transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                        : 'bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80'
+                    }`}
+                  >
+                    {tab.shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Document Content Body */}
+          <div className="p-5 sm:p-7 overflow-y-auto space-y-5 text-left text-xs sm:text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
+            {activeLegalDoc === 'sitemap' && (
+              <div className="space-y-5">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <LayoutDashboard size={16} className="text-[#C9A84C]" />
+                      <span>practACE Interactive Site Map &amp; Study Directory</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Complete hierarchy of SPOM Set A (Laws) &amp; Set B (SCMPE) modules, practice engines, calculators, and policies.
+                    </p>
+                  </div>
+                  <a
+                    href="./sitemap.xml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 text-[11px] font-black whitespace-nowrap shrink-0 self-start sm:self-auto"
+                  >
+                    <span>XML Sitemap</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+
+                {/* 3-Column Core Architecture Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Section 1: Core Study & Revision Modules */}
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <BookOpen size={14} className="text-[#C9A84C]" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                        1. Study &amp; Revision Deck
+                      </h4>
+                    </div>
+                    <ul className="space-y-1.5 text-xs">
+                      {[
+                        { label: 'Portal Dashboard & KPI Overview', action: () => { setActiveTab('dashboard'); setActiveLegalDoc(null); } },
+                        { label: 'Chapter-Wise Crux Study Notes', action: () => { setActiveTab('revision'); setRevisionSubView('study'); setActiveLegalDoc(null); } },
+                        { label: 'Statutory & Concept Blueprints', action: () => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); setActiveLegalDoc(null); } },
+                        { label: 'Active Recall Flashcards (220+)', action: () => { setActiveTab('revision'); setRevisionSubView('flashcards'); setActiveLegalDoc(null); } },
+                        { label: 'Statutory & Decision Calculators', action: () => { setActiveTab('sandbox'); setActiveLegalDoc(null); } }
+                      ].map((item) => (
+                        <li key={item.label}>
+                          <button
+                            type="button"
+                            onClick={item.action}
+                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#9a7b24] dark:hover:text-[#C9A84C] font-semibold flex items-center justify-between group transition-colors cursor-pointer"
+                          >
+                            <span>{item.label}</span>
+                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Section 2: Practice, Mocks & Tools */}
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <ClipboardList size={14} className="text-blue-500" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                        2. Practice &amp; Mock Engines
+                      </h4>
+                    </div>
+                    <ul className="space-y-1.5 text-xs">
+                      {[
+                        { label: 'ICAI Case Scenarios Vault (80 Cases)', action: () => { setActiveTab('practice'); setPracticeSubTab('cases'); setActiveLegalDoc(null); } },
+                        { label: 'Standalone Topic-Wise MCQs', action: () => { setActiveTab('practice'); setPracticeSubTab('general'); setActiveLegalDoc(null); } },
+                        { label: 'Saved Questions Revision Vault', action: () => { setActiveTab('practice'); setPracticeSubTab('saved'); setActiveLegalDoc(null); } },
+                        { label: 'Timed SPOM Mock Exam Simulator', action: () => { setActiveTab('mock'); handleStartMockExam(); setActiveLegalDoc(null); } },
+                        { label: 'Global Study Scratchpad & PDF Export', action: () => { setShowGlobalNotepad(true); setActiveLegalDoc(null); } }
+                      ].map((item) => (
+                        <li key={item.label}>
+                          <button
+                            type="button"
+                            onClick={item.action}
+                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center justify-between group transition-colors cursor-pointer"
+                          >
+                            <span>{item.label}</span>
+                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Section 3: Subjects, Community & Policies */}
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <ShieldCheck size={14} className="text-emerald-500" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                        3. Subjects &amp; Governance
+                      </h4>
+                    </div>
+                    <ul className="space-y-1.5 text-xs">
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveSubject('setA'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
+                          className="w-full text-left py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>SPOM Set A: Corporate &amp; Economic Laws</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950">14 Chaps</span>
+                        </button>
+                      </li>
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveSubject('setB'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
+                          className="w-full text-left py-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-[#C9A84C] font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>SPOM Set B: Strategic Cost Management</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950">10 Chaps</span>
+                        </button>
+                      </li>
+                      {legalDocTabs.filter(t => t.id !== 'sitemap').map((doc) => (
+                        <li key={doc.id}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveLegalDoc(doc.id)}
+                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#C9A84C] font-semibold flex items-center justify-between cursor-pointer"
+                          >
+                            <span>{doc.label}</span>
+                            <ChevronRight size={12} className="opacity-50" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Active Subject Chapter Directory inside Sitemap */}
+                {currentChapters.length > 0 && (
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#111936] space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                        Active Syllabus Index — {activeSubject === 'setA' ? 'SPOM Set A (Corporate & Economic Laws)' : 'SPOM Set B (SCMPE)'} ({currentChapters.length} Chapters)
+                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setActiveSubject('setA')}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
+                        >
+                          View Set A (14)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSubject('setB')}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setB' ? 'bg-[#C9A84C] text-slate-950' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
+                        >
+                          View Set B (10)
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {currentChapters.map((chap, idx) => (
+                        <div
+                          key={chap.id}
+                          className="p-2.5 rounded-lg bg-white dark:bg-[#0b1124] border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-mono font-bold text-slate-400 block">
+                              Chapter {idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate block" title={getPlainChapterName(chap.name)}>
+                              {getPlainChapterName(chap.name)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedRevisionChapterId(chap.id);
+                                setRevisionSubView('study');
+                                setActiveTab('revision');
+                                setActiveLegalDoc(null);
+                              }}
+                              className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 cursor-pointer"
+                            >
+                              Revise
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleOpenPracticeForChapter(chap.id);
+                                setActiveLegalDoc(null);
+                              }}
+                              className="px-2 py-1 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 cursor-pointer"
+                            >
+                              Practice
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeLegalDoc === 'security' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <Lock size={16} className="text-[#C9A84C]" />
+                      <span>Security Policy &amp; Data Protection Architecture</span>
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      RLS Enforced
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Effective Date: November 2026 • Applies to all practACE web sessions and cloud synchronization endpoints.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    1. Row-Level Security (RLS) &amp; Data Isolation Invariants
+                  </h4>
+                  <p>
+                    Every student record in practACE is protected by strict PostgreSQL Row-Level Security (RLS) policies on Supabase. A student&apos;s profile (<code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">profiles</code>) and study progress buckets (<code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">user_progress</code> covering MCQ practice, flashcard mastery ratings, bookmarks, and case notes) can only be queried or updated when the authenticated JWT user ID matches <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">(select auth.uid()) = user_id</code>. Cross-user reads, blanket scraping queries, and unauthenticated writes are rejected at the database layer.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    2. Authentication, Password Recovery &amp; Transport Encryption
+                  </h4>
+                  <p>
+                    All communication between your browser and practACE cloud services uses HTTPS/TLS encryption. Passwords are never stored or logged by practACE frontend code; credential hashing (bcrypt/Argon2) and OAuth 2.0 token exchanges are handled directly by Supabase Auth. Password reset links use single-use cryptographic recovery tokens, and canceling a password recovery flow immediately terminates the temporary recovery session.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    3. Shared-Device &amp; Local Storage Hygiene
+                  </h4>
+                  <p>
+                    Local progress caches are only written while an authenticated student session is active. Signing out of your practACE account flushes pending progress to the cloud and wipes local session state (<code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">localStorage</code> study keys) so another student using the same computer starts with a clean workspace.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    4. Responsible Vulnerability Disclosure
+                  </h4>
+                  <p>
+                    If you identify a security vulnerability or potential data-exposure bug, please report it confidentially via our official Feedback &amp; Security channel on the header/footer or via the official practACE LinkedIn page. Please allow our engineering team reasonable time to investigate and remediate before public disclosure.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeLegalDoc === 'privacy' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-blue-500" />
+                    <span>Privacy Policy &amp; Student Data Rights</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Compliant with applicable data protection principles, including the Digital Personal Data Protection (DPDP) Act, 2023 (India).
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    1. Information We Collect
+                  </h4>
+                  <ul className="list-disc pl-5 space-y-1.5">
+                    <li>
+                      <strong>Account Identity Data:</strong> Your email address, display name, and optional OAuth profile picture URL when you create a student account or sign in with Google.
+                    </li>
+                    <li>
+                      <strong>Study &amp; Exam Telemetry:</strong> Solved MCQs, accuracy statistics, bookmarked questions, flashcard mastery ratings (Known/Learning), and personal study notes entered into the case scratchpad or global notepad.
+                    </li>
+                  </ul>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    2. How We Use Your Data
+                  </h4>
+                  <p>
+                    Your data is used exclusively to authenticate your access, synchronize your CA Final SPOM Set A and Set B progress across your devices, and compute your personal readiness analytics. <strong>We do not sell, rent, or share your personal information or study notes with third-party advertisers or data brokers.</strong>
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    3. Data Retention, Export &amp; Deletion
+                  </h4>
+                  <p>
+                    You may export your study notes to PDF at any time using the built-in PDF export tools and reset your flashcard, quiz, or notepad data directly inside the app. To request complete deletion of your account and cloud profile records, submit a request through the official Feedback link from your registered email address.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeLegalDoc === 'terms' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <FileText size={16} className="text-[#C9A84C]" />
+                    <span>Terms of Service &amp; Acceptable Legal Use</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Governing your access to and use of the practACE CA Final SPOM Set A &amp; Set B platform.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    1. Personal Educational License
+                  </h4>
+                  <p>
+                    practACE grants registered students a personal, revocable, non-exclusive, non-transferable license to use the revision decks, statutory calculators, flashcards, case scenarios, and mock exam simulator solely for individual CA Final exam preparation.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    2. Prohibited Conduct &amp; Acceptable Use
+                  </h4>
+                  <ul className="list-disc pl-5 space-y-1.5">
+                    <li>Automated scraping, bulk downloading, crawling, or commercial redistribution of practACE question banks, statutory blueprints, visualizers, or source code is strictly prohibited.</li>
+                    <li>Attempting to probe, bypass, or flood authentication endpoints, Row-Level Security policies, or API rate limits will result in immediate account termination.</li>
+                    <li>Accounts are intended for individual student use so accuracy analytics, bookmarks, and revision progress reflect a single candidate&apos;s preparation.</li>
+                  </ul>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    3. Service Availability &amp; Warranty Disclaimer
+                  </h4>
+                  <p>
+                    The platform is provided on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis. While we strive for high availability and accurate cloud synchronization, students are encouraged to export critical personal study notes periodically before scheduled ICAI examinations.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeLegalDoc === 'disclaimer' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-1.5">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Scale size={16} className="text-[#C9A84C]" />
+                    <span>Academic, Statutory &amp; ICAI Non-Affiliation Disclaimer</span>
+                  </h3>
+                  <p className="text-xs text-amber-800 dark:text-amber-300 font-semibold">
+                    Important Notice for CA Final Candidates &amp; Legal/Financial Readers
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    1. Independent Study Platform (Non-Affiliation with ICAI)
+                  </h4>
+                  <p>
+                    <strong>practACE</strong> (evolved from pract.CA) is an independent educational technology platform created to assist Chartered Accountancy students preparing for the Self-Paced Online Modules (SPOM Set A: Corporate &amp; Economic Laws and Set B: Strategic Cost &amp; Performance Management). <strong>practACE is not affiliated with, endorsed by, sponsored by, or officially connected to The Institute of Chartered Accountants of India (ICAI).</strong> All references to ICAI syllabus chapters, RTPs, MTPs, or statutory modules are purely for academic indexing and comparative exam preparation.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    2. Not Formal Legal, Corporate, or Financial Advice
+                  </h4>
+                  <p>
+                    All statutory summaries, penalty brackets, time limits, diagnostic calculators (including Companies Act 2013, SEBI LODR/ICDR/SAST, FEMA 1999, FCRA 2010, IBC 2016, and SCMPE decision models), and case explanations are simplified pedagogical aids designed for examination revision. They do not constitute legal advice, formal corporate compliance opinions, or professional financial consulting.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    3. Statutory Amendments &amp; Official Study Material Precedence
+                  </h4>
+                  <p>
+                    Corporate and economic laws are subject to periodic amendments via MCA, SEBI, RBI, and IBBI notifications. In the event of any discrepancy between a summary or calculator in practACE and the official ICAI BoS Study Material / Statutory Update for your specific exam attempt, the official ICAI publication and bare Act text shall always prevail.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeLegalDoc === 'cookies' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Info size={16} className="text-sky-500" />
+                    <span>Cookie &amp; Local Storage Policy</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Transparency on browser storage keys used by practACE. Zero third-party ad trackers.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    1. Strictly Necessary Authentication Storage
+                  </h4>
+                  <p>
+                    practACE uses browser <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">localStorage</code> to store your encrypted Supabase authentication session token so you stay signed in across page reloads and can sync your progress securely.
+                  </p>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    2. Functional Study &amp; UI Preference Keys
+                  </h4>
+                  <ul className="list-disc pl-5 space-y-1.5">
+                    <li>
+                      <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">practace_theme</code> / <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">spom_active_subject</code>: Remembers your preferred Light/Dark mode and active subject (Set A Laws vs. Set B SCMPE).
+                    </li>
+                    <li>
+                      <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">spom_practice_progress</code>, <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">spom_saved_bookmarks</code>, <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">spom_flashcard_perf</code>, <code className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">spom_case_notes</code>: Provides instant local responsiveness alongside real-time Supabase cloud backup and is cleared automatically when you sign out.
+                    </li>
+                  </ul>
+
+                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    3. No Third-Party Advertising Cookies
+                  </h4>
+                  <p>
+                    practACE does not embed third-party behavioral advertising pixels, cross-site retargeting cookies, or commercial analytics trackers.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Modal Footer */}
+          <div className="bg-slate-50 dark:bg-[#080d1e] border-t border-slate-200 dark:border-slate-800 px-5 sm:px-7 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium text-center sm:text-left">
+              Questions or compliance inquiries? Reach us via our official Feedback form or LinkedIn page.
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveLegalDoc(null)}
+              className="px-4 py-2 rounded-xl bg-[#021027] hover:bg-slate-800 dark:bg-[#C9A84C] dark:hover:bg-[#b0913e] text-white dark:text-slate-950 text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0"
+            >
+              Close Document
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (isAuthLoading) {
     return (
       <div
         onContextMenu={(e) => e.preventDefault()}
         className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col items-center justify-center p-6 font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
       >
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="bg-[#021027] p-3 rounded-2xl border border-[#C9A84C]/40 shadow-lg">
+          <div className="bg-[#021027] px-4 py-3 rounded-2xl">
             <img
               src={practAceLogoImg}
-              alt="practACE — Plan. Revise. Analyse. Correct. Track."
-              width={336}
-              height={112}
+              alt="practACE — Plan Revise Analyse Correct Track"
+              width={386}
+              height={100}
               fetchPriority="high"
               decoding="sync"
-              className="h-14 sm:h-16 w-auto object-contain"
+              className="h-12 sm:h-14 w-auto object-contain"
               referrerPolicy="no-referrer"
             />
           </div>
@@ -2052,7 +2736,7 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser || isPasswordRecovery) {
     return (
       <div
         onContextMenu={(e) => e.preventDefault()}
@@ -2061,24 +2745,24 @@ export default function App() {
         {/* Sign-In Header */}
         <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-[54px] sm:h-[64px] w-auto flex-shrink-0 bg-[#021027] rounded-xl flex items-center justify-center">
+            <div className="flex-shrink-0 flex items-center justify-center">
               <img
                 src={practAceLogoImg}
-                alt="practACE — Plan. Revise. Analyse. Correct. Track."
-                width={336}
-                height={112}
+                alt="practACE — Plan Revise Analyse Correct Track"
+                width={386}
+                height={100}
                 fetchPriority="high"
                 decoding="sync"
-                className="h-[54px] sm:h-[64px] w-auto object-contain"
+                className="h-[42px] sm:h-[48px] w-auto object-contain"
                 referrerPolicy="no-referrer"
               />
             </div>
             <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3">
               <span className="text-xs font-extrabold text-slate-200 tracking-wide">
-                CA Final SPOM Set A &amp; Set B Suite
+                pract<span className="text-[#C9A84C]">ACE</span> — CA Final SPOM Set A &amp; Set B Suite
               </span>
               <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest">
-                Plan. Revise. Analyse. Correct. Track.
+                Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
               </span>
             </div>
           </div>
@@ -2151,10 +2835,14 @@ export default function App() {
                     <span>Student Account Required</span>
                   </span>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                    Sign In to Access practACE &amp; Save Your Progress
+                    {isPasswordRecovery
+                      ? 'Set a New practACE Password'
+                      : authMode === 'forgot'
+                        ? 'Reset Your practACE Password'
+                        : 'Sign In to Access practACE & Save Your Progress'}
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Authenticate with Google to unlock <strong className="text-blue-400">SPOM Set A (Laws)</strong> &amp; <strong className="text-[#C9A84C]">Set B (SCMPE)</strong> and automatically back up every solved MCQ, flashcard rating, and note.
+                    Sign in with your student email to unlock <strong className="text-blue-400">SPOM Set A (Laws)</strong> &amp; <strong className="text-[#C9A84C]">Set B (SCMPE)</strong> and automatically back up every solved MCQ, flashcard rating, and note.
                   </p>
                 </div>
               </div>
@@ -2201,12 +2889,19 @@ export default function App() {
                 </div>
               </div>
 
-              {!isFirebaseConfigured && (
+              {!isSupabaseConfigured && (
                 <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
                   <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                   <span>
-                    Authentication configuration is missing in this environment. Please verify Firebase credentials before signing in.
+                    Supabase configuration is missing in this environment. Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before signing in.
                   </span>
+                </div>
+              )}
+
+              {authMessage && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
+                  <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+                  <span>{authMessage}</span>
                 </div>
               )}
 
@@ -2217,26 +2912,287 @@ export default function App() {
                 </div>
               )}
 
-              <div className="space-y-3 pt-1">
-                <button
-                  onClick={handleSignIn}
-                  disabled={isSigningIn || !isFirebaseConfigured}
-                  aria-label="Sign in with Google to access practACE and save progress"
-                  className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
-                >
-                  {isSigningIn ? (
+              <div className="space-y-4 pt-1">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                  {isPasswordRecovery ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Signing in...</span>
+                      <div className="space-y-1 text-left">
+                        <h2 className="text-sm font-black text-slate-900 dark:text-white">
+                          Create a New Password
+                        </h2>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                          Enter a new password (minimum 6 characters) to regain access to your practACE account.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleUpdatePassword} className="space-y-2.5 text-left">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            New Password
+                          </label>
+                          <input
+                            type="password"
+                            required
+                            minLength={6}
+                            autoComplete="new-password"
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                            placeholder="Minimum 6 characters"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            Confirm New Password
+                          </label>
+                          <input
+                            type="password"
+                            required
+                            minLength={6}
+                            autoComplete="new-password"
+                            value={confirmPasswordInput}
+                            onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                            placeholder="Re-enter your new password"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSigningIn || !isSupabaseConfigured}
+                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                        >
+                          {isSigningIn ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                              <span>Updating password...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock size={16} />
+                              <span>Update Password</span>
+                              <ArrowRight size={15} />
+                            </>
+                          )}
+                        </button>
+                      </form>
+
+                      <button
+                        type="button"
+                        onClick={handleCancelPasswordRecovery}
+                        disabled={isSigningIn}
+                        className="w-full py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                      >
+                        Cancel &amp; Back to Sign In
+                      </button>
+                    </>
+                  ) : authMode === 'forgot' ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('signin');
+                            setAuthError(null);
+                            setAuthMessage(null);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Back to Sign In</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 text-left">
+                        <h2 className="text-sm font-black text-slate-900 dark:text-white">
+                          Reset Your Password
+                        </h2>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                          Enter your registered student email address and we&apos;ll send you a link to set a new password.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handlePasswordResetRequest} className="space-y-2.5 text-left">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            autoComplete="email"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            placeholder="student@example.com"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSigningIn || !isSupabaseConfigured}
+                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                        >
+                          {isSigningIn ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                              <span>Sending reset link...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={16} />
+                              <span>Send Reset Link</span>
+                              <ArrowRight size={15} />
+                            </>
+                          )}
+                        </button>
+                      </form>
                     </>
                   ) : (
                     <>
-                      <CloudLightning size={16} />
-                      <span>Continue with Google to Start</span>
-                      <ArrowRight size={15} />
+                      <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 dark:bg-[#070b19] p-1 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('signin');
+                            setAuthError(null);
+                            setAuthMessage(null);
+                          }}
+                          className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
+                            authMode === 'signin'
+                              ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          Sign In
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('signup');
+                            setAuthError(null);
+                            setAuthMessage(null);
+                          }}
+                          className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
+                            authMode === 'signup'
+                              ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          Create Account
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleEmailAuth} className="space-y-2.5 text-left">
+                        {authMode === 'signup' && (
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                              Full Name
+                            </label>
+                            <input
+                              type="text"
+                              value={fullNameInput}
+                              onChange={(e) => setFullNameInput(e.target.value)}
+                              placeholder="e.g. Ananya Sharma"
+                              disabled={isSigningIn || !isSupabaseConfigured}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            autoComplete="email"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            placeholder="student@example.com"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                              Password
+                            </label>
+                            {authMode === 'signin' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAuthMode('forgot');
+                                  setAuthError(null);
+                                  setAuthMessage(null);
+                                  setPasswordInput('');
+                                }}
+                                className="text-[11px] font-bold text-[#9a7b24] dark:text-[#C9A84C] hover:underline cursor-pointer"
+                              >
+                                Forgot password?
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="password"
+                            required
+                            minLength={6}
+                            autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
+                            value={passwordInput}
+                            onChange={(e) => setPasswordInput(e.target.value)}
+                            placeholder="Minimum 6 characters"
+                            disabled={isSigningIn || !isSupabaseConfigured}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSigningIn || !isSupabaseConfigured}
+                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                        >
+                          {isSigningIn ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                              <span>Signing in...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail size={16} />
+                              <span>{authMode === 'signin' ? 'Sign In with Email' : 'Create Student Account'}</span>
+                              <ArrowRight size={15} />
+                            </>
+                          )}
+                        </button>
+                      </form>
                     </>
                   )}
-                </button>
+                </div>
+
+                {isGoogleProviderEnabled && !isPasswordRecovery && authMode !== 'forgot' && (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        or continue with
+                      </span>
+                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={isSigningIn || !isSupabaseConfigured}
+                      aria-label="Sign in with Google to access practACE and save progress"
+                      className="w-full py-2.5 px-4 bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider border border-[#C9A84C]/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <CloudLightning size={14} className="text-[#C9A84C]" />
+                      <span>Continue with Google</span>
+                    </button>
+                  </>
+                )}
+
                 <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 font-medium">
                   Sign-in is required to open Revision Decks, Practice Cases, SPOM Mocks, and cloud progress backup.
                 </p>
@@ -2245,12 +3201,35 @@ export default function App() {
           </div>
         </main>
 
-        {/* Minimal Footer */}
-        <footer className="bg-[#021027] text-slate-400 text-xs py-4 px-6 border-t border-[#C9A84C]/30 text-center">
-          <span className="text-slate-300 font-semibold">
-            practACE • <span className="text-[#C9A84C]">Plan. Revise. Analyse. Correct. Track.</span>
-          </span>
+        {/* Sign-In Gate Footer with Legal, Security & Compliance Links */}
+        <footer className="bg-[#021027] text-slate-400 text-xs py-5 px-6 border-t border-[#C9A84C]/30">
+          <div className="max-w-5xl mx-auto flex flex-col items-center gap-3 text-center">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] font-bold">
+              {legalDocTabs.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => setActiveLegalDoc(doc.id)}
+                  className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
+                >
+                  {doc.shortLabel}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col items-center justify-center gap-0.5 text-center">
+              <span className="text-slate-100 font-black text-xs tracking-wide">
+                pract<span className="text-[#C9A84C]">ACE</span>
+              </span>
+              <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#C9A84C]">
+                Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1">
+                © {new Date().getFullYear()} practACE — Independent CA Final SPOM study suite (not affiliated with ICAI)
+              </span>
+            </div>
+          </div>
         </footer>
+        {renderLegalDocumentationModal()}
       </div>
     );
   }
@@ -2261,24 +3240,25 @@ export default function App() {
       className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
     >
       {/* Premium Corporate Top Navbar - Official practACE Branding with Set A / Set B Switcher */}
-      <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 xl:px-5 py-3 flex flex-col md:flex-row md:flex-wrap xl:flex-nowrap md:items-center justify-between gap-3 xl:gap-4 transition-colors duration-200 dark:bg-[#021027] dark:border-[#C9A84C]/30 relative">
+      <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/35 text-white shadow-lg z-30 px-4 xl:px-6 py-3 flex flex-col md:flex-row md:flex-wrap xl:flex-nowrap md:items-center justify-between gap-3 xl:gap-4 transition-colors duration-200 dark:bg-[#021027]/95 dark:border-[#C9A84C]/35 relative">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500 opacity-90" />
         {/* Left Side: practACE branding with logo & Subject Switcher */}
         <div className="flex items-center justify-between w-full md:w-auto shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
             <button
               onClick={() => setActiveTab('dashboard')}
               aria-label="practACE Home — Go to Dashboard"
-              className="relative h-[50px] sm:h-[58px] w-auto flex-shrink-0 select-none bg-[#021027] rounded-xl flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
-              title="practACE — Plan. Revise. Analyse. Correct. Track."
+              className="relative flex-shrink-0 select-none flex items-center justify-center p-0 m-0 cursor-pointer group focus:outline-none"
+              title="practACE — Plan Revise Analyse Correct Track"
             >
               <img 
                 src={practAceLogoImg} 
-                alt="practACE — Plan. Revise. Analyse. Correct. Track." 
-                width={336}
-                height={112}
+                alt="practACE — Plan Revise Analyse Correct Track" 
+                width={386}
+                height={100}
                 fetchPriority="high"
                 decoding="sync"
-                className="h-[50px] sm:h-[58px] w-auto object-contain ml-0 pl-0 transition-transform duration-200 group-hover:scale-[1.02]" 
+                className="h-[42px] sm:h-[48px] w-auto object-contain transition-transform duration-200 group-hover:scale-[1.02]" 
                 referrerPolicy="no-referrer" 
               />
             </button>
@@ -2330,7 +3310,7 @@ export default function App() {
                   {activeSubject === 'setA' ? "SPOM Set A: Corporate & Economic Laws" : "SPOM Set B: Strategic Cost Management"}
                 </span>
                 <span className="text-[9px] uppercase text-[#C9A84C] font-extrabold tracking-widest leading-none whitespace-nowrap">
-                  Plan. Revise. Analyse. Correct. Track.
+                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
                 </span>
               </div>
             </div>
@@ -2364,13 +3344,14 @@ export default function App() {
         {/* Navigation & Actions Container */}
         <div className={`w-full md:w-auto md:flex flex-col md:flex-row items-center gap-3 xl:gap-4 ${showMobileMenu ? 'flex animate-fadeIn' : 'hidden md:flex'}`}>
           <div className="flex flex-col md:flex-row items-center gap-3 xl:gap-4 w-full md:w-auto pt-2 md:pt-0">
-            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-1.5 xl:gap-3 w-full md:w-auto">
+            <nav className="flex flex-col md:flex-row items-center gap-1 sm:gap-1.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800/90 w-full md:w-auto">
               {[
-                { id: 'dashboard', label: 'Dashboard' },
-                { id: 'revision', label: 'Revision Deck' },
-                { id: 'practice', label: 'Practice Cases' }
+                { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+                { id: 'revision', label: 'Revision Deck', icon: BookOpen },
+                { id: 'practice', label: 'Practice Cases', icon: ClipboardList }
               ].map(navItem => {
                 const isActive = activeTab === navItem.id;
+                const NavIcon = navItem.icon;
                 return (
                   <button
                     key={navItem.id}
@@ -2381,17 +3362,14 @@ export default function App() {
                          setHasSubmittedPractice(false);
                        }
                     }}
-                    className={`group pb-1 px-2 text-xs xl:text-[13px] font-semibold tracking-wide whitespace-nowrap transition-all relative cursor-pointer font-sans select-none shrink-0 ${
+                    className={`group px-3 py-1.5 rounded-lg text-xs xl:text-[13px] tracking-wide whitespace-nowrap transition-all relative cursor-pointer font-sans select-none shrink-0 flex items-center gap-1.5 ${
                       isActive 
-                        ? 'text-[#C9A84C] font-black' 
-                        : 'text-slate-300 hover:text-white'
+                        ? 'bg-[#C9A84C]/15 text-[#C9A84C] font-black border border-[#C9A84C]/40 shadow-sm' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60 font-semibold border border-transparent'
                     }`}
                   >
+                    <NavIcon size={13} className={isActive ? 'text-[#C9A84C] shrink-0' : 'text-slate-400 group-hover:text-slate-200 shrink-0'} />
                     <span>{navItem.label}</span>
-                    {/* Golden Underline Indicator */}
-                    <span className={`absolute bottom-0 left-0 h-[2px] bg-[#C9A84C] rounded-full transition-all duration-300 ${
-                      isActive ? 'w-full' : 'w-0 group-hover:w-full'
-                    }`} />
                   </button>
                 );
               })}
@@ -2557,17 +3535,42 @@ export default function App() {
         {/* TAB 1: PORTAL DASHBOARD */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Breadcrumb Path - practACE standard */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none tracking-wide">
-              <span className="font-bold text-slate-700 dark:text-slate-300">practACE Lounge</span>
-              <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 font-bold" />
-              <span className={activeSubject === 'setA' ? "text-blue-600 dark:text-blue-400 font-bold" : "text-sky-600 dark:text-sky-400"}>
-                {activeSubject === 'setA' ? "Corporate and Economic Laws (Set A)" : "Strategic Cost Management (SCMPE - Set B)"}
-              </span>
+            {/* Executive Breadcrumb & Quick-Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white/80 dark:bg-[#0c1228]/90 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 dark:border-[#1c243f] shadow-2xs">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none tracking-wide">
+                <span className="inline-flex items-center gap-1.5 font-extrabold text-slate-800 dark:text-slate-200">
+                  <LayoutDashboard size={13} className="text-[#C9A84C]" />
+                  <span>practACE Lounge</span>
+                </span>
+                <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 font-bold" />
+                <span className={activeSubject === 'setA' ? "text-blue-600 dark:text-blue-400 font-black" : "text-amber-700 dark:text-[#C9A84C] font-black"}>
+                  {activeSubject === 'setA' ? "Corporate and Economic Laws (Set A)" : "Strategic Cost Management (SCMPE - Set B)"}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowGlobalNotepad((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
+                >
+                  <StickyNote size={12} className="text-[#C9A84C]" />
+                  <span>{showGlobalNotepad ? 'Hide Notepad' : 'Study Notepad'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLegalDoc('sitemap')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 transition-colors cursor-pointer"
+                >
+                  <FileText size={12} />
+                  <span>Site Map</span>
+                </button>
+              </div>
             </div>
 
-            {/* Main Subject Prep Header - Classic Dark Panel with Gilded Borders */}
-            <div className="bg-white text-slate-800 dark:bg-[#0c1228] dark:text-white border border-slate-200 dark:border-[#1c243f] rounded-2xl p-6 shadow-md transition-all duration-200">
+            {/* Main Subject Prep Header - Executive Panel with Gilded Top Accent */}
+            <div className="bg-white text-slate-800 dark:bg-[#0c1228] dark:text-white border border-slate-200/90 dark:border-[#C9A84C]/30 rounded-2xl p-6 shadow-md transition-all duration-200 relative overflow-hidden">
+              <div className={`absolute top-0 left-0 right-0 h-1 ${activeSubject === 'setA' ? 'bg-gradient-to-r from-blue-600 via-sky-400 to-[#C9A84C]' : 'bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500'}`} />
               <div className="flex flex-col lg:flex-row justify-between items-center gap-6">
                 
                 {/* Left Side: Accuracy Circular Dial */}
@@ -2609,11 +3612,15 @@ export default function App() {
                 </div>
 
                 {/* Center Core Title Information */}
-                <div className="flex-1 text-center lg:text-left space-y-1.5 min-w-0">
-                  <h2 className="text-[20px] font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+                <div className="flex-1 text-center lg:text-left space-y-2 min-w-0">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-[#171f3a] text-slate-700 dark:text-[#C9A84C] border border-slate-200 dark:border-[#C9A84C]/30">
+                    <Sparkles size={11} className="text-[#C9A84C]" />
+                    <span>{activeSubject === 'setA' ? 'ICAI SPOM Set A • Corporate & Economic Laws' : 'ICAI SPOM Set B • Strategic Cost Management'}</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
                     {activeSubject === 'setA' ? "Corporate and Economic Laws" : "Strategic Cost Management & Performance Evaluation"}
                   </h2>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xl">
+                  <p className="text-[13px] sm:text-[14px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-xl">
                     {activeSubject === 'setA'
                       ? "High-yield statutory revision, corporate governance cases, SEBI LODR rules, and IBC/FEMA thresholds."
                       : (practiceAccuracyPercentage < 50 
@@ -2626,34 +3633,34 @@ export default function App() {
                 {/* Right Side: Enhanced Overview Stats Boxes */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 items-center justify-center w-full lg:w-auto">
                   {/* Case Studies Card */}
-                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                  <div className="flex flex-col justify-center items-center px-3.5 py-3 rounded-xl border border-slate-200/90 dark:border-[#1e293b] border-t-2 border-t-amber-500 bg-slate-50/70 dark:bg-[#111933] text-center shadow-xs">
                     <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">
                       {completedCaseScenariosCount} <span className="text-[11px] font-normal text-slate-400">/ {totalCaseScenariosCount}</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Cases Solved</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 uppercase tracking-wider">Cases Solved</span>
                     <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">{pendingCaseScenariosCount} Pending</span>
                   </div>
 
                   {/* Total MCQs Card */}
-                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                  <div className="flex flex-col justify-center items-center px-3.5 py-3 rounded-xl border border-slate-200/90 dark:border-[#1e293b] border-t-2 border-t-blue-500 bg-slate-50/70 dark:bg-[#111933] text-center shadow-xs">
                     <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">
                       {totalSolvedCount} <span className="text-[11px] font-normal text-slate-400">/ {totalAllQuestionsCount}</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">MCQs Solved</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 uppercase tracking-wider">MCQs Solved</span>
                     <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">{totalPendingCount} Pending</span>
                   </div>
 
                   {/* Accuracy Gauge Card */}
-                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                  <div className="flex flex-col justify-center items-center px-3.5 py-3 rounded-xl border border-slate-200/90 dark:border-[#1e293b] border-t-2 border-t-emerald-500 bg-slate-50/70 dark:bg-[#111933] text-center shadow-xs">
                     <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">{practiceAccuracyPercentage}%</span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Accuracy</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 uppercase tracking-wider">Accuracy</span>
                     <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">{totalCorrectPractice}✓ • {totalIncorrectPractice}✗</span>
                   </div>
 
                   {/* Completion Rate Card */}
-                  <div className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-slate-200 dark:border-[#1e293b] bg-white dark:bg-[#111933] text-center shadow-xs">
+                  <div className="flex flex-col justify-center items-center px-3.5 py-3 rounded-xl border border-slate-200/90 dark:border-[#1e293b] border-t-2 border-t-indigo-500 bg-slate-50/70 dark:bg-[#111933] text-center shadow-xs">
                     <span className="text-[17px] sm:text-[19px] font-black font-mono text-slate-800 dark:text-white leading-none">{practiceCompletionPercentage}%</span>
-                    <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wide">Completion</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 uppercase tracking-wider">Completion</span>
                     <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{activeChaptersCount}/{currentChapters.length} Chaps</span>
                   </div>
 
@@ -2663,209 +3670,227 @@ export default function App() {
                       setActiveTab('practice');
                       setPracticeSubTab('saved');
                     }}
-                    className="flex flex-col justify-center items-center px-3 py-2.5 rounded-[12px] border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-950/40 text-center shadow-xs transition-all cursor-pointer group col-span-2 sm:col-span-1"
+                    className="flex flex-col justify-center items-center px-3.5 py-3 rounded-xl border border-amber-200 dark:border-amber-900/50 border-t-2 border-t-[#C9A84C] bg-amber-50/60 dark:bg-amber-950/20 hover:bg-amber-100/70 dark:hover:bg-amber-950/40 text-center shadow-xs transition-all cursor-pointer group col-span-2 sm:col-span-1"
                     title="View Bookmarked / Flagged Questions Vault"
                   >
                     <span className="text-[17px] sm:text-[19px] font-black font-mono text-amber-600 dark:text-amber-400 leading-none flex items-center gap-1 group-hover:scale-105 transition-transform">
                       <Bookmark size={14} className="fill-amber-500 text-amber-500" />
                       {activeSubjectBookmarksCount}
                     </span>
-                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold mt-1 uppercase tracking-wide">Saved Qs</span>
+                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-bold mt-1.5 uppercase tracking-wider">Saved Qs</span>
                     <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold mt-0.5 group-hover:underline">Review Vault &rarr;</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* 6-Card Custom Portal Grid (replicates design geometry and functionality) */}
+            {/* 6-Card Custom Portal Grid — Upgraded High-Craft Interactive Tiles */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               
               {/* Card 1: MCQ Practice */}
               <button
                 onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px] relative overflow-hidden"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-[#C9A84C]/60 dark:hover:border-[#C9A84C]/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-[#C9A84C]/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
-                <div className="space-y-2 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <BookOpen size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] to-amber-300 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-[#C9A84C]/15 border border-[#C9A84C]/30 text-[#C9A84C] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <BookOpen size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">MCQ Practice</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[19px] tracking-tight leading-tight">MCQ Practice</h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
-                    Chapter-wise and full-length practice sets
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Chapter-wise and full-length practice sets with instant statutory explanations
                   </p>
                   
-                  {/* Miniature progress bar modeled on screenshot */}
-                  <div className="pt-2">
+                  {/* Miniature progress bar */}
+                  <div className="pt-1.5">
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-1">
                       <span>{answeredPracticeQuestions} practiced</span>
-                      <span>{practiceCompletionPercentage}%</span>
+                      <span className="font-mono text-[#C9A84C]">{practiceCompletionPercentage}%</span>
                     </div>
                     <div className="h-1.5 w-full bg-slate-100 dark:bg-[#171f3a] rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-[#C9A84C] transition-all duration-1000 ease-out" 
+                        className="h-full bg-gradient-to-r from-[#C9A84C] to-amber-400 transition-all duration-1000 ease-out" 
                         style={{ width: `${mcqProgressAnimate}%` }}
                       ></div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 pt-1.5">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~15 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-[#C9A84C] text-slate-400 dark:text-slate-400 group-hover:text-slate-950 flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
               {/* Card 2: Questions Vault */}
               <button
                 onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); }}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-blue-500/60 dark:hover:border-blue-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
-                <div className="space-y-3 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <Award size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-sky-400 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-500 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Award size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">Questions Vault</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors text-[19px] tracking-tight leading-tight">Questions Vault</h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     {activeSubject === 'setA' 
                       ? "Corporate Governance, Restructuring, IBC & FEMA case studies" 
                       : "Past exam, RTP, MTP booklet case studies with answers"}
                   </p>
-                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
                     Browse {currentCaseScenarios.length} Detailed Case Studies →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~20 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-blue-500 text-slate-400 dark:text-slate-400 group-hover:text-white flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
               {/* Card 3: Interactive Blueprints */}
               <button
                 onClick={() => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); }}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-emerald-500/60 dark:hover:border-emerald-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
                >
-                <div className="space-y-3 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <Trophy size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Trophy size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors text-[19px] tracking-tight leading-tight">
                       {activeSubject === 'setA' ? "Statutory Blueprints" : "Concept Blueprints"}
                     </h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     {activeSubject === 'setA'
                       ? "Visual flowcharts of CIRP timelines, Fast-Track Mergers & Director quotas"
                       : "Adjust variables to visualize Porter, OEE, and Transfer Pricing limits"}
                   </p>
-                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
                     {currentChapters.length} Chapters Interactive Maps →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~10 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-emerald-500 text-slate-400 dark:text-slate-400 group-hover:text-slate-950 flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
               {/* Card 4: Formula & Legal Flashcards */}
               <button
                 onClick={() => { setActiveTab('revision'); setRevisionSubView('flashcards'); }}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-indigo-500/60 dark:hover:border-indigo-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
-                <div className="space-y-3 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <ClipboardList size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-violet-400 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <ClipboardList size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors text-[19px] tracking-tight leading-tight">
                       {activeSubject === 'setA' ? "Statutory Flashcards" : "Formula Flashcards"}
                     </h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     {activeSubject === 'setA'
                       ? "Drill Section limits, voting percentages, penalty brackets & time limits"
                       : "Learn core relevant costing rules, derivation & strategic models"}
                   </p>
-                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
                     Launch Cards & Active Quiz →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~10 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-indigo-500 text-slate-400 dark:text-slate-400 group-hover:text-white flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
               {/* Card 5: SPOM Mock Exam */}
               <button
                 onClick={() => { setActiveTab('mock'); handleStartMockExam(); }}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-rose-500/60 dark:hover:border-rose-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
-                <div className="space-y-3 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <Timer size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-amber-400 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Timer size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">SPOM Mock Exam</h3>
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors text-[19px] tracking-tight leading-tight">SPOM Mock Exam</h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     Practice 100% compliant exam simulations under a live timer
                   </p>
-                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
                     Launch Timed Mock Simulator →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~90 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-rose-500 text-slate-400 dark:text-slate-400 group-hover:text-white flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
               {/* Card 6: Specialized Decision Tools */}
               <button
                 onClick={() => setActiveTab('sandbox')}
-                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50 dark:hover:bg-[#111938] border border-slate-200 dark:border-[#1c243f] rounded-[12px] p-6 text-left shadow-sm hover:shadow-lg hover:shadow-[#C9A84C]/10 hover:-translate-y-0.5 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[140px]"
+                className="bg-white dark:bg-[#0c1228] hover:bg-slate-50/90 dark:hover:bg-[#111938] border border-slate-200/90 dark:border-[#1c243f] hover:border-sky-500/60 dark:hover:border-sky-400/60 rounded-2xl p-6 text-left shadow-sm hover:shadow-xl hover:shadow-sky-500/10 hover:-translate-y-1 transition-all duration-300 group flex justify-between items-center cursor-pointer min-h-[152px] relative overflow-hidden"
               >
-                <div className="space-y-3 flex-1 pr-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-[#C9A84C]/10 text-[#C9A84C]">
-                      <Calculator size={16} />
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 to-blue-500 opacity-75 group-hover:opacity-100 transition-opacity" />
+                <div className="space-y-2.5 flex-1 pr-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Calculator size={17} />
                     </div>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-[#C9A84C] transition-colors text-[20px] leading-tight">
+                    <h3 className="font-black text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors text-[19px] tracking-tight leading-tight">
                       {activeSubject === 'setA' ? "Statutory Limits Calcs" : "Decision Calcs"}
                     </h3>
                   </div>
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-normal">
+                  <p className="text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     {activeSubject === 'setA'
                       ? "Calculate CSR 2% spend, Board quotas, Sec 197 caps & IBC timelines"
                       : "Calculate Transfer Price bounds, DuPont ROI, and Altman scores"}
                   </p>
-                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono hover:underline">
+                  <span className="inline-block text-[12px] font-bold text-[#C9A84C] font-mono group-hover:underline">
                     4 Core Diagnostic Engines →
                   </span>
                   <div className="flex items-center gap-1.5 pt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-500 dark:text-slate-300 border border-slate-200/50 dark:border-slate-800/60 shadow-xs">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-[#1a233d] text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-800/80 shadow-xs">
                       ⏱️ ~15 mins
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={16} className="text-slate-400 dark:text-slate-600 group-hover:text-[#C9A84C] group-hover:translate-x-1 transition-all shrink-0" />
+                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#171f3a] group-hover:bg-sky-500 text-slate-400 dark:text-slate-400 group-hover:text-white flex items-center justify-center transition-all shrink-0">
+                  <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                </div>
               </button>
 
             </div>
@@ -3141,205 +4166,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Curriculum Breakdown */}
-            <div className="space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                  <BookOpen size={18} className="text-sky-500" /> Syllabus Chapters & Case Studies Map
-                </h3>
-              </div>
-              
-              {/* Premium Search and Filtering Deck */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-                  <div className="w-full sm:max-w-md relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                      <Search size={16} />
-                    </span>
-                    <input
-                      type="text"
-                      className="w-full pl-10 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
-                      placeholder="Search chapters, scenarios, questions, topics..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 font-bold text-xs"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div>
-                    {searchQuery ? (
-                      <span className="inline-block bg-indigo-50 text-indigo-700 font-extrabold text-[10px] sm:text-xs px-2.5 py-1.5 rounded-lg border border-indigo-100">
-                        Matches: {filteredChapters.length} {filteredChapters.length === 1 ? 'Chapter' : 'Chapters'} • {filteredChapters.reduce((acc, c) => acc + c.matchedCases.length, 0)} Cases
-                      </span>
-                    ) : (
-                      <span className="text-[10px] sm:text-xs text-slate-400 font-bold tracking-wide italic">
-                        Type keyword to filter curriculum dynamically
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-slate-150">
-                  <span className="text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 tracking-wider mr-1">
-                    Hot Topics:
-                  </span>
-                  {(activeSubject === 'setA' ? [
-                    "Independent Directors",
-                    "Managerial Remuneration",
-                    "Board Meetings",
-                    "Registered Valuer",
-                    "Nidhi Company",
-                    "NCLT & Special Courts",
-                    "XBRL & Ethics",
-                    "SEBI LODR & SAST",
-                    "FEMA LRS",
-                    "FCRA",
-                    "IBC CIRP"
-                  ] : [
-                    "Transfer Pricing",
-                    "Standard Costing",
-                    "OEE",
-                    "Pareto",
-                    "Relevant Costing",
-                    "Target Costing",
-                    "Balanced Scorecard",
-                    "Variance Analysis"
-                  ]).map(topic => (
-                    <button
-                      key={topic}
-                      onClick={() => setSearchQuery(topic)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
-                        searchQuery.toLowerCase() === topic.toLowerCase() 
-                        ? (activeSubject === 'setA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') 
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-150'
-                      }`}
-                    >
-                      {topic}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {filteredChapters.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredChapters.map(item => {
-                    const chap = item.chap;
-                    const chapCases = item.matchedCases;
-                    return (
-                      <div key={chap.id} className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
-                        {/* Chapter Header */}
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <span className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded font-mono ${activeSubject === 'setA' ? 'text-blue-700 dark:text-blue-300 bg-blue-100/70 dark:bg-blue-950/60' : 'text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60'}`}>
-                              {activeSubject === 'setA' ? (chap.moduleCode || `CHAPTER ${chap.id - 100}`) : `PART ${chap.id}`}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
-                                {chapCases.length} {chapCases.length === 1 ? 'Case' : 'Cases'}
-                              </span>
-                            </div>
-                          </div>
-                          <h4 className="text-sm font-black text-slate-900 dark:text-white break-words whitespace-normal leading-snug" title={getPlainChapterName(chap.name)}>
-                            {getPlainChapterName(chap.name)}
-                          </h4>
-                        </div>
-
-                        {/* TOP SECTION: List of Case Studies (placed directly from the top) */}
-                        <div className="p-4 space-y-2.5 flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-extrabold text-slate-400 tracking-wider flex items-center gap-1.5">
-                              <FileText size={12} className={activeSubject === 'setA' ? 'text-blue-500' : 'text-indigo-500'} />
-                              <span>Case Studies {searchQuery && `(${chapCases.length})`}</span>
-                            </span>
-                            <span className="text-[10px] text-slate-400 italic">Click to launch</span>
-                          </div>
-
-                          {chapCases.length > 0 ? (
-                            <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1 scrollbar-thin">
-                              {chapCases.map((cs, idx) => (
-                                <button
-                                  key={cs.id}
-                                  onClick={() => {
-                                    setSelectedChapterId(chap.id);
-                                    setSelectedCaseId(cs.id);
-                                    setCurrentQuestionIndex(0);
-                                    setActiveTab('practice');
-                                  }}
-                                  className="w-full text-left p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 hover:border-blue-300 dark:hover:border-blue-600 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 flex items-start justify-between gap-2 group transition-all cursor-pointer"
-                                  title={cs.title}
-                                >
-                                  <div className="flex items-start gap-2 min-w-0 pr-1 flex-1">
-                                    <span className="w-5 h-5 flex-shrink-0 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center font-mono mt-0.5">
-                                      {idx + 1}
-                                    </span>
-                                    <span className="break-words whitespace-normal text-[11px] font-medium leading-snug flex-1">{cs.title.replace(/.*:\s*/, "")}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                                    <span className="text-[9px] font-bold text-slate-400 font-mono hidden sm:inline">{cs.questions.length} Qs</span>
-                                    <ChevronRight size={13} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-slate-400 italic py-2">No matching booklet cases found in this chapter.</p>
-                          )}
-                        </div>
-
-                        {/* BOTTOM SECTION: Chapter Description & Quick Flow Links */}
-                        <div className="px-4 py-3 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                            {chap.description}
-                          </p>
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/80">
-                            <button
-                              onClick={() => {
-                                setSelectedRevisionChapterId(chap.id);
-                                setRevisionSubView('study');
-                                setActiveTab('revision');
-                              }}
-                              className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <BookOpen size={11} />
-                              <span>Explore Revision Deck</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenPracticeForChapter(chap.id)}
-                              className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <span>Practice Cases</span>
-                              <ArrowRight size={11} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                  <AlertTriangle size={36} className="mx-auto text-amber-500 mb-3" />
-                  <h4 className="text-sm font-extrabold text-slate-800">No matching chapters or cases</h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                    We couldn't find any SCM-PE SPOM material matching "{searchQuery}". Try refining your keywords or clicking one of the hot topic tiles!
-                  </p>
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="px-4 py-2 bg-indigo-600 text-white text-xs font-extrabold rounded-xl shadow-md hover:bg-indigo-500 transition-all"
-                  >
-                    Reset Filter Query
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -7338,71 +8164,267 @@ Your text persists continuously in your browser and stays accessible across all 
         )}
       </div>
 
-      {/* Premium minimal Footer with practACE Branding */}
-      <footer className="bg-[#021027] text-slate-400 text-xs py-6 px-6 border-t border-[#C9A84C]/30 tracking-wide mt-12">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <img
-              src={practAceLogoImg}
-              alt="practACE Logo"
-              width={336}
-              height={112}
-              loading="lazy"
-              decoding="async"
-              className="h-9 w-auto object-contain"
-              referrerPolicy="no-referrer"
-            />
-            <span className="text-slate-300 font-semibold">
-              practACE • <span className="text-[#C9A84C]">Plan. Revise. Analyse. Correct. Track.</span>
-            </span>
+      {/* Premium Multi-Column Sitemap Footer with practACE Branding, Direct Navigation & Legal Governance */}
+      <footer className="bg-[#021027] text-slate-400 text-xs pt-9 pb-7 px-6 border-t border-[#C9A84C]/35 tracking-wide mt-12 relative">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#C9A84C]/80 via-amber-300/60 to-blue-500/80" />
+        <div className="max-w-7xl mx-auto space-y-7">
+          {/* 4-Column Sitemap Architecture Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-7 text-left">
+            {/* Column 1: Brand Identity, Motto & Community (4 cols) */}
+            <div className="md:col-span-4 space-y-3.5">
+              <div className="flex items-center gap-3">
+                <img
+                  src={practAceLogoImg}
+                  alt="practACE Logo"
+                  width={386}
+                  height={100}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-9 sm:h-10 w-auto object-contain shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="text-left space-y-0.5">
+                  <span className="text-white font-black text-sm tracking-wide block leading-tight">
+                    pract<span className="text-[#C9A84C]">ACE</span>
+                  </span>
+                  <span className="text-[10px] uppercase font-extrabold tracking-widest text-[#C9A84C] block">
+                    Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Complete CA Final Self-Paced Online Module (SPOM) preparation workspace for <strong className="text-slate-200">Set A (Corporate &amp; Economic Laws)</strong> and <strong className="text-slate-200">Set B (Strategic Cost &amp; Performance Management)</strong>.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <a
+                  href="https://www.linkedin.com/company/pract-ace/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#0A66C2]/25 text-slate-200 hover:text-sky-300 border border-slate-700 hover:border-[#0A66C2]/60 text-[11px] font-bold transition-all"
+                  title="Visit practACE on LinkedIn"
+                >
+                  <Linkedin size={12} className="text-sky-400" />
+                  <span>LinkedIn</span>
+                  <ExternalLink size={10} className="opacity-70" />
+                </a>
+                <a
+                  href="https://discord.gg/buecjd45u"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#5865F2]/25 text-slate-200 hover:text-indigo-300 border border-slate-700 hover:border-[#5865F2]/60 text-[11px] font-bold transition-all"
+                  title="Join practACE Discord Community"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    className="w-3.5 h-3.5 text-indigo-400"
+                  >
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                  </svg>
+                  <span>Discord</span>
+                  <ExternalLink size={10} className="opacity-70" />
+                </a>
+                <a
+                  href="https://forms.gle/PzWDLK1F3PsobrFL6"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-[#C9A84C]/20 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-[#C9A84C]/60 text-[11px] font-bold transition-all whitespace-nowrap"
+                  title="Share Feedback on practACE"
+                >
+                  <MessageSquare size={12} className="text-[#C9A84C]" />
+                  <span>Feedback</span>
+                  <ExternalLink size={10} className="opacity-70" />
+                </a>
+              </div>
+            </div>
+
+            {/* Column 2: Sitemap — Study & Revision Modules (3 cols) */}
+            <div className="md:col-span-3 space-y-2.5">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                Site Map — Study &amp; Revision
+              </h4>
+              <ul className="space-y-1.5 text-[11px] font-semibold">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Portal Dashboard &amp; Analytics
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('revision'); setRevisionSubView('study'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Revision Deck &amp; Crux Notes
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Statutory &amp; Concept Blueprints
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('revision'); setRevisionSubView('flashcards'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Active Recall Flashcards (220+)
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('sandbox'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Statutory &amp; Decision Calculators
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 3: Sitemap — Practice, Mocks & Tools (3 cols) */}
+            <div className="md:col-span-3 space-y-2.5">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                Practice &amp; Exam Engines
+              </h4>
+              <ul className="space-y-1.5 text-[11px] font-semibold">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('practice'); setPracticeSubTab('cases'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    ICAI Case Scenarios Vault (80)
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('practice'); setPracticeSubTab('general'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Standalone Chapter-Wise MCQs
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('practice'); setPracticeSubTab('saved'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Saved Questions Revision Vault
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab('mock'); handleStartMockExam(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Timed SPOM Mock Simulator
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowGlobalNotepad((prev) => !prev)}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Global Study Scratchpad &amp; PDF
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Column 4: Subjects & Sitemap Directory (2 cols) */}
+            <div className="md:col-span-2 space-y-2.5">
+              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#C9A84C]">
+                SPOM Subjects
+              </h4>
+              <ul className="space-y-1.5 text-[11px] font-semibold">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveSubject('setA'); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-blue-400 transition-colors cursor-pointer"
+                  >
+                    Set A: Laws (14 Chaps)
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveSubject('setB'); setActiveTab('dashboard'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    Set B: SCMPE (10 Chaps)
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setActiveLegalDoc('sitemap')}
+                    className="text-[#C9A84C] hover:underline font-black transition-colors cursor-pointer"
+                  >
+                    Full Interactive Site Map →
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setShowSetAAnnouncement(true)}
+                    className="text-slate-300 hover:text-[#C9A84C] transition-colors cursor-pointer"
+                  >
+                    What&apos;s New in practACE
+                  </button>
+                </li>
+                <li>
+                  <a
+                    href="./sitemap.xml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-400 hover:text-[#C9A84C] inline-flex items-center gap-1 transition-colors"
+                  >
+                    <span>sitemap.xml</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-3 md:gap-4">
-            <a
-              href="https://www.linkedin.com/company/pract-ace/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#0A66C2]/25 text-slate-200 hover:text-sky-300 border border-slate-700 hover:border-[#0A66C2]/60 font-bold transition-all"
-              title="Visit practACE on LinkedIn"
-            >
-              <Linkedin size={13} className="text-sky-400" />
-              <span>Follow us on LinkedIn</span>
-              <ExternalLink size={11} className="opacity-70" />
-            </a>
-            <a
-              href="https://discord.gg/buecjd45u"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#5865F2]/25 text-slate-200 hover:text-indigo-300 border border-slate-700 hover:border-[#5865F2]/60 font-bold transition-all"
-              title="Join practACE Discord Community"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-                className="w-3.5 h-3.5 text-indigo-400"
-              >
-                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              <span>Join us on Discord</span>
-              <ExternalLink size={11} className="opacity-70" />
-            </a>
-            <a
-              href="https://forms.gle/PzWDLK1F3PsobrFL6"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-[#C9A84C]/20 text-slate-200 hover:text-amber-300 border border-slate-700 hover:border-[#C9A84C]/60 font-bold transition-all whitespace-nowrap"
-              title="Share Feedback on practACE"
-            >
-              <MessageSquare size={13} className="text-[#C9A84C]" />
-              <span>Share Feedback</span>
-              <ExternalLink size={11} className="opacity-70" />
-            </a>
-            <p className="font-medium text-slate-400 text-center md:text-right">
-              CA Final SPOM Set A (Laws) & Set B (SCMPE) • High-Yield Statutory & Case Study Suite
+
+          {/* Bottom Legal, Security & Governance Bar */}
+          <div className="pt-4 border-t border-slate-800/90 flex flex-col lg:flex-row items-center justify-between gap-3 text-[11px]">
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 font-bold">
+              {legalDocTabs.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => setActiveLegalDoc(doc.id)}
+                  className="text-slate-300 hover:text-[#C9A84C] hover:underline transition-colors cursor-pointer"
+                >
+                  {doc.shortLabel}
+                </button>
+              ))}
+            </div>
+            <p className="text-slate-400 text-center lg:text-right">
+              © {new Date().getFullYear()} practACE. Independent educational preparation platform; not affiliated with or endorsed by ICAI.
             </p>
           </div>
         </div>
       </footer>
+      {renderLegalDocumentationModal()}
 
       {/* =========================================================================
           OPENING WELCOME POP-UP: 1. pract.CA TO practACE  |  2. INTRO OF SET A
@@ -7447,15 +8469,15 @@ Your text persists continuously in your browser and stays accessible across all 
 
               {/* Brand Identity Showcase: Logo + Welcome Message */}
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-                <div className="bg-[#021027] p-1.5 rounded-xl border border-[#C9A84C]/25 shadow-inner shrink-0">
+                <div className="shrink-0">
                   <img
                     src={practAceLogoImg}
-                    alt="practACE — Plan. Revise. Analyse. Correct. Track."
-                    width={336}
-                    height={112}
+                    alt="practACE — Plan Revise Analyse Correct Track"
+                    width={386}
+                    height={100}
                     fetchPriority="high"
                     decoding="sync"
-                    className="h-16 sm:h-20 w-auto object-contain"
+                    className="h-12 sm:h-14 w-auto object-contain"
                     referrerPolicy="no-referrer"
                   />
                 </div>

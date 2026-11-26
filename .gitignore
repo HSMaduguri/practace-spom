@@ -8,5 +8,6 @@ coverage/
 *.local
 .env*
 !.env.example
-firebase-applet-config.json
-!firebase-applet-config.example.json
+
+.aistudio/
+bun.lock
