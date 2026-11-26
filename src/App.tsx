@@ -538,7 +538,6 @@ export default function App() {
   const [arenaCaseSearch, setArenaCaseSearch] = useState<string>('');
   const [arenaGeneralDifficulty, setArenaGeneralDifficulty] = useState<'ALL' | 'Easy' | 'Moderate' | 'Tough'>('ALL');
   const [arenaStatusFilter, setArenaStatusFilter] = useState<'ALL' | 'PENDING' | 'SOLVED' | 'INCORRECT'>('ALL');
-  const [arenaFocusMode, setArenaFocusMode] = useState<boolean>(false);
 
   const toggleEliminateOption = (questionKey: string, opt: 'A' | 'B' | 'C' | 'D', e: ReactMouseEvent) => {
     e.stopPropagation();
@@ -6349,436 +6348,236 @@ export default function App() {
                       <span>Vault ({activeSubjectBookmarksCount})</span>
                     </button>
                   </div>
-
-                  {/* Focus Mode Toggle (Collapses Left Navigation Sidebar for Maximum Reading Width) */}
-                  <button
-                    type="button"
-                    onClick={() => setArenaFocusMode(prev => !prev)}
-                    className={`hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                      arenaFocusMode
-                        ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                        : 'bg-slate-900/90 text-slate-200 border-slate-700 hover:border-[#C9A84C]'
-                    }`}
-                    title={arenaFocusMode ? 'Show Chapter & Case Sidebar' : 'Expand Arena into Full-Width Focus Mode'}
-                  >
-                    <LayoutDashboard size={13} />
-                    <span>{arenaFocusMode ? 'Show Sidebar' : 'Focus Mode'}</span>
-                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-            {/* Left Column - Side Chapter & Case Selector (col-span-3, collapsible in Focus Mode) */}
-            {!arenaFocusMode && (
-            <div className="lg:col-span-3 space-y-4">
-              <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                    <ClipboardList size={13} className="text-[#C9A84C]" />
-                    <span>Syllabus Chapters</span>
-                  </h3>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                    {currentChapters.length} Chaps
-                  </span>
-                </div>
-                <div className="space-y-1.5 flex flex-col max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
-                  {currentChapters.map((chap, cIdx) => {
-                    const cCases = currentCaseScenarios.filter(cs => cs.chapterId === chap.id);
-                    const cCaseQs = cCases.reduce((s, cs) => s + cs.questions.length, 0);
-                    const cSolvedCaseQs = cCases.reduce((s, cs) => s + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length, 0);
-                    const cGenQs = currentGeneralMCQs.filter(q => q.chapterId === chap.id);
-                    const cSolvedGenQs = cGenQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
-                    const cTotal = cCaseQs + cGenQs.length;
-                    const cSolved = cSolvedCaseQs + cSolvedGenQs;
-                    const isSelectedChap = selectedChapterId === chap.id;
-
-                    return (
-                      <button
-                        key={chap.id}
-                        onClick={() => {
-                          setSelectedChapterId(chap.id);
-                          setCurrentGeneralIndex(0);
-                          setSelectedGeneralOption(null);
-                          setHasSubmittedGeneral(false);
-                          const firstCase = currentCaseScenarios.find(cs => cs.chapterId === chap.id);
-                          if (firstCase) {
-                            setSelectedCaseId(firstCase.id);
-                            setCurrentQuestionIndex(0);
-                            setSelectedOption(null);
-                            setHasSubmittedPractice(false);
-                            setShowExplanation(false);
-                          }
-                        }}
-                        className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-start justify-between gap-2 cursor-pointer border ${
-                          isSelectedChap
-                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white border-blue-500 shadow-md' : 'bg-[#021027] dark:bg-indigo-600 text-white border-[#C9A84C]/50 shadow-md')
-                            : 'border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${isSelectedChap ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
-                              Ch {cIdx + 1}
-                            </span>
-                            {cTotal > 0 && cSolved === cTotal && (
-                              <CheckCircle2 size={11} className={isSelectedChap ? 'text-emerald-300' : 'text-emerald-500'} />
-                            )}
-                          </div>
-                          <span className="break-words whitespace-normal leading-snug block mt-1">
-                            {getPlainChapterName(chap.name)}
-                          </span>
-                        </div>
-                        <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
-                          isSelectedChap
-                            ? 'bg-black/25 text-[#C9A84C]'
-                            : cSolved > 0
-                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                        }`}>
-                          {cSolved}/{cTotal}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Dynamic sidebar content based on sub-tab */}
-              {practiceSubTab === 'cases' ? (
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                      Chapter Case Studies
-                    </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono">
-                      {activeChapCases.length} Cases
+            <div className="flex-1 flex flex-col gap-5 min-h-0">
+            {/* COMPACT ARENA SELECTOR TOOLBAR — dropdowns replace the old always-open sidebar lists so the MCQ / case gets the full page width */}
+            <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-3 sm:p-4 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-3">
+                {practiceSubTab !== 'saved' && (
+                  <label className="xl:col-span-4 flex flex-col gap-1 min-w-0">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                      <ClipboardList size={11} className="text-[#C9A84C]" /> Chapter
                     </span>
-                  </div>
-
-                  {/* Quick Case Filter Search */}
-                  <div className="relative">
-                    <Search size={13} className="absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={arenaCaseSearch}
-                      onChange={(e) => setArenaCaseSearch(e.target.value)}
-                      placeholder="Filter cases by keyword..."
-                      className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {arenaCaseSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setArenaCaseSearch('')}
-                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 overflow-y-auto max-h-[340px] pr-1 scrollbar-thin">
-                    {filteredChapCases.map((cs, csIdx) => {
-                      const csSolvedCount = cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length;
-                      const csCorrectCount = cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.correct).length;
-                      const csComplete = cs.questions.length > 0 && csSolvedCount === cs.questions.length;
-                      const isSelected = selectedCaseId === cs.id;
-
-                      return (
-                        <button
-                          key={cs.id}
-                          onClick={() => {
-                            setSelectedCaseId(cs.id);
-                            setCurrentQuestionIndex(0);
-                            setSelectedOption(null);
-                            setHasSubmittedPractice(false);
-                            setShowExplanation(false);
-                          }}
-                          className={`w-full text-left p-3 text-xs rounded-xl border transition-all cursor-pointer space-y-1.5 ${
-                            isSelected
-                              ? (activeSubject === 'setA'
-                                  ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/50 text-blue-950 dark:text-blue-200 font-bold shadow-xs'
-                                  : 'border-[#C9A84C] bg-amber-50/80 dark:bg-amber-950/30 text-slate-950 dark:text-amber-200 font-bold shadow-xs')
-                              : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-300 font-medium'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-slate-400">
-                              Case #{csIdx + 1} • {cs.questions.length * 2} Marks
-                            </span>
-                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                              csComplete
-                                ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300'
-                                : csSolvedCount > 0
-                                ? 'bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                            }`}>
-                              {csSolvedCount}/{cs.questions.length} Qs {csSolvedCount > 0 ? `(${csCorrectCount}✓)` : ''}
-                            </span>
-                          </div>
-                          <span className="break-words whitespace-normal leading-snug block">
-                            {cs.title}
-                          </span>
-                        </button>
-                      );
-                    })}
-                    {filteredChapCases.length === 0 && (
-                      <p className="text-xs text-slate-400 italic text-center py-4">No matching cases in this chapter.</p>
-                    )}
-                  </div>
-                </div>
-              ) : practiceSubTab === 'general' ? (
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-3.5">
-                  {/* Topic Filter */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
-                        Filter by Topic
-                      </span>
-                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 font-mono">
-                        {chapterTopics.length} Topics
-                      </span>
-                    </div>
                     <select
-                      value={effectiveGeneralTopic}
+                      value={selectedChapterId}
                       onChange={(e) => {
-                        setSelectedGeneralTopic(e.target.value);
+                        const chapId = Number(e.target.value);
+                        setSelectedChapterId(chapId);
                         setCurrentGeneralIndex(0);
                         setSelectedGeneralOption(null);
                         setHasSubmittedGeneral(false);
+                        setArenaCaseSearch('');
+                        const firstCase = currentCaseScenarios.find(cs => cs.chapterId === chapId);
+                        if (firstCase) {
+                          setSelectedCaseId(firstCase.id);
+                          setCurrentQuestionIndex(0);
+                          setSelectedOption(null);
+                          setHasSubmittedPractice(false);
+                          setShowExplanation(false);
+                        }
                       }}
-                      className="w-full text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60 cursor-pointer truncate"
                     >
-                      <option value="ALL">All Topics ({allChapterMCQs.length} MCQs)</option>
-                      {chapterTopics.map((topic) => {
-                        const topicCount = allChapterMCQs.filter(q => q.topic === topic).length;
+                      {currentChapters.map((chap, cIdx) => {
+                        const cCases = currentCaseScenarios.filter(cs => cs.chapterId === chap.id);
+                        const cCaseQs = cCases.reduce((s, cs) => s + cs.questions.length, 0);
+                        const cSolvedCaseQs = cCases.reduce((s, cs) => s + cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length, 0);
+                        const cGenQs = currentGeneralMCQs.filter(q => q.chapterId === chap.id);
+                        const cSolvedGenQs = cGenQs.filter(q => practiceProgress[`general-${q.id}`]?.answered).length;
+                        const cTotal = cCaseQs + cGenQs.length;
+                        const cSolved = cSolvedCaseQs + cSolvedGenQs;
                         return (
-                          <option key={topic} value={topic}>
-                            {topic} ({topicCount})
+                          <option key={chap.id} value={chap.id}>
+                            {`Ch ${cIdx + 1} — ${getPlainChapterName(chap.name)}  [${cSolved}/${cTotal} solved]`}
                           </option>
                         );
                       })}
                     </select>
-                  </div>
+                  </label>
+                )}
 
-                  {/* Difficulty & Resolution Status Filters */}
-                  <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
-                      Difficulty &amp; Status Filter
-                    </span>
-                    <div className="grid grid-cols-4 gap-1">
-                      {(['ALL', 'Easy', 'Moderate', 'Tough'] as const).map(diff => (
-                        <button
-                          key={diff}
-                          type="button"
-                          onClick={() => {
-                            setArenaGeneralDifficulty(diff);
-                            setCurrentGeneralIndex(0);
-                          }}
-                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer border ${
-                            arenaGeneralDifficulty === diff
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                          }`}
-                        >
-                          {diff === 'ALL' ? 'All' : diff}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-4 gap-1">
-                      {[
-                        { id: 'ALL', label: 'All' },
-                        { id: 'PENDING', label: 'Unsolved' },
-                        { id: 'SOLVED', label: 'Solved' },
-                        { id: 'INCORRECT', label: 'Retry ✗' }
-                      ].map(st => (
-                        <button
-                          key={st.id}
-                          type="button"
-                          onClick={() => {
-                            setArenaStatusFilter(st.id as any);
-                            setCurrentGeneralIndex(0);
-                          }}
-                          className={`py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer border ${
-                            arenaStatusFilter === st.id
-                              ? 'bg-[#021027] dark:bg-[#C9A84C] text-white dark:text-slate-950 border-[#021027] dark:border-[#C9A84C]'
-                              : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
-                          }`}
-                        >
-                          {st.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                        Filtered Pool ({chapterMCQs.length})
-                      </h3>
-                      {(effectiveGeneralTopic !== 'ALL' || arenaGeneralDifficulty !== 'ALL' || arenaStatusFilter !== 'ALL') && (
-                        <button
-                          onClick={() => {
-                            setSelectedGeneralTopic('ALL');
-                            setArenaGeneralDifficulty('ALL');
-                            setArenaStatusFilter('ALL');
-                            setCurrentGeneralIndex(0);
-                            setSelectedGeneralOption(null);
-                            setHasSubmittedGeneral(false);
-                          }}
-                          className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                        >
-                          Reset Filters
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-1.5 overflow-y-auto max-h-[280px] pr-1 scrollbar-thin">
-                      {chapterMCQs.map((q, idx) => {
-                        const qProg = practiceProgress[`general-${q.id}`];
-                        return (
+                {practiceSubTab === 'cases' && (
+                  <>
+                    <label className="xl:col-span-5 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                        <FileText size={11} className="text-blue-500" /> Case Scenario ({filteredChapCases.length}{arenaCaseSearch.trim() ? ` of ${activeChapCases.length}` : ''})
+                      </span>
+                      <select
+                        value={filteredChapCases.some(cs => cs.id === selectedCaseId) ? selectedCaseId : ''}
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          setSelectedCaseId(e.target.value);
+                          setCurrentQuestionIndex(0);
+                          setSelectedOption(null);
+                          setHasSubmittedPractice(false);
+                          setShowExplanation(false);
+                        }}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/60 cursor-pointer truncate"
+                      >
+                        {!filteredChapCases.some(cs => cs.id === selectedCaseId) && (
+                          <option value="">Select a case scenario…</option>
+                        )}
+                        {filteredChapCases.map((cs, csIdx) => {
+                          const csSolvedCount = cs.questions.filter(q => practiceProgress[`${cs.id}-${q.id}`]?.answered).length;
+                          return (
+                            <option key={cs.id} value={cs.id}>
+                              {`Case ${csIdx + 1}: ${cs.title}  [${csSolvedCount}/${cs.questions.length} Qs]`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label className="xl:col-span-3 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                        <Search size={11} /> Find Case
+                      </span>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={arenaCaseSearch}
+                          onChange={(e) => setArenaCaseSearch(e.target.value)}
+                          placeholder="Keyword filter…"
+                          className="w-full pl-3 pr-8 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                        />
+                        {arenaCaseSearch && (
                           <button
-                            key={q.id}
-                            onClick={() => {
-                              setCurrentGeneralIndex(idx);
-                              setSelectedGeneralOption(null);
-                              setHasSubmittedGeneral(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs rounded-xl border transition-all flex items-start justify-between gap-2 cursor-pointer ${
-                              safeGeneralIndex === idx
-                                ? (activeSubject === 'setA'
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-950 dark:text-blue-300 font-bold'
-                                    : 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold')
-                                : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium'
-                            }`}
+                            type="button"
+                            onClick={() => setArenaCaseSearch('')}
+                            className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            aria-label="Clear case filter"
                           >
-                            <span className="break-words whitespace-normal leading-snug flex-1">Q {idx + 1}: {q.topic}</span>
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ml-1 flex-shrink-0 mt-0.5 ${
-                              qProg?.answered
-                                ? (qProg.correct
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300')
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            }`}>
-                              {qProg?.answered ? (qProg.correct ? '✓' : '✗') : q.difficulty.slice(0, 1)}
-                            </span>
+                            <X size={13} />
                           </button>
-                        );
-                      })}
-                      {chapterMCQs.length === 0 && (
-                        <p className="text-xs text-slate-400 italic text-center py-4">No questions match the selected filters.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#1c243f] p-4 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                    <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                      <Bookmark size={13} className="text-amber-500 fill-amber-500" />
-                      <span>Saved Vault</span>
-                    </h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-mono">
-                      {activeSubjectBookmarksCount} Flagged
-                    </span>
-                  </div>
+                        )}
+                      </div>
+                    </label>
+                  </>
+                )}
 
-                  {/* Filter by Type */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                      <Filter size={11} /> Source Filter
-                    </span>
-                    <div className="grid grid-cols-1 gap-1">
-                      <button
-                        onClick={() => setSavedFilterType('all')}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                          savedFilterType === 'all'
-                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
+                {practiceSubTab === 'general' && (
+                  <>
+                    <label className="xl:col-span-2 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Topic ({chapterTopics.length})</span>
+                      <select
+                        value={effectiveGeneralTopic}
+                        onChange={(e) => {
+                          setSelectedGeneralTopic(e.target.value);
+                          setCurrentGeneralIndex(0);
+                          setSelectedGeneralOption(null);
+                          setHasSubmittedGeneral(false);
+                        }}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/60 cursor-pointer truncate"
                       >
-                        <span>All Saved MCQs</span>
-                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.length}</span>
-                      </button>
-                      <button
-                        onClick={() => setSavedFilterType('case')}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                          savedFilterType === 'case'
-                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
+                        <option value="ALL">All Topics ({allChapterMCQs.length})</option>
+                        {chapterTopics.map((topic) => (
+                          <option key={topic} value={topic}>
+                            {`${topic} (${allChapterMCQs.filter(q => q.topic === topic).length})`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="xl:col-span-2 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Difficulty</span>
+                      <select
+                        value={arenaGeneralDifficulty}
+                        onChange={(e) => {
+                          setArenaGeneralDifficulty(e.target.value as 'ALL' | 'Easy' | 'Moderate' | 'Tough');
+                          setCurrentGeneralIndex(0);
+                        }}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/60 cursor-pointer"
                       >
-                        <span>From Case Scenarios</span>
-                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.filter(b => b.type === 'case').length}</span>
-                      </button>
-                      <button
-                        onClick={() => setSavedFilterType('general')}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
-                          savedFilterType === 'general'
-                            ? (activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-indigo-600 text-white')
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
+                        <option value="ALL">All levels</option>
+                        <option value="Easy">Easy</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="Tough">Tough</option>
+                      </select>
+                    </label>
+                    <label className="xl:col-span-2 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Status</span>
+                      <select
+                        value={arenaStatusFilter}
+                        onChange={(e) => {
+                          setArenaStatusFilter(e.target.value as 'ALL' | 'PENDING' | 'SOLVED' | 'INCORRECT');
+                          setCurrentGeneralIndex(0);
+                        }}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/60 cursor-pointer"
                       >
-                        <span>From Standalone MCQs</span>
-                        <span className="font-mono text-[10px] opacity-80">{activeSubjectBookmarks.filter(b => b.type === 'general').length}</span>
-                      </button>
-                    </div>
-                  </div>
+                        <option value="ALL">All</option>
+                        <option value="PENDING">Unsolved</option>
+                        <option value="SOLVED">Solved</option>
+                        <option value="INCORRECT">Retry (wrong)</option>
+                      </select>
+                    </label>
+                    <label className="xl:col-span-2 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Jump to MCQ ({chapterMCQs.length})</span>
+                      <select
+                        value={chapterMCQs.length > 0 ? safeGeneralIndex : ''}
+                        onChange={(e) => {
+                          setCurrentGeneralIndex(Number(e.target.value));
+                          setSelectedGeneralOption(null);
+                          setHasSubmittedGeneral(false);
+                        }}
+                        disabled={chapterMCQs.length === 0}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/60 cursor-pointer disabled:opacity-50 truncate"
+                      >
+                        {chapterMCQs.length === 0 && <option value="">No matching MCQs</option>}
+                        {chapterMCQs.map((q, idx) => {
+                          const qProg = practiceProgress[`general-${q.id}`];
+                          const mark = qProg?.answered ? (qProg.correct ? '✓' : '✗') : '•';
+                          return (
+                            <option key={q.id} value={idx}>
+                              {`${mark} Q${idx + 1}: ${q.topic}`}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  </>
+                )}
 
-                  {/* Filter by Status */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                      <Clock size={11} /> Status Filter
-                    </span>
-                    <div className="grid grid-cols-3 gap-1">
-                      <button
-                        onClick={() => setSavedFilterStatus('all')}
-                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                          savedFilterStatus === 'all'
-                            ? 'bg-slate-900 text-white dark:bg-slate-700'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                        }`}
+                {practiceSubTab === 'saved' && (
+                  <>
+                    <label className="xl:col-span-4 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                        <Filter size={11} /> Source
+                      </span>
+                      <select
+                        value={savedFilterType}
+                        onChange={(e) => setSavedFilterType(e.target.value as 'all' | 'case' | 'general')}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/60 cursor-pointer"
                       >
-                        All
-                      </button>
-                      <button
-                        onClick={() => setSavedFilterStatus('solved')}
-                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                          savedFilterStatus === 'solved'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
-                        }`}
+                        <option value="all">{`All saved MCQs (${activeSubjectBookmarks.length})`}</option>
+                        <option value="case">{`From case scenarios (${activeSubjectBookmarks.filter(b => b.type === 'case').length})`}</option>
+                        <option value="general">{`From standalone MCQs (${activeSubjectBookmarks.filter(b => b.type === 'general').length})`}</option>
+                      </select>
+                    </label>
+                    <label className="xl:col-span-4 flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                        <Clock size={11} /> Status
+                      </span>
+                      <select
+                        value={savedFilterStatus}
+                        onChange={(e) => setSavedFilterStatus(e.target.value as 'all' | 'solved' | 'pending')}
+                        className="w-full text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/60 cursor-pointer"
                       >
-                        Solved
-                      </button>
-                      <button
-                        onClick={() => setSavedFilterStatus('pending')}
-                        className={`py-1.5 text-center rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                          savedFilterStatus === 'pending'
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
-                        }`}
-                      >
-                        Pending
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    <p className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                      <Info size={11} /> Pro Revision Tip
-                    </p>
-                    Save complex numericals and legal exceptions here to drill repeatedly before your exam.
-                  </div>
-                </div>
-              )}
+                        <option value="all">All</option>
+                        <option value="solved">Solved</option>
+                        <option value="pending">Pending</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+              </div>
             </div>
-            )}
 
-            {/* Right Column - Pro Split Case Reading & Question Console / General MCQs / Saved Vault */}
+            {/* Full-width Arena: split case reading + question console / general MCQs / saved vault */}
             <div className={
               practiceSubTab === 'saved'
-                ? `${arenaFocusMode ? 'lg:col-span-12' : 'lg:col-span-9'} space-y-4 min-h-[500px]`
-                : `${arenaFocusMode ? 'lg:col-span-12' : 'lg:col-span-9'} grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]`
+                ? 'w-full space-y-4 min-h-[500px]'
+                : 'w-full grid grid-cols-1 lg:grid-cols-2 gap-5 min-h-[500px]'
             }>
               {practiceSubTab === 'saved' ? (
                 <div className="space-y-4">
