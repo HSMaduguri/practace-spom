@@ -1,8 +1,21 @@
 import { useState } from 'react';
 import { Scale, CheckCircle2, AlertTriangle, AlertCircle, RefreshCw, Calculator, FileCheck } from 'lucide-react';
 
-export default function SetALegalCalculators() {
-  const [activeCalc, setActiveCalc] = useState<'csr' | 'board' | 'remuneration' | 'cirp'>('csr');
+export interface SetALegalCalculatorsProps {
+  activeCalculator?: 'csr' | 'board' | 'remuneration' | 'cirp';
+  onCalculatorChange?: (calc: 'csr' | 'board' | 'remuneration' | 'cirp') => void;
+}
+
+export default function SetALegalCalculators({
+  activeCalculator,
+  onCalculatorChange
+}: SetALegalCalculatorsProps = {}) {
+  const [internalCalc, setInternalCalc] = useState<'csr' | 'board' | 'remuneration' | 'cirp'>('csr');
+  const activeCalc = activeCalculator ?? internalCalc;
+  const setActiveCalc = (next: 'csr' | 'board' | 'remuneration' | 'cirp') => {
+    setInternalCalc(next);
+    onCalculatorChange?.(next);
+  };
 
   // Calculator 1: CSR Applicability & Spend (Sec 135)
   const [csrParams, setCsrParams] = useState({

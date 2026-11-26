@@ -112,6 +112,38 @@ const getFormulaDetails = (name: string, formulaMap: Record<string, FormulaDetai
   };
 };
 
+// Complete static chapter directory for both SPOM Set A (14 Chapters) and Set B (10 Chapters)
+// so the Interactive Site Map & URL Router always have full syllabus metadata even before lazy chunks load.
+const SITEMAP_SET_A_CHAPTERS: Array<{ id: number; code: string; title: string }> = [
+  { id: 101, code: 'M1 – Ch 1', title: 'Appointment and Qualifications of Directors (Sec 149–172)' },
+  { id: 102, code: 'M1 – Ch 2', title: 'Appointment and Remuneration of Managerial Personnel (Sec 196–205)' },
+  { id: 103, code: 'M1 – Ch 3', title: 'Meetings of Board and its Powers (Sec 173–195)' },
+  { id: 104, code: 'M1 – Ch 4', title: 'Inspection, Inquiry and Investigation (Sec 206–229)' },
+  { id: 105, code: 'M1 – Ch 5', title: 'Compromises, Arrangements and Amalgamations (Sec 230–240)' },
+  { id: 106, code: 'M1 – Ch 6', title: 'Prevention of Oppression and Mismanagement (Sec 241–246)' },
+  { id: 107, code: 'M1 – Ch 7', title: 'Winding Up (Sec 270–365)' },
+  { id: 108, code: 'M1 – Ch 8', title: 'Miscellaneous Provisions (Registered Valuer, Strike Off, Govt/Nidhi/Dormant Co & Sec 447)' },
+  { id: 109, code: 'M1 – Ch 9', title: 'Adjudication, Special Courts, NCLT & NCLAT (Sec 407–454A)' },
+  { id: 110, code: 'M1 – Ch 10', title: 'e-Filing, MCA21 Version 3.0 & Case Studies Relating to Ethics (Sec 396–404)' },
+  { id: 111, code: 'M2 (Sec B) – Ch 1', title: 'SEBI Act 1992, SEBI (LODR) 2015, ICDR 2018, SAST 2011 & PIT 2015' },
+  { id: 112, code: 'M2 (Part II) – Ch 1', title: 'The Foreign Exchange Management Act (FEMA), 1999' },
+  { id: 113, code: 'M2 (Part II) – Ch 2', title: 'The Foreign Contribution (Regulation) Act (FCRA), 2010' },
+  { id: 114, code: 'M2 (Part II) – Ch 3', title: 'The Insolvency and Bankruptcy Code (IBC), 2016 (Up to Sec 33)' }
+];
+
+const SITEMAP_SET_B_CHAPTERS: Array<{ id: number; code: string; title: string }> = [
+  { id: 1, code: 'Part 01', title: 'An Introduction to Strategic Cost Management' },
+  { id: 2, code: 'Part 02', title: 'Modern Business Environment & Cost of Quality (COQ / TQM)' },
+  { id: 3, code: 'Part 03', title: 'Lean System and Innovation (JIT, TPM, OEE, 5S, Six Sigma)' },
+  { id: 4, code: 'Part 04', title: 'Specialist Cost Management Techniques (Target, Life Cycle, TPAR, EMA)' },
+  { id: 5, code: 'Part 05', title: 'Strategic Decision Making & Relevant Costing Analysis' },
+  { id: 6, code: 'Part 06', title: 'Pricing Decisions & Strategic Pricing Models' },
+  { id: 7, code: 'Part 07', title: 'Performance Evaluation & Control (Balanced Scorecard, Building Blocks, Triple Bottom Line)' },
+  { id: 8, code: 'Part 08', title: 'Divisional Transfer Pricing & Goal Congruence' },
+  { id: 9, code: 'Part 09', title: 'Strategic Analysis of Operating Income & Budgetary Control (ABB / ZBB)' },
+  { id: 10, code: 'Part 10', title: 'Standard Costing & Advanced Planning / Operational Variances' }
+];
+
 export default function App() {
   // Theme State (light / dark — defaults to light mode)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -1927,6 +1959,10 @@ export default function App() {
 
   // Sandbox Calculators State
   const [sandboxType, setSandboxType] = useState<'pareto' | 'oee' | 'relevant' | 'target'>('pareto');
+  const [setACalcType, setSetACalcType] = useState<'csr' | 'board' | 'remuneration' | 'cirp'>('csr');
+  const [copiedUrlBadge, setCopiedUrlBadge] = useState<boolean>(false);
+  const isApplyingUrlRef = useRef<boolean>(false);
+  const skipSubjectResetRef = useRef<boolean>(false);
 
   // Sandbox 1: Pareto Data (Precision Motors Case 32)
   const [paretoDefects, setParetoDefects] = useState([
@@ -1994,11 +2030,23 @@ export default function App() {
     setHasSubmittedGeneral(false);
   }, [selectedChapterId, activeSubject]);
 
-  // Reset chapter selection when activeSubject switches
+  // Reset chapter selection when activeSubject switches (unless driven by deep-link URL hydration)
   useEffect(() => {
+    if (skipSubjectResetRef.current) {
+      skipSubjectResetRef.current = false;
+      return;
+    }
     const defaultChap = activeSubject === 'setA' ? 101 : 1;
-    setSelectedChapterId(defaultChap);
-    setSelectedRevisionChapterId(defaultChap);
+    setSelectedChapterId(prev => {
+      const isValidForSubject = activeSubject === 'setA' ? (prev >= 101 && prev <= 114) : (prev >= 1 && prev <= 10);
+      return isValidForSubject ? prev : defaultChap;
+    });
+    setSelectedRevisionChapterId(prev => {
+      if (prev === -1) return -1;
+      if (activeSubject === 'setA' && (prev === -101 || prev === -102 || (prev >= 101 && prev <= 114))) return prev;
+      if (activeSubject === 'setB' && prev >= 1 && prev <= 10) return prev;
+      return defaultChap;
+    });
     const firstCase = currentCaseScenarios.find(cs => cs.chapterId === defaultChap);
     if (firstCase) {
       setSelectedCaseId(firstCase.id);
@@ -2013,6 +2061,365 @@ export default function App() {
     setSelectedGeneralOption(null);
     setHasSubmittedGeneral(false);
   }, [activeSubject]);
+
+  // ============================================================================
+  // LIVE BROWSER URL SITEMAP ROUTER (HYDRATION + POPSTATE + REAL-TIME URL SYNC)
+  // Updates the browser address bar URL for every page, tab, revision sub-view,
+  // chapter change, practice case/question, mock exam state, simulator, & modal.
+  // ============================================================================
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const applyUrlParamsToState = () => {
+      const params = new URLSearchParams(window.location.search);
+      // Do not interfere with Supabase OAuth / recovery callback parameters
+      if (
+        params.has('token_hash') ||
+        params.has('token') ||
+        params.has('code') ||
+        params.has('error_description') ||
+        window.location.hash.includes('access_token=')
+      ) {
+        return;
+      }
+
+      const hasRouteParams =
+        params.has('page') ||
+        params.has('subject') ||
+        params.has('tab') ||
+        params.has('view') ||
+        params.has('chapter') ||
+        params.has('subtab') ||
+        params.has('case') ||
+        params.has('pool') ||
+        params.has('sim') ||
+        params.has('calc') ||
+        params.has('doc');
+
+      if (!hasRouteParams) return;
+
+      isApplyingUrlRef.current = true;
+
+      const docParam = params.get('doc') as
+        | 'sitemap'
+        | 'security'
+        | 'privacy'
+        | 'terms'
+        | 'disclaimer'
+        | 'cookies'
+        | null;
+      if (
+        docParam &&
+        ['sitemap', 'security', 'privacy', 'terms', 'disclaimer', 'cookies'].includes(docParam)
+      ) {
+        setActiveLegalDoc(docParam);
+      }
+
+      const subjParam = params.get('subject');
+      if (subjParam === 'setA' || subjParam === 'setB') {
+        skipSubjectResetRef.current = true;
+        setActiveSubject(subjParam);
+        setLandingCurriculumTab(subjParam);
+      }
+
+      const pageParam = params.get('page');
+      const tabParam = params.get('tab') as
+        | 'dashboard'
+        | 'revision'
+        | 'practice'
+        | 'mock'
+        | 'sandbox'
+        | null;
+
+      if (pageParam === 'landing' && !tabParam) {
+        setShowLandingPage(true);
+      } else if (
+        tabParam &&
+        ['dashboard', 'revision', 'practice', 'mock', 'sandbox'].includes(tabParam)
+      ) {
+        setActiveTab(tabParam);
+        setShowLandingPage(false);
+        setShowSetAAnnouncement(false);
+      }
+
+      const chapParam = params.get('chapter');
+      const parsedChap = chapParam !== null ? parseInt(chapParam, 10) : NaN;
+
+      if (tabParam === 'revision') {
+        const viewParam = params.get('view') as 'study' | 'flashcards' | 'frameworks' | null;
+        if (viewParam && ['study', 'flashcards', 'frameworks'].includes(viewParam)) {
+          setRevisionSubView(viewParam);
+        }
+        if (!Number.isNaN(parsedChap)) {
+          setSelectedRevisionChapterId(parsedChap);
+        }
+        const modeParam = params.get('mode') as 'drill' | 'quiz' | null;
+        if (modeParam === 'drill' || modeParam === 'quiz') {
+          setFlashcardMode(modeParam);
+        }
+        const cardParam = params.get('card');
+        if (cardParam) {
+          if (viewParam === 'frameworks') {
+            const idx = parseInt(cardParam, 10);
+            if (!Number.isNaN(idx) && idx >= 1) {
+              setCurrentFrameworkCardIndex(idx - 1);
+            }
+          } else {
+            setCurrentFlashcardKey(cardParam);
+          }
+        }
+      } else if (tabParam === 'practice') {
+        const subtabParam = params.get('subtab') as 'cases' | 'general' | 'saved' | null;
+        if (subtabParam && ['cases', 'general', 'saved'].includes(subtabParam)) {
+          setPracticeSubTab(subtabParam);
+        }
+        if (!Number.isNaN(parsedChap) && parsedChap > 0) {
+          setSelectedChapterId(parsedChap);
+        }
+        const caseParam = params.get('case');
+        if (caseParam) {
+          setSelectedCaseId(caseParam);
+        }
+        const qParam = params.get('q');
+        const parsedQ = qParam !== null ? parseInt(qParam, 10) : NaN;
+        if (!Number.isNaN(parsedQ) && parsedQ >= 1) {
+          if (subtabParam === 'general') {
+            setCurrentGeneralIndex(parsedQ - 1);
+          } else {
+            setCurrentQuestionIndex(parsedQ - 1);
+          }
+        }
+        const topicParam = params.get('topic');
+        if (topicParam) {
+          setSelectedGeneralTopic(topicParam);
+        }
+        const filterParam = params.get('filter') as 'all' | 'case' | 'general' | null;
+        if (filterParam && ['all', 'case', 'general'].includes(filterParam)) {
+          setSavedFilterType(filterParam);
+        }
+        const statusParam = params.get('status') as 'all' | 'solved' | 'pending' | null;
+        if (statusParam && ['all', 'solved', 'pending'].includes(statusParam)) {
+          setSavedFilterStatus(statusParam);
+        }
+      } else if (tabParam === 'mock') {
+        const poolParam = params.get('pool');
+        const parsedPool = poolParam !== null ? parseInt(poolParam, 10) : NaN;
+        if (parsedPool === 10 || parsedPool === 15 || parsedPool === 25) {
+          setTotalMockQuestionsCount(parsedPool);
+        }
+      } else if (tabParam === 'sandbox') {
+        const calcParam = params.get('calc') as 'csr' | 'board' | 'remuneration' | 'cirp' | null;
+        if (calcParam && ['csr', 'board', 'remuneration', 'cirp'].includes(calcParam)) {
+          setSetACalcType(calcParam);
+        }
+        const simParam = params.get('sim') as 'pareto' | 'oee' | 'relevant' | 'target' | null;
+        if (simParam && ['pareto', 'oee', 'relevant', 'target'].includes(simParam)) {
+          setSandboxType(simParam);
+        }
+      }
+
+      setTimeout(() => {
+        isApplyingUrlRef.current = false;
+      }, 0);
+    };
+
+    applyUrlParamsToState();
+    window.addEventListener('popstate', applyUrlParamsToState);
+    return () => {
+      window.removeEventListener('popstate', applyUrlParamsToState);
+    };
+  }, []);
+
+  // Build canonical query string & document title for the current active route
+  const buildCurrentSitemapSearch = () => {
+    const params = new URLSearchParams();
+    const isOnLanding = showLandingPage || !currentUser || isPasswordRecovery || isAuthErrorGate;
+
+    if (isOnLanding) {
+      params.set('page', 'landing');
+      params.set('subject', landingCurriculumTab);
+    } else {
+      params.set('subject', activeSubject);
+      params.set('tab', activeTab);
+
+      if (activeTab === 'revision') {
+        params.set('view', revisionSubView);
+        if (revisionSubView === 'study') {
+          params.set('chapter', String(selectedRevisionChapterId));
+          if (revisionSearchQuery.trim()) {
+            params.set('q', revisionSearchQuery.trim());
+          }
+        } else if (revisionSubView === 'flashcards') {
+          params.set('mode', flashcardMode);
+          if (flashcardMode === 'drill' && currentFlashcardKey) {
+            params.set('card', currentFlashcardKey);
+          }
+        } else if (revisionSubView === 'frameworks') {
+          params.set('card', String(currentFrameworkCardIndex + 1));
+        }
+      } else if (activeTab === 'practice') {
+        params.set('subtab', practiceSubTab);
+        if (practiceSubTab === 'cases') {
+          params.set('chapter', String(selectedChapterId));
+          if (selectedCaseId) {
+            params.set('case', selectedCaseId);
+          }
+          params.set('q', String(currentQuestionIndex + 1));
+        } else if (practiceSubTab === 'general') {
+          params.set('chapter', String(selectedChapterId));
+          if (selectedGeneralTopic && selectedGeneralTopic !== 'ALL') {
+            params.set('topic', selectedGeneralTopic);
+          }
+          params.set('q', String(currentGeneralIndex + 1));
+        } else if (practiceSubTab === 'saved') {
+          if (savedFilterType !== 'all') params.set('filter', savedFilterType);
+          if (savedFilterStatus !== 'all') params.set('status', savedFilterStatus);
+        }
+      } else if (activeTab === 'mock') {
+        params.set('pool', String(totalMockQuestionsCount));
+        params.set('state', !examStarted ? 'setup' : examFinished ? 'results' : 'active');
+        if (examStarted && !examFinished) {
+          params.set('q', String(currentMockIndex + 1));
+        }
+      } else if (activeTab === 'sandbox') {
+        if (activeSubject === 'setA') {
+          params.set('calc', setACalcType);
+        } else {
+          params.set('sim', sandboxType);
+        }
+      }
+    }
+
+    if (activeLegalDoc) {
+      params.set('doc', activeLegalDoc);
+    }
+
+    return `?${params.toString()}`;
+  };
+
+  const currentSitemapSearch = buildCurrentSitemapSearch();
+
+  // Synchronize browser address bar URL & document.title on every route/chapter/sub-tab change
+  useEffect(() => {
+    if (typeof window === 'undefined' || isAuthLoading || isApplyingUrlRef.current) return;
+
+    const currentParams = new URLSearchParams(window.location.search);
+    if (
+      currentParams.has('token_hash') ||
+      currentParams.has('token') ||
+      currentParams.has('code') ||
+      currentParams.has('error_description') ||
+      window.location.hash.includes('access_token=')
+    ) {
+      return;
+    }
+
+    const nextUrl = `${window.location.pathname}${currentSitemapSearch}${window.location.hash}`;
+    const currentRelUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentRelUrl) {
+      const prevParams = new URLSearchParams(window.location.search);
+      const nextParams = new URLSearchParams(currentSitemapSearch);
+      const isMajorNavigation =
+        prevParams.get('page') !== nextParams.get('page') ||
+        prevParams.get('subject') !== nextParams.get('subject') ||
+        prevParams.get('tab') !== nextParams.get('tab') ||
+        prevParams.get('view') !== nextParams.get('view') ||
+        prevParams.get('subtab') !== nextParams.get('subtab') ||
+        prevParams.get('chapter') !== nextParams.get('chapter') ||
+        prevParams.get('sim') !== nextParams.get('sim') ||
+        prevParams.get('calc') !== nextParams.get('calc');
+
+      if (isMajorNavigation) {
+        window.history.pushState(null, '', nextUrl);
+      } else {
+        window.history.replaceState(null, '', nextUrl);
+      }
+    }
+
+    // Update browser tab title dynamically to reflect the exact active section & chapter
+    const isOnLanding = showLandingPage || !currentUser || isPasswordRecovery || isAuthErrorGate;
+    const subjLabel = activeSubject === 'setA' ? 'SPOM Set A (Laws)' : 'SPOM Set B (SCMPE)';
+    const allStaticChapters = activeSubject === 'setA' ? SITEMAP_SET_A_CHAPTERS : SITEMAP_SET_B_CHAPTERS;
+
+    if (activeLegalDoc === 'sitemap') {
+      document.title = `Interactive Site Map & URL Directory | practACE`;
+    } else if (isOnLanding) {
+      document.title = `practACE — CA Final SPOM Set A (Laws) & Set B (SCMPE) Study Suite`;
+    } else if (activeTab === 'dashboard') {
+      document.title = `Dashboard • ${subjLabel} | practACE`;
+    } else if (activeTab === 'revision') {
+      if (revisionSubView === 'study') {
+        const chapMeta = allStaticChapters.find(c => c.id === selectedRevisionChapterId);
+        const chapTitle =
+          selectedRevisionChapterId === -1
+            ? 'Continuous Full Syllabus Deck'
+            : selectedRevisionChapterId === -101
+            ? 'Set A Statutory Time Limits Chart'
+            : selectedRevisionChapterId === -102
+            ? 'Set A Monetary & Penalty Limits Chart'
+            : chapMeta
+            ? `${chapMeta.code}: ${chapMeta.title}`
+            : `Chapter ${selectedRevisionChapterId}`;
+        document.title = `Revision: ${chapTitle} • ${subjLabel} | practACE`;
+      } else if (revisionSubView === 'flashcards') {
+        document.title = `${flashcardMode === 'quiz' ? 'Formula & Statutory Quiz' : '3D Active-Recall Flashcards'} • ${subjLabel} | practACE`;
+      } else {
+        document.title = `${activeSubject === 'setA' ? 'Case Law Precedents Deck' : 'Theoretical Frameworks Deck'} (Card ${currentFrameworkCardIndex + 1}) • ${subjLabel} | practACE`;
+      }
+    } else if (activeTab === 'practice') {
+      const chapMeta = allStaticChapters.find(c => c.id === selectedChapterId);
+      const chapCode = chapMeta ? chapMeta.code : `Ch ${selectedChapterId}`;
+      if (practiceSubTab === 'cases') {
+        document.title = `Practice Cases (${chapCode} • Q${currentQuestionIndex + 1}) • ${subjLabel} | practACE`;
+      } else if (practiceSubTab === 'general') {
+        document.title = `Practice MCQs (${chapCode} • Q${currentGeneralIndex + 1}) • ${subjLabel} | practACE`;
+      } else {
+        document.title = `Saved Questions Vault • ${subjLabel} | practACE`;
+      }
+    } else if (activeTab === 'mock') {
+      document.title = `Timed SPOM Mock (${totalMockQuestionsCount} Qs • ${!examStarted ? 'Setup' : examFinished ? 'Scorecard' : `Q${currentMockIndex + 1}`}) • ${subjLabel} | practACE`;
+    } else if (activeTab === 'sandbox') {
+      const toolName =
+        activeSubject === 'setA'
+          ? setACalcType.toUpperCase()
+          : sandboxType.toUpperCase();
+      document.title = `Simulator (${toolName}) • ${subjLabel} | practACE`;
+    }
+  }, [
+    isAuthLoading,
+    currentSitemapSearch,
+    showLandingPage,
+    currentUser,
+    isPasswordRecovery,
+    isAuthErrorGate,
+    activeSubject,
+    activeTab,
+    revisionSubView,
+    selectedRevisionChapterId,
+    flashcardMode,
+    currentFrameworkCardIndex,
+    practiceSubTab,
+    selectedChapterId,
+    currentQuestionIndex,
+    currentGeneralIndex,
+    totalMockQuestionsCount,
+    examStarted,
+    examFinished,
+    currentMockIndex,
+    sandboxType,
+    setACalcType,
+    activeLegalDoc
+  ]);
+
+  const handleCopyCurrentRouteUrl = () => {
+    if (typeof window === 'undefined') return;
+    const fullUrl = `${window.location.origin}${window.location.pathname}${currentSitemapSearch}`;
+    navigator.clipboard?.writeText(fullUrl).then(() => {
+      setCopiedUrlBadge(true);
+      setTimeout(() => setCopiedUrlBadge(false), 2000);
+    }).catch(() => {});
+  };
 
   // Handle Mock Exam Timer
   useEffect(() => {
@@ -2510,83 +2917,220 @@ export default function App() {
           <div className="p-5 sm:p-7 overflow-y-auto space-y-5 text-left text-xs sm:text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed">
             {activeLegalDoc === 'sitemap' && (
               <div className="space-y-5">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                      <LayoutDashboard size={16} className="text-[#C9A84C]" />
-                      <span>practACE Interactive Site Map &amp; Study Directory</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Complete hierarchy of SPOM Set A (Laws) &amp; Set B (SCMPE) modules, practice engines, calculators, and policies.
-                    </p>
+                {/* Top Header + Live Active Browser URL Banner */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <LayoutDashboard size={16} className="text-[#C9A84C]" />
+                        <span>practACE Interactive Site Map &amp; Live Browser URL Directory</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Every page, revision deck view, chapter change, practice case, mock exam pool, and simulator updates the browser address bar URL in real time.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={handleCopyCurrentRouteUrl}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-[#C9A84C] text-[11px] font-black cursor-pointer"
+                      >
+                        {copiedUrlBadge ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} className="text-[#C9A84C]" />}
+                        <span>{copiedUrlBadge ? 'Copied Live URL!' : 'Copy Current URL'}</span>
+                      </button>
+                      <a
+                        href="./sitemap.xml"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 text-[11px] font-black whitespace-nowrap"
+                      >
+                        <span>sitemap.xml</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
                   </div>
-                  <a
-                    href="./sitemap.xml"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 text-[11px] font-black whitespace-nowrap shrink-0 self-start sm:self-auto"
-                  >
-                    <span>XML Sitemap</span>
-                    <ExternalLink size={11} />
-                  </a>
+
+                  {/* Active Route URL Bar */}
+                  <div className="px-3 py-2 rounded-lg bg-[#021027] text-slate-200 border border-[#C9A84C]/35 flex items-center justify-between gap-2 text-[11px] font-mono">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="px-1.5 py-0.5 rounded bg-[#C9A84C]/20 text-[#C9A84C] text-[9px] font-black uppercase tracking-wider shrink-0">
+                        Live Browser URL
+                      </span>
+                      <span className="truncate text-emerald-300">
+                        {typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}${currentSitemapSearch}` : `https://practace.in/${currentSitemapSearch}`}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
+                      Auto-Synced
+                    </span>
+                  </div>
                 </div>
 
-                {/* 3-Column Core Architecture Grid */}
+                {/* 3-Column Core Architecture Grid with Deep-Link URLs */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Section 1: Core Study & Revision Modules */}
                   <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <BookOpen size={14} className="text-[#C9A84C]" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        1. Study &amp; Revision Deck
+                        1. Study &amp; Revision Deck Routes
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
                       {[
-                        { label: 'Portal Dashboard & KPI Overview', action: () => { setActiveTab('dashboard'); setActiveLegalDoc(null); } },
-                        { label: 'Chapter-Wise Crux Study Notes', action: () => { setActiveTab('revision'); setRevisionSubView('study'); setActiveLegalDoc(null); } },
-                        { label: 'Statutory & Concept Blueprints', action: () => { setActiveTab('revision'); setRevisionSubView(activeSubject === 'setA' ? 'study' : 'frameworks'); setActiveLegalDoc(null); } },
-                        { label: 'Active Recall Flashcards (220+)', action: () => { setActiveTab('revision'); setRevisionSubView('flashcards'); setActiveLegalDoc(null); } },
-                        { label: 'Statutory & Decision Calculators', action: () => { setActiveTab('sandbox'); setActiveLegalDoc(null); } }
+                        {
+                          label: 'Home & Marketing Landing Page',
+                          url: `?page=landing&subject=${activeSubject}`,
+                          action: () => { setShowLandingPage(true); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Portal Dashboard & KPI Overview',
+                          url: `?subject=${activeSubject}&tab=dashboard`,
+                          action: () => { setShowLandingPage(false); setActiveTab('dashboard'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Continuous Full-Syllabus Revision Deck',
+                          url: `?subject=${activeSubject}&tab=revision&view=study&chapter=-1`,
+                          action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-1); setActiveLegalDoc(null); }
+                        },
+                        ...(activeSubject === 'setA'
+                          ? [
+                              {
+                                label: 'Set-A Statutory Time Limits Chart',
+                                url: '?subject=setA&tab=revision&view=study&chapter=-101',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-101); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'Set-A Monetary & Penalty Limits Chart',
+                                url: '?subject=setA&tab=revision&view=study&chapter=-102',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('revision'); setRevisionSubView('study'); setSelectedRevisionChapterId(-102); setActiveLegalDoc(null); }
+                              }
+                            ]
+                          : []),
+                        {
+                          label: '3D Active Recall Flashcards (Drill)',
+                          url: `?subject=${activeSubject}&tab=revision&view=flashcards&mode=drill`,
+                          action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('flashcards'); setFlashcardMode('drill'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Statutory & Formula Derivation Quiz',
+                          url: `?subject=${activeSubject}&tab=revision&view=flashcards&mode=quiz`,
+                          action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('flashcards'); setFlashcardMode('quiz'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: activeSubject === 'setA' ? 'Case Law & Precedents Deck' : 'Theoretical Frameworks Deck',
+                          url: `?subject=${activeSubject}&tab=revision&view=frameworks`,
+                          action: () => { setShowLandingPage(false); setActiveTab('revision'); setRevisionSubView('frameworks'); setActiveLegalDoc(null); }
+                        }
                       ].map((item) => (
                         <li key={item.label}>
                           <button
                             type="button"
                             onClick={item.action}
-                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#9a7b24] dark:hover:text-[#C9A84C] font-semibold flex items-center justify-between group transition-colors cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#9a7b24] dark:hover:text-[#C9A84C] font-semibold flex flex-col gap-0.5 group transition-colors cursor-pointer"
                           >
-                            <span>{item.label}</span>
-                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                            <div className="flex items-center justify-between w-full">
+                              <span>{item.label}</span>
+                              <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate w-full">
+                              {item.url}
+                            </span>
                           </button>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  {/* Section 2: Practice, Mocks & Tools */}
+                  {/* Section 2: Practice, Mocks & Simulators */}
                   <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172e] space-y-2.5">
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <ClipboardList size={14} className="text-blue-500" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        2. Practice &amp; Mock Engines
+                        2. Practice, Mock &amp; Simulator Routes
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
                       {[
-                        { label: 'ICAI Case Scenarios Vault (80 Cases)', action: () => { setActiveTab('practice'); setPracticeSubTab('cases'); setActiveLegalDoc(null); } },
-                        { label: 'Standalone Topic-Wise MCQs', action: () => { setActiveTab('practice'); setPracticeSubTab('general'); setActiveLegalDoc(null); } },
-                        { label: 'Saved Questions Revision Vault', action: () => { setActiveTab('practice'); setPracticeSubTab('saved'); setActiveLegalDoc(null); } },
-                        { label: 'Timed SPOM Mock Exam Simulator', action: () => { setActiveTab('mock'); handleStartMockExam(); setActiveLegalDoc(null); } },
-                        { label: 'Global Study Scratchpad & PDF Export', action: () => { setShowGlobalNotepad(true); setActiveLegalDoc(null); } }
+                        {
+                          label: 'ICAI Case Scenarios Vault (80 Cases)',
+                          url: `?subject=${activeSubject}&tab=practice&subtab=cases`,
+                          action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('cases'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Standalone Chapter-Wise General MCQs',
+                          url: `?subject=${activeSubject}&tab=practice&subtab=general`,
+                          action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('general'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Saved Questions Revision Vault',
+                          url: `?subject=${activeSubject}&tab=practice&subtab=saved`,
+                          action: () => { setShowLandingPage(false); setActiveTab('practice'); setPracticeSubTab('saved'); setActiveLegalDoc(null); }
+                        },
+                        {
+                          label: 'Timed SPOM Mock Exam (10 / 15 / 25 Qs)',
+                          url: `?subject=${activeSubject}&tab=mock&pool=${totalMockQuestionsCount}`,
+                          action: () => { setShowLandingPage(false); setActiveTab('mock'); setActiveLegalDoc(null); }
+                        },
+                        ...(activeSubject === 'setA'
+                          ? [
+                              {
+                                label: 'CSR Applicability & Spend Calculator (Sec 135)',
+                                url: '?subject=setA&tab=sandbox&calc=csr',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('csr'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'Board Quotas & Audit Committee (Sec 149/177)',
+                                url: '?subject=setA&tab=sandbox&calc=board',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('board'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'Managerial Remuneration Ceilings (Sec 197)',
+                                url: '?subject=setA&tab=sandbox&calc=remuneration',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('remuneration'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'IBC CIRP Default & 330-Day Timeline (Sec 4/12)',
+                                url: '?subject=setA&tab=sandbox&calc=cirp',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('sandbox'); setSetACalcType('cirp'); setActiveLegalDoc(null); }
+                              }
+                            ]
+                          : [
+                              {
+                                label: 'Pareto 80/20 Vital Defect Graph (Case 32)',
+                                url: '?subject=setB&tab=sandbox&sim=pareto',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('pareto'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'TPM / OEE 6 Big Losses Calculator (Case 46)',
+                                url: '?subject=setB&tab=sandbox&sim=oee',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('oee'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'Airlines Relevant Costing Ledger (Case 9)',
+                                url: '?subject=setB&tab=sandbox&sim=relevant',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('relevant'); setActiveLegalDoc(null); }
+                              },
+                              {
+                                label: 'Target Costing & Waste Gap Explorer (Case 4)',
+                                url: '?subject=setB&tab=sandbox&sim=target',
+                                action: () => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('sandbox'); setSandboxType('target'); setActiveLegalDoc(null); }
+                              }
+                            ])
                       ].map((item) => (
                         <li key={item.label}>
                           <button
                             type="button"
                             onClick={item.action}
-                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center justify-between group transition-colors cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex flex-col gap-0.5 group transition-colors cursor-pointer"
                           >
-                            <span>{item.label}</span>
-                            <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                            <div className="flex items-center justify-between w-full">
+                              <span>{item.label}</span>
+                              <ChevronRight size={12} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate w-full">
+                              {item.url}
+                            </span>
                           </button>
                         </li>
                       ))}
@@ -2598,28 +3142,34 @@ export default function App() {
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                       <ShieldCheck size={14} className="text-emerald-500" />
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        3. Subjects &amp; Governance
+                        3. Subjects &amp; Governance Routes
                       </h4>
                     </div>
                     <ul className="space-y-1.5 text-xs">
                       <li>
                         <button
                           type="button"
-                          onClick={() => { setActiveSubject('setA'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
-                          className="w-full text-left py-1 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-between cursor-pointer"
+                          onClick={() => { setShowLandingPage(false); setActiveSubject('setA'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
+                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold flex flex-col gap-0.5 cursor-pointer"
                         >
-                          <span>SPOM Set A: Corporate &amp; Economic Laws</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950">14 Chaps</span>
+                          <div className="flex items-center justify-between w-full">
+                            <span>SPOM Set A: Corporate &amp; Economic Laws</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950">14 Chaps</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?subject=setA&amp;tab=dashboard</span>
                         </button>
                       </li>
                       <li>
                         <button
                           type="button"
-                          onClick={() => { setActiveSubject('setB'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
-                          className="w-full text-left py-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-[#C9A84C] font-bold flex items-center justify-between cursor-pointer"
+                          onClick={() => { setShowLandingPage(false); setActiveSubject('setB'); setActiveTab('dashboard'); setActiveLegalDoc(null); }}
+                          className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-[#C9A84C] font-bold flex flex-col gap-0.5 cursor-pointer"
                         >
-                          <span>SPOM Set B: Strategic Cost Management</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950">10 Chaps</span>
+                          <div className="flex items-center justify-between w-full">
+                            <span>SPOM Set B: Strategic Cost Management</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950">10 Chaps</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?subject=setB&amp;tab=dashboard</span>
                         </button>
                       </li>
                       {legalDocTabs.filter(t => t.id !== 'sitemap').map((doc) => (
@@ -2627,10 +3177,13 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setActiveLegalDoc(doc.id)}
-                            className="w-full text-left py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#C9A84C] font-semibold flex items-center justify-between cursor-pointer"
+                            className="w-full text-left py-1.5 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:text-[#C9A84C] font-semibold flex flex-col gap-0.5 cursor-pointer"
                           >
-                            <span>{doc.label}</span>
-                            <ChevronRight size={12} className="opacity-50" />
+                            <div className="flex items-center justify-between w-full">
+                              <span>{doc.label}</span>
+                              <ChevronRight size={12} className="opacity-50" />
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">?doc={doc.id}</span>
                           </button>
                         </li>
                       ))}
@@ -2638,73 +3191,104 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Active Subject Chapter Directory inside Sitemap */}
-                {currentChapters.length > 0 && (
-                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#111936] space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                        Active Syllabus Index — {activeSubject === 'setA' ? 'SPOM Set A (Corporate & Economic Laws)' : 'SPOM Set B (SCMPE)'} ({currentChapters.length} Chapters)
-                      </h4>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setActiveSubject('setA')}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
-                        >
-                          View Set A (14)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveSubject('setB')}
-                          className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setB' ? 'bg-[#C9A84C] text-slate-950' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
-                        >
-                          View Set B (10)
-                        </button>
+                {/* Complete 24-Chapter Deep-Link Sitemap Directory (Set A 14 Chapters & Set B 10 Chapters) */}
+                {(() => {
+                  const staticChapters = activeSubject === 'setA' ? SITEMAP_SET_A_CHAPTERS : SITEMAP_SET_B_CHAPTERS;
+                  return (
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#111936] space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                            Chapter-Level URL Sitemap Index — {activeSubject === 'setA' ? 'SPOM Set A: Corporate & Economic Laws (14 Chapters)' : 'SPOM Set B: Strategic Cost & Performance Management (10 Chapters)'}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Click any chapter action below to jump directly to its Revision Deck, Case Scenarios, or General MCQs and update the browser URL.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubject('setA')}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setA' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
+                          >
+                            Set A Laws (14 Chaps)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubject('setB')}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-black cursor-pointer ${activeSubject === 'setB' ? 'bg-[#C9A84C] text-slate-950' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
+                          >
+                            Set B SCMPE (10 Chaps)
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {staticChapters.map((chap) => (
+                          <div
+                            key={chap.id}
+                            className="p-3 rounded-xl bg-white dark:bg-[#0b1124] border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between gap-2.5 hover:border-[#C9A84C]/50 transition-all"
+                          >
+                            <div className="space-y-0.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono font-extrabold text-blue-600 dark:text-blue-400">
+                                  {chap.code}
+                                </span>
+                                <span className="text-[9px] font-mono text-slate-400 truncate">
+                                  ?subject={activeSubject}&amp;chapter={chap.id}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-snug block">
+                                {chap.title}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowLandingPage(false);
+                                  setSelectedRevisionChapterId(chap.id);
+                                  setRevisionSubView('study');
+                                  setActiveTab('revision');
+                                  setActiveLegalDoc(null);
+                                }}
+                                className="px-2 py-1 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 cursor-pointer"
+                                title={`?subject=${activeSubject}&tab=revision&view=study&chapter=${chap.id}`}
+                              >
+                                Revise Notes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowLandingPage(false);
+                                  handleOpenPracticeForChapter(chap.id, 'cases');
+                                  setActiveLegalDoc(null);
+                                }}
+                                className="px-2 py-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 cursor-pointer"
+                                title={`?subject=${activeSubject}&tab=practice&subtab=cases&chapter=${chap.id}`}
+                              >
+                                Practice Cases
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowLandingPage(false);
+                                  handleOpenPracticeForChapter(chap.id, 'general');
+                                  setActiveLegalDoc(null);
+                                }}
+                                className="px-2 py-1 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 cursor-pointer"
+                                title={`?subject=${activeSubject}&tab=practice&subtab=general&chapter=${chap.id}`}
+                              >
+                                General MCQs
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {currentChapters.map((chap, idx) => (
-                        <div
-                          key={chap.id}
-                          className="p-2.5 rounded-lg bg-white dark:bg-[#0b1124] border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <span className="text-[10px] font-mono font-bold text-slate-400 block">
-                              Chapter {idx + 1}
-                            </span>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate block" title={getPlainChapterName(chap.name)}>
-                              {getPlainChapterName(chap.name)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedRevisionChapterId(chap.id);
-                                setRevisionSubView('study');
-                                setActiveTab('revision');
-                                setActiveLegalDoc(null);
-                              }}
-                              className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 cursor-pointer"
-                            >
-                              Revise
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleOpenPracticeForChapter(chap.id);
-                                setActiveLegalDoc(null);
-                              }}
-                              className="px-2 py-1 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 cursor-pointer"
-                            >
-                              Practice
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
@@ -4656,6 +5240,16 @@ export default function App() {
 
               {/* Desktop Community & Feedback Pills (xl+) */}
               <div className="hidden xl:flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveLegalDoc('sitemap')}
+                  aria-label="Open Interactive Platform Site Map"
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-200 hover:text-[#C9A84C] rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0 select-none"
+                  title="Open Interactive Site Map & URL Directory"
+                >
+                  <FileText size={12} className="text-[#C9A84C] shrink-0" />
+                  <span>Site Map</span>
+                </button>
                 <a
                   href="https://forms.gle/PzWDLK1F3PsobrFL6"
                   target="_blank"
@@ -4789,6 +5383,17 @@ export default function App() {
                     <button
                       onClick={() => {
                         setShowProfileMenu(false);
+                        setActiveLegalDoc('sitemap');
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <FileText size={12} className="text-[#C9A84C]" />
+                      <span>Interactive Site Map</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
                         setShowLandingPage(true);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
@@ -4910,6 +5515,17 @@ export default function App() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileMenu(false);
+                setActiveLegalDoc('sitemap');
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs tracking-wide whitespace-nowrap transition-all cursor-pointer font-sans select-none shrink-0 flex items-center gap-1.5 bg-slate-900/80 text-[#C9A84C] hover:bg-slate-800 font-bold border border-[#C9A84C]/35"
+            >
+              <FileText size={12} className="text-[#C9A84C] shrink-0" />
+              <span>Site Map</span>
+            </button>
           </nav>
 
           {/* Expandable Mobile Drawer for Community, Feedback & Quick Links */}
@@ -4977,53 +5593,109 @@ export default function App() {
       {/* Main and Notepad Dual Structure */}
       <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto min-h-0 relative">
         <main className={`flex-1 flex flex-col p-4 sm:p-6 min-w-0 transition-all ${showGlobalNotepad ? 'lg:pr-3' : ''}`}>
+
+        {/* PERSISTENT GLOBAL SITEMAP & LIVE URL BREADCRUMB BAR (Visible Across All Internal Tabs) */}
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white/90 dark:bg-[#0c1228]/95 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/85 dark:border-[#1c243f] shadow-2xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none tracking-wide min-w-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className="inline-flex items-center gap-1.5 font-extrabold text-slate-800 dark:text-slate-200 hover:text-[#C9A84C] transition-colors cursor-pointer"
+            >
+              <LayoutDashboard size={13} className="text-[#C9A84C] shrink-0" />
+              <span>practACE</span>
+            </button>
+            <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 shrink-0" />
+            <button
+              type="button"
+              onClick={() => setActiveTab('dashboard')}
+              className={`font-black cursor-pointer hover:underline ${
+                activeSubject === 'setA' ? 'text-blue-600 dark:text-blue-400' : 'text-amber-700 dark:text-[#C9A84C]'
+              }`}
+            >
+              {activeSubject === 'setA' ? 'Set A (Laws)' : 'Set B (SCMPE)'}
+            </button>
+            <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 shrink-0" />
+            <span className="font-extrabold text-slate-900 dark:text-white">
+              {activeTab === 'dashboard' && 'Portal Dashboard'}
+              {activeTab === 'revision' && (
+                revisionSubView === 'study'
+                  ? `Revision Deck (${
+                      selectedRevisionChapterId === -1
+                        ? 'Full Syllabus'
+                        : selectedRevisionChapterId === -101
+                        ? 'Time Limits Chart'
+                        : selectedRevisionChapterId === -102
+                        ? 'Monetary Limits Chart'
+                        : `Ch ${activeSubject === 'setA' ? selectedRevisionChapterId - 100 : selectedRevisionChapterId}`
+                    })`
+                  : revisionSubView === 'flashcards'
+                  ? `Flashcards (${flashcardMode === 'quiz' ? 'Quiz Mode' : '3D Drill'})`
+                  : activeSubject === 'setA'
+                  ? `Case Law Deck (#${currentFrameworkCardIndex + 1})`
+                  : `Frameworks Deck (#${currentFrameworkCardIndex + 1})`
+              )}
+              {activeTab === 'practice' && (
+                practiceSubTab === 'cases'
+                  ? `Practice Cases (Ch ${activeSubject === 'setA' ? selectedChapterId - 100 : selectedChapterId} • ${selectedCaseId} • Q${currentQuestionIndex + 1})`
+                  : practiceSubTab === 'general'
+                  ? `Standalone MCQs (Ch ${activeSubject === 'setA' ? selectedChapterId - 100 : selectedChapterId} • Q${currentGeneralIndex + 1})`
+                  : `Saved Questions Vault (${activeSubjectBookmarksCount})`
+              )}
+              {activeTab === 'mock' && (
+                `Timed SPOM Mock (${totalMockQuestionsCount} Qs • ${!examStarted ? 'Setup' : examFinished ? 'Results' : `Q${currentMockIndex + 1}`})`
+              )}
+              {activeTab === 'sandbox' && (
+                activeSubject === 'setA'
+                  ? `Statutory Simulator (${setACalcType.toUpperCase()})`
+                  : `Costing Simulator (${sandboxType.toUpperCase()})`
+              )}
+            </span>
+            <span
+              onClick={handleCopyCurrentRouteUrl}
+              title="Click to copy live browser URL for this view"
+              className="hidden md:inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-[10px] font-mono text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:border-[#C9A84C] cursor-pointer max-w-[260px] truncate"
+            >
+              {copiedUrlBadge ? <Check size={10} className="text-emerald-500 shrink-0" /> : <Copy size={10} className="text-[#C9A84C] shrink-0" />}
+              <span className="truncate">{copiedUrlBadge ? 'URL Copied!' : currentSitemapSearch}</span>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLandingPage(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
+            >
+              <Sparkles size={12} className="text-[#C9A84C]" />
+              <span>Landing Page</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowGlobalNotepad((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
+            >
+              <StickyNote size={12} className="text-[#C9A84C]" />
+              <span>{showGlobalNotepad ? 'Hide Notepad' : 'Study Notepad'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveLegalDoc('sitemap')}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 transition-colors cursor-pointer"
+              title="Open Interactive Site Map & URL Directory"
+            >
+              <FileText size={12} />
+              <span>Site Map</span>
+            </button>
+          </div>
+        </div>
         
         {/* TAB 1: PORTAL DASHBOARD */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-fadeIn">
-            {/* Executive Breadcrumb & Quick-Action Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white/80 dark:bg-[#0c1228]/90 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 dark:border-[#1c243f] shadow-2xs">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none tracking-wide">
-                <span className="inline-flex items-center gap-1.5 font-extrabold text-slate-800 dark:text-slate-200">
-                  <LayoutDashboard size={13} className="text-[#C9A84C]" />
-                  <span>practACE Lounge</span>
-                </span>
-                <ChevronRight size={12} className="text-slate-400 dark:text-slate-600 font-bold" />
-                <span className={activeSubject === 'setA' ? "text-blue-600 dark:text-blue-400 font-black" : "text-amber-700 dark:text-[#C9A84C] font-black"}>
-                  {activeSubject === 'setA' ? "Corporate and Economic Laws (Set A)" : "Strategic Cost Management (SCMPE - Set B)"}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLandingPage(true);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
-                >
-                  <Sparkles size={12} className="text-[#C9A84C]" />
-                  <span>Landing Page</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowGlobalNotepad((prev) => !prev)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
-                >
-                  <StickyNote size={12} className="text-[#C9A84C]" />
-                  <span>{showGlobalNotepad ? 'Hide Notepad' : 'Study Notepad'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveLegalDoc('sitemap')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#021027] text-[#C9A84C] border border-[#C9A84C]/40 hover:bg-slate-900 transition-colors cursor-pointer"
-                >
-                  <FileText size={12} />
-                  <span>Site Map</span>
-                </button>
-              </div>
-            </div>
 
             {/* Main Subject Prep Header - Executive Panel with Gilded Top Accent */}
             <div className="bg-white text-slate-800 dark:bg-[#0c1228] dark:text-white border border-slate-200/90 dark:border-[#C9A84C]/30 rounded-2xl p-6 shadow-md transition-all duration-200 relative overflow-hidden">
@@ -8713,7 +9385,10 @@ export default function App() {
                 </div>
 
                 <Suspense fallback={<div className="h-48 rounded-2xl bg-slate-100 dark:bg-slate-900 animate-pulse" />}>
-                  <SetALegalCalculators />
+                  <SetALegalCalculators
+                    activeCalculator={setACalcType}
+                    onCalculatorChange={(calc) => setSetACalcType(calc)}
+                  />
                 </Suspense>
               </div>
             ) : (
