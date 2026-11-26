@@ -3129,10 +3129,20 @@ export default function App() {
 
     const handleLaunchFromLanding = (
       targetTab: 'dashboard' | 'revision' | 'practice' | 'mock' | 'sandbox' = 'dashboard',
-      targetSubject?: 'setA' | 'setB'
+      targetSubject?: 'setA' | 'setB',
+      options?: {
+        revisionView?: 'study' | 'flashcards' | 'frameworks';
+        practiceView?: 'cases' | 'general' | 'saved';
+      }
     ) => {
       if (targetSubject) {
         setActiveSubject(targetSubject);
+      }
+      if (options?.revisionView) {
+        setRevisionSubView(options.revisionView);
+      }
+      if (options?.practiceView) {
+        setPracticeSubTab(options.practiceView);
       }
       if (currentUser && !isPasswordRecovery && !isAuthErrorGate) {
         setActiveTab(targetTab);
@@ -3142,6 +3152,8 @@ export default function App() {
         scrollToAuthPortal('signup');
       }
     };
+
+    const openAppWorkspaceFromLanding = handleLaunchFromLanding;
 
     return (
       <div
