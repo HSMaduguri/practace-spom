@@ -176,10 +176,27 @@ export default function App() {
   const [isGoogleProviderEnabled, setIsGoogleProviderEnabled] = useState<boolean>(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [landingCurriculumTab, setLandingCurriculumTab] = useState<'setA' | 'setB'>('setA');
+  const [openFaqIdx, setOpenFaqIdx] = useState<number | null>(0);
   const [activeLegalDoc, setActiveLegalDoc] = useState<
     'sitemap' | 'security' | 'privacy' | 'terms' | 'disclaimer' | 'cookies' | null
   >(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const authPortalRef = useRef<HTMLDivElement>(null);
+
+  const scrollToAuthPortal = (mode?: 'signin' | 'signup' | 'forgot') => {
+    if (mode) {
+      setAuthMode(mode);
+      setAuthError(null);
+      setAuthMessage(null);
+    }
+    if (authPortalRef.current) {
+      authPortalRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1174,6 +1191,8 @@ export default function App() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           setAuthError(error.message || 'Invalid email or password.');
+        } else {
+          setShowLandingPage(false);
         }
       } else {
         const redirectTo = `${window.location.origin}${window.location.pathname}`;
@@ -1193,6 +1212,8 @@ export default function App() {
           );
           setAuthMode('signin');
           setPasswordInput('');
+        } else {
+          setShowLandingPage(false);
         }
       }
     } catch (error: any) {
@@ -2943,498 +2964,1267 @@ export default function App() {
     );
   }
 
-  if (!currentUser || isPasswordRecovery || isAuthErrorGate) {
+  if (!currentUser || isPasswordRecovery || isAuthErrorGate || showLandingPage) {
+    const landingSetAModules = [
+      {
+        code: 'Part I • Ch 1',
+        title: 'Appointment & Qualifications of Directors',
+        highlights: 'DIN, Independent Directors, Woman Director, Rotational vs. Non-Rotational, Disqualifications (Sec 149–172)'
+      },
+      {
+        code: 'Part I • Ch 2',
+        title: 'Appointment & Remuneration of Managerial Personnel',
+        highlights: 'MD/WTD/Manager, Schedule V ceilings, KMP mandates, Managerial Remuneration limits (Sec 196–205)'
+      },
+      {
+        code: 'Part I • Ch 3',
+        title: 'Meetings of Board & Its Powers',
+        highlights: 'Quorum, Video Conferencing, Audit/NRC/SRC Committees, Loan & Investment thresholds, Related Party (Sec 173–195)'
+      },
+      {
+        code: 'Part I • Ch 4–5',
+        title: 'Inspection, Inquiry, Investigation & Compromises',
+        highlights: 'SFIO Investigation, Search & Seizure, NCLT Schemes of Arrangement, Fast-Track Mergers & Cross-Border (Sec 206–240)'
+      },
+      {
+        code: 'Part I • Ch 6–9',
+        title: 'Oppression, Mismanagement, Winding Up & Producer Cos.',
+        highlights: 'Class Action Suits (Sec 241–246), Compulsory Winding Up, Foreign Companies, Strike Off, Valuers & Nidhi Rules'
+      },
+      {
+        code: 'Part II • Ch 1',
+        title: 'SEBI Act, 1992 & SEBI (LODR) Regulations, 2015',
+        highlights: 'Insider Trading penalties, Board Composition, Quarterly/Annual Compliance Timelines & Material Subsidiary Rules'
+      },
+      {
+        code: 'Part III • Ch 1',
+        title: 'Foreign Exchange Management Act (FEMA), 1999',
+        highlights: 'Residential Status, LRS USD 2,50,000 Schedule I/II/III Current Account Rules, ODI/ECB & Compounding'
+      },
+      {
+        code: 'Part III • Ch 2',
+        title: 'Foreign Contribution (Regulation) Act (FCRA), 2010',
+        highlights: 'Prohibited Persons (Sec 3), 20% Administrative Expense Cap, FCRA Designated SBI Account & 5-Year Renewal'
+      },
+      {
+        code: 'Part III • Ch 3',
+        title: 'Insolvency and Bankruptcy Code (IBC), 2016',
+        highlights: 'Rs. 1 Crore Default Threshold, 180/270/330-Day CIRP Timeline, CoC 66% Voting, Sec 29A Ineligibility & Waterfall (Sec 53)'
+      }
+    ];
+
+    const landingSetBModules = [
+      {
+        code: 'Module 01',
+        title: 'Introduction to Strategic Cost Management',
+        highlights: 'Value Chain Analysis (Porter), Strategic Positioning (Cost Leadership vs. Differentiation) & Value Shop Model'
+      },
+      {
+        code: 'Module 02',
+        title: 'Modern Business Environment & Cost of Quality',
+        highlights: 'PAF Model (Prevention, Appraisal, Internal/External Failure), TQM, Theory of Constraints & Supply Chain'
+      },
+      {
+        code: 'Module 03',
+        title: 'Lean System & Innovation (JIT, TPM, OEE, Six Sigma)',
+        highlights: 'Nakajima OEE (Availability × Performance × Quality), 6 Big Losses, Kaizen, 5S, Kanban & DMAIC/DMADV'
+      },
+      {
+        code: 'Module 04',
+        title: 'Specialist Cost Management Techniques',
+        highlights: 'Target Costing & Value Engineering, Life Cycle Costing, Throughput Accounting Ratio (TPAR) & Environmental EMA'
+      },
+      {
+        code: 'Module 05–06',
+        title: 'Decision Making & Relevant Costing Analysis',
+        highlights: 'Make-or-Buy, Shut Down vs. Continue, Minimum Pricing, Limiting Factor, Incremental Contribution & Sunk Cost Traps'
+      },
+      {
+        code: 'Module 07',
+        title: 'Pricing Decisions & Strategic Pricing Models',
+        highlights: 'Skimming vs. Penetration, Pareto 80/20 Profit Analysis, Price Elasticity, Sealed Bid & Life-Cycle Pricing'
+      },
+      {
+        code: 'Module 08',
+        title: 'Performance Evaluation & Balanced Scorecard',
+        highlights: 'Kaplan & Norton 4 Perspectives, Fitzgerald & Moon Building Blocks, Performance Pyramid, EVA & Triple Bottom Line'
+      },
+      {
+        code: 'Module 09',
+        title: 'Divisional Transfer Pricing',
+        highlights: 'Minimum (Variable Cost + Opportunity Cost) vs. Maximum Transfer Price, Dual Rate, International Tax & Goal Congruence'
+      },
+      {
+        code: 'Module 10–12',
+        title: 'Strategic Operating Income, Budgetary & Standard Costing',
+        highlights: 'Growth/Price-Recovery/Productivity Components, ABB/ZBB, Planning vs. Operational Variances & Market Size/Share'
+      }
+    ];
+
+    const practPillars = [
+      {
+        letter: 'P',
+        word: 'Plan',
+        title: 'Telemetry-Driven Study Planning',
+        desc: 'Map every chapter of SPOM Set A (Laws) and Set B (SCMPE) with live Solved vs. Pending question tracking, completion rings, and high-weightage statutory priority guides.',
+        icon: LayoutDashboard,
+        badge: 'Dashboard Telemetry'
+      },
+      {
+        letter: 'R',
+        word: 'Revise',
+        title: 'Crux Bulletins, Formula Books & 3D Flashcards',
+        desc: 'Condense bulky ICAI modules into high-retention chapter summaries, statutory time/penalty charts, 220+ 3D spaced-repetition flashcards, and downloadable A4 PDF decks.',
+        icon: BookOpen,
+        badge: 'Revision Deck'
+      },
+      {
+        letter: 'A',
+        word: 'Analyse',
+        title: 'Live Costing & Statutory Compliance Simulators',
+        desc: 'Run interactive what-if simulations on OEE 6 Big Losses, Pareto 80/20 curves, Airline Relevant Costing, Target Costing, and Companies Act / FEMA / IBC threshold calculators.',
+        icon: Calculator,
+        badge: '9 Live Simulators'
+      },
+      {
+        letter: 'C',
+        word: 'Correct',
+        title: 'Examiner Trap Alerts & Step-by-Step Reconciliations',
+        desc: 'Eliminate conceptual blind spots with instant option validation, statutory section & proviso reconciliations, and amber Examiner Trap callouts on every question.',
+        icon: ShieldCheck,
+        badge: 'Mistake Remediation'
+      },
+      {
+        letter: 'T',
+        word: 'Track',
+        title: '25-Min CBT Mock Exams, Saved Vault & Cloud Sync',
+        desc: 'Simulate real ICAI CBT exam pressure with timed mock assessments, bookmark tricky MCQs into your Saved Vault, and sync progress automatically across all devices.',
+        icon: Trophy,
+        badge: 'Real-Time Cloud Sync'
+      }
+    ];
+
+    const landingFaqs = [
+      {
+        q: 'What is included in practACE for CA Final SPOM?',
+        a: 'practACE is a dual-subject study and testing suite covering both ICAI CA Final Self-Paced Online Modules: Set A (Corporate and Economic Laws) and Set B (Strategic Cost and Performance Management). It includes multi-question case scenarios, standalone general MCQs, chapter crux notes, formula books, 3D flashcards, 9 interactive simulators, a 25-minute CBT mock exam simulator, and one-click PDF exports.'
+      },
+      {
+        q: 'How does the P-R-A-C-T (Plan Revise Analyse Correct Track) workflow help clear SPOM?',
+        a: 'ICAI SPOM exams test application-based 2-mark case scenarios where subtle statutory provisos or sunk-cost traps decide the answer. practACE structures your preparation into 5 steps: Plan your chapters via dashboard telemetry, Revise crux notes & statutory limits, Analyse numericals with live simulators, Correct mistakes using Examiner Trap warnings, and Track readiness with timed mocks.'
+      },
+      {
+        q: 'Is my study progress saved across my laptop, tablet, and phone?',
+        a: 'Yes. Once you sign in with your student account, every solved MCQ, flashcard confidence rating (Known vs. Learning), bookmarked question in your Saved Vault, and personal Study Notepad annotation is automatically backed up and synchronized in real time via Supabase Cloud.'
+      },
+      {
+        q: 'Can I download study notes and case scenarios as PDFs for offline revision?',
+        a: 'Absolutely. You can export individual Case Scenarios (complete with questions, reconciliations, and your personal sticky notes) or generate a full-syllabus Revision & Formula Compendium PDF with a single click.'
+      },
+      {
+        q: 'Is practACE affiliated with ICAI?',
+        a: 'practACE is an independent educational study companion built specifically for CA Final students preparing for the ICAI Self-Paced Online Modules (SPOM). It is not officially affiliated with or endorsed by the Institute of Chartered Accountants of India (ICAI).'
+      }
+    ];
+
+    const handleLaunchFromLanding = (
+      targetTab: 'dashboard' | 'revision' | 'practice' | 'mock' | 'sandbox' = 'dashboard',
+      targetSubject?: 'setA' | 'setB'
+    ) => {
+      if (targetSubject) {
+        setActiveSubject(targetSubject);
+      }
+      if (currentUser && !isPasswordRecovery && !isAuthErrorGate) {
+        setActiveTab(targetTab);
+        setShowLandingPage(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        scrollToAuthPortal('signup');
+      }
+    };
+
     return (
       <div
         onContextMenu={(e) => e.preventDefault()}
         className={`min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased transition-all duration-200 ${theme === 'dark' ? 'dark bg-[#070b19] text-[#e2e8f0]' : ''}`}
       >
-        {/* Sign-In Header */}
-        <header className="bg-[#021027] border-b border-[#C9A84C]/30 text-white shadow-md z-30 px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0 flex items-center justify-center">
-              <img
-                src={practAceLogoImg}
-                alt="practACE — Plan Revise Analyse Correct Track"
-                width={386}
-                height={100}
-                fetchPriority="high"
-                decoding="sync"
-                className="h-[42px] sm:h-[48px] w-auto object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3">
-              <span className="text-xs font-extrabold text-slate-200 tracking-wide">
-                pract<span className="text-[#C9A84C]">ACE</span> — CA Final SPOM Set A &amp; Set B Suite
-              </span>
-              <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest">
-                Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <a
-              href="https://www.linkedin.com/company/pract-ace/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Follow practACE on LinkedIn"
-              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0"
-              title="Follow practACE on LinkedIn"
-            >
-              <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400" />
-              <span className="hidden md:inline">LinkedIn</span>
-            </a>
-            <a
-              href="https://discord.gg/buecjd45u"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Join practACE Discord Community"
-              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0"
-              title="Join practACE Discord Community"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-                className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400"
+        {/* Sticky Executive Landing Navbar */}
+        <header className="sticky top-0 bg-[#021027]/95 backdrop-blur-md border-b border-[#C9A84C]/30 text-white shadow-lg z-40 px-4 sm:px-6 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <a
+                href="#top"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex-shrink-0 flex items-center justify-center cursor-pointer"
               >
-                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              <span className="hidden md:inline">Discord</span>
-            </a>
-            <a
-              href="https://forms.gle/PzWDLK1F3PsobrFL6"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Share practACE Feedback"
-              className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#C9A84C]/20 text-slate-300 hover:text-amber-300 rounded-full transition-all border border-slate-700 hover:border-[#C9A84C]/60 text-xs font-bold whitespace-nowrap cursor-pointer shrink-0"
-              title="Share Feedback on practACE"
-            >
-              <MessageSquare size={13} className="text-[#C9A84C] shrink-0" />
-              <span>Feedback</span>
-            </a>
-            <button
-              onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
-              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 cursor-pointer shrink-0"
-            >
-              {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
-            </button>
+                <img
+                  src={practAceLogoImg}
+                  alt="practACE — Plan Revise Analyse Correct Track"
+                  width={386}
+                  height={100}
+                  fetchPriority="high"
+                  decoding="sync"
+                  className="h-[42px] sm:h-[48px] w-auto object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </a>
+              <div className="hidden sm:flex flex-col text-left border-l border-slate-800 pl-3">
+                <span className="text-xs font-extrabold text-slate-100 tracking-wide">
+                  pract<span className="text-[#C9A84C]">ACE</span> — CA Final SPOM Set A &amp; Set B Suite
+                </span>
+                <span className="text-[10px] uppercase text-[#C9A84C] font-extrabold tracking-widest">
+                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                </span>
+              </div>
+            </div>
+
+            {/* Landing Section Anchor Links */}
+            <nav className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-3 py-1.5 text-xs font-bold text-slate-300">
+              <a href="#pract-method" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+                P-R-A-C-T Method
+              </a>
+              <a href="#spom-curriculum" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+                Set A &amp; Set B Syllabus
+              </a>
+              <a href="#live-simulators" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+                Simulators &amp; Tools
+              </a>
+              <a href="#landing-faq" className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors">
+                FAQ
+              </a>
+              <button
+                type="button"
+                onClick={() => setActiveLegalDoc('sitemap')}
+                className="px-2.5 py-1 rounded-full hover:text-[#C9A84C] hover:bg-slate-800/70 transition-colors cursor-pointer"
+              >
+                Site Map
+              </button>
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <a
+                href="https://www.linkedin.com/company/pract-ace/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Follow practACE on LinkedIn"
+                className="hidden md:flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#0A66C2]/20 text-slate-300 hover:text-sky-300 rounded-full transition-all border border-slate-700 hover:border-[#0A66C2]/60 text-xs font-bold cursor-pointer shrink-0"
+                title="Follow practACE on LinkedIn"
+              >
+                <Linkedin size={13} className="text-[#0A66C2] dark:text-sky-400" />
+                <span className="hidden xl:inline">LinkedIn</span>
+              </a>
+              <a
+                href="https://discord.gg/buecjd45u"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Join practACE Discord Community"
+                className="hidden md:flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-[#5865F2]/25 text-slate-300 hover:text-indigo-300 rounded-full transition-all border border-slate-700 hover:border-[#5865F2]/60 text-xs font-bold cursor-pointer shrink-0"
+                title="Join practACE Discord Community"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  className="w-3.5 h-3.5 text-[#5865F2] dark:text-indigo-400"
+                >
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                </svg>
+                <span className="hidden xl:inline">Discord</span>
+              </a>
+              <button
+                onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
+                aria-label={theme === 'light' ? 'Toggle Theme to Dark Mode' : 'Toggle Theme to Light Mode'}
+                title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-all border border-slate-700 cursor-pointer shrink-0"
+              >
+                {theme === 'light' ? <Moon size={14} className="text-sky-400" /> : <Sun size={14} className="text-[#C9A84C]" />}
+              </button>
+
+              {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLandingPage(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 flex items-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <span>Open Dashboard</span>
+                  <ArrowRight size={13} />
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scrollToAuthPortal('signin')}
+                    className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToAuthPortal('signup')}
+                    className="hidden sm:inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-xs font-black uppercase tracking-wider shadow-md shadow-[#C9A84C]/20 cursor-pointer transition-all"
+                  >
+                    <span>Get Started</span>
+                    <ArrowRight size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        {/* Centered Mandatory Sign-In Gate */}
-        <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
-          <div className="w-full max-w-2xl bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl overflow-hidden">
-            {/* Top Executive Navy Hero Strip */}
-            <div className="bg-[#021027] px-6 sm:px-8 py-6 border-b border-[#C9A84C]/30 relative">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
-              <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                <div className="p-3 rounded-2xl bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] shrink-0">
-                  <Lock size={28} />
-                </div>
-                <div className="space-y-1">
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#C9A84C]">
-                    <ShieldCheck size={12} />
-                    <span>Student Account Required</span>
+        <main id="top" className="flex-1">
+          {/* HERO SECTION: 2-Column Split (Brand Value Proposition Left + Interactive Auth / Launch Portal Right) */}
+          <section className="relative overflow-hidden py-10 sm:py-16 lg:py-20 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+              {/* Left Column: Hero Pitch, Motto & Live Metrics (7 Cols) */}
+              <div className="lg:col-span-7 space-y-6 text-left pt-2">
+                <div className="inline-flex flex-wrap items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#021027] text-white border border-[#C9A84C]/40 shadow-sm">
+                  <Sparkles size={13} className="text-[#C9A84C] shrink-0" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#C9A84C]">
+                    ICAI CA Final SPOM Companion
                   </span>
-                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                    {isPasswordRecovery
-                      ? 'Set a New practACE Password'
-                      : authMode === 'forgot'
-                        ? 'Reset Your practACE Password'
-                        : 'Sign In to Access practACE & Save Your Progress'}
+                  <span className="text-slate-500">•</span>
+                  <span className="text-[11px] font-bold text-slate-200">
+                    Set A (Laws) &amp; Set B (SCMPE)
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
+                      pract<span className="text-[#C9A84C]">ACE</span>
+                    </span>
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-[0.22em] text-[#9a7b24] dark:text-[#C9A84C]">
+                      Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                    </span>
+                  </div>
+
+                  <h1 className="text-2xl sm:text-4xl lg:text-[40px] font-black text-slate-900 dark:text-white tracking-tight leading-[1.15]">
+                    Conquer CA Final SPOM{' '}
+                    <span className="text-blue-600 dark:text-blue-400">Set A (Corporate Laws)</span> &amp;{' '}
+                    <span className="text-[#9a7b24] dark:text-[#C9A84C]">Set B (SCMPE)</span> in One Unified Workspace.
                   </h1>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Sign in with your student email to unlock <strong className="text-blue-400">SPOM Set A (Laws)</strong> &amp; <strong className="text-[#C9A84C]">Set B (SCMPE)</strong> and automatically back up every solved MCQ, flashcard rating, and note.
+
+                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
+                    Built specifically for the ICAI Self-Paced Online Modules CBT format. Practise 2-mark integrated case scenarios, drill standalone statutory &amp; costing MCQs, test numerical sensitivity on 9 live simulators, and benchmark your speed with timed 25-minute mock exams.
                   </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Body: Benefits & Sign-In Action */}
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-black text-slate-900 dark:text-white">Cloud Progress Tracking</p>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                      Sync Solved vs. Pending MCQs, case completions &amp; accuracy across all devices.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <BookmarkCheck size={16} className="text-[#C9A84C] shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-black text-slate-900 dark:text-white">Saved Questions Vault</p>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                      Bookmark tricky statutory &amp; case MCQs for targeted last-minute revision.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <StickyNote size={16} className="text-sky-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-black text-slate-900 dark:text-white">Persistent Study Notes</p>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                      Preserve case annotations and global scratchpad formulas in your account.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
-                  <BarChart2 size={16} className="text-indigo-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-black text-slate-900 dark:text-white">Flashcards &amp; Mock Readiness</p>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-                      Retain Known/Learning ratings across 220+ statutory &amp; SCMPE cards.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {!isSupabaseConfigured && (
-                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
-                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                  <span>
-                    Supabase configuration is missing in this environment. Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before signing in.
-                  </span>
-                </div>
-              )}
-
-              {authMessage && (
-                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
-                  <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
-                  <span>{authMessage}</span>
-                </div>
-              )}
-
-              {authError && (
-                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700/60 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
-                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                  <span>{authError}</span>
-                </div>
-              )}
-
-              <div className="space-y-4 pt-1">
-                <div className="rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-                  {isPasswordRecovery ? (
+                {/* Primary Hero CTAs */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
                     <>
-                      <div className="space-y-1 text-left">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-white">
-                          Create a New Password
-                        </h2>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                          Enter a strong password (at least 8 characters with uppercase, lowercase, number &amp; special symbol) to secure your practACE account.
-                        </p>
-                      </div>
-
-                      <form onSubmit={handleUpdatePassword} className="space-y-2.5 text-left">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                            New Password
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            minLength={8}
-                            autoComplete="new-password"
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                            placeholder="Min 8 chars (A-Z, a-z, 0-9 & symbol)"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                            Confirm New Password
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            minLength={8}
-                            autoComplete="new-password"
-                            value={confirmPasswordInput}
-                            onChange={(e) => setConfirmPasswordInput(e.target.value)}
-                            placeholder="Re-enter your new password"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isSigningIn || !isSupabaseConfigured}
-                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
-                        >
-                          {isSigningIn ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                              <span>Updating password...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lock size={16} />
-                              <span>Update Password</span>
-                              <ArrowRight size={15} />
-                            </>
-                          )}
-                        </button>
-                      </form>
-
                       <button
                         type="button"
-                        onClick={handleCancelPasswordRecovery}
-                        disabled={isSigningIn}
-                        className="w-full py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                        onClick={() => handleLaunchFromLanding('dashboard')}
+                        className="px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
                       >
-                        {currentUser ? 'Cancel & Return to Dashboard' : 'Cancel & Back to Sign In'}
+                        <LayoutDashboard size={17} />
+                        <span>Launch Study Dashboard</span>
+                        <ArrowRight size={16} />
                       </button>
-                    </>
-                  ) : authMode === 'forgot' ? (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthMode('signin');
-                            setIsAuthErrorGate(false);
-                            setAuthError(null);
-                            setAuthMessage(null);
-                          }}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-                        >
-                          <ChevronLeft size={14} />
-                          <span>Back to Sign In</span>
-                        </button>
-                      </div>
-
-                      <div className="space-y-1 text-left">
-                        <h2 className="text-sm font-black text-slate-900 dark:text-white">
-                          Reset Your Password
-                        </h2>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                          Enter your registered student email address and we&apos;ll send you a link to set a new password.
-                        </p>
-                      </div>
-
-                      <form onSubmit={handlePasswordResetRequest} className="space-y-2.5 text-left">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                            Email Address
-                          </label>
-                          <input
-                            type="email"
-                            required
-                            autoComplete="email"
-                            value={emailInput}
-                            onChange={(e) => setEmailInput(e.target.value)}
-                            placeholder="student@example.com"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isSigningIn || !isSupabaseConfigured}
-                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
-                        >
-                          {isSigningIn ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                              <span>Sending reset link...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail size={16} />
-                              <span>Send Reset Link</span>
-                              <ArrowRight size={15} />
-                            </>
-                          )}
-                        </button>
-                      </form>
-
-                      <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800 text-left space-y-2">
-                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                          Link not opening on your device? Paste the email reset link or 6-digit recovery code here:
-                        </p>
-                        <form onSubmit={handleManualRecoveryVerify} className="flex flex-col sm:flex-row gap-2">
-                          <input
-                            type="text"
-                            value={recoveryLinkOrCodeInput}
-                            onChange={(e) => setRecoveryLinkOrCodeInput(e.target.value)}
-                            placeholder="Paste email reset link URL or 6-digit code"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isSigningIn || !isSupabaseConfigured || !recoveryLinkOrCodeInput.trim()}
-                            className="px-3.5 py-2 rounded-lg bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-[#C9A84C] border border-[#C9A84C]/40 text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors"
-                          >
-                            Verify Link / Code
-                          </button>
-                        </form>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleLaunchFromLanding('practice', 'setA')}
+                        className="px-5 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-black uppercase tracking-wider shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                      >
+                        <Scale size={16} />
+                        <span>Practise Set A (Laws)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLaunchFromLanding('practice', 'setB')}
+                        className="px-5 py-3.5 rounded-xl bg-[#021027] hover:bg-slate-800 text-[#C9A84C] border border-[#C9A84C]/40 text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all"
+                      >
+                        <Calculator size={16} />
+                        <span>Practise Set B (SCMPE)</span>
+                      </button>
                     </>
                   ) : (
                     <>
-                      <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 dark:bg-[#070b19] p-1 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthMode('signin');
-                            setAuthError(null);
-                            setAuthMessage(null);
-                          }}
-                          className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
-                            authMode === 'signin'
-                              ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          Sign In
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthMode('signup');
-                            setAuthError(null);
-                            setAuthMessage(null);
-                          }}
-                          className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
-                            authMode === 'signup'
-                              ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          Create Account
-                        </button>
-                      </div>
-
-                      <form onSubmit={handleEmailAuth} className="space-y-2.5 text-left">
-                        {authMode === 'signup' && (
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                              Full Name
-                            </label>
-                            <input
-                              type="text"
-                              value={fullNameInput}
-                              onChange={(e) => setFullNameInput(e.target.value)}
-                              placeholder="e.g. Ananya Sharma"
-                              disabled={isSigningIn || !isSupabaseConfigured}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                            Email Address
-                          </label>
-                          <input
-                            type="email"
-                            required
-                            autoComplete="email"
-                            value={emailInput}
-                            onChange={(e) => setEmailInput(e.target.value)}
-                            placeholder="student@example.com"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                              Password
-                            </label>
-                            {authMode === 'signin' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAuthMode('forgot');
-                                  setAuthError(null);
-                                  setAuthMessage(null);
-                                  setPasswordInput('');
-                                }}
-                                className="text-[11px] font-bold text-[#9a7b24] dark:text-[#C9A84C] hover:underline cursor-pointer"
-                              >
-                                Forgot password?
-                              </button>
-                            )}
-                          </div>
-                          <input
-                            type="password"
-                            required
-                            minLength={6}
-                            autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
-                            value={passwordInput}
-                            onChange={(e) => setPasswordInput(e.target.value)}
-                            placeholder="Minimum 6 characters"
-                            disabled={isSigningIn || !isSupabaseConfigured}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          disabled={isSigningIn || !isSupabaseConfigured}
-                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
-                        >
-                          {isSigningIn ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                              <span>Signing in...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Mail size={16} />
-                              <span>{authMode === 'signin' ? 'Sign In with Email' : 'Create Student Account'}</span>
-                              <ArrowRight size={15} />
-                            </>
-                          )}
-                        </button>
-                      </form>
+                      <button
+                        type="button"
+                        onClick={() => scrollToAuthPortal('signup')}
+                        className="px-6 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
+                      >
+                        <span>Start Practising Free</span>
+                        <ArrowRight size={16} />
+                      </button>
+                      <a
+                        href="#spom-curriculum"
+                        className="px-5 py-3.5 rounded-xl bg-white dark:bg-[#0c1228] hover:bg-slate-100 dark:hover:bg-[#141d3b] text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-sm font-bold flex items-center gap-2 transition-colors"
+                      >
+                        <BookOpen size={16} className="text-[#C9A84C]" />
+                        <span>Explore Set A &amp; Set B Syllabus</span>
+                      </a>
                     </>
                   )}
                 </div>
 
-                {isGoogleProviderEnabled && !isPasswordRecovery && authMode !== 'forgot' && (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        or continue with
-                      </span>
-                      <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                {/* 4 Key Curriculum Metric Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3">
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                    <div className="text-lg sm:text-xl font-black text-blue-600 dark:text-blue-400">Set A + Set B</div>
+                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">22 Core Modules</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Laws &amp; SCMPE Full Syllabus</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                    <div className="text-lg sm:text-xl font-black text-[#9a7b24] dark:text-[#C9A84C]">115+ Cases</div>
+                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">&amp; General MCQs</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">With Examiner Trap Warnings</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                    <div className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">220+ Cards</div>
+                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">3D Active Recall</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Flashcards &amp; Formula Quizzes</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+                    <div className="text-lg sm:text-xl font-black text-indigo-600 dark:text-indigo-400">9 Simulators</div>
+                    <div className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 mt-0.5">+ 25-Min CBT Mock</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Live Sensitivity &amp; Cloud Sync</div>
+                  </div>
+                </div>
+
+                {/* Highlights Checklist Strip */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>Real-time Cloud Sync across laptop, tablet &amp; mobile</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>Statutory Time-Limit &amp; Monetary Penalty Visualizers</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>One-Click A4 PDF Export for Cases &amp; Revision Decks</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>Saved Questions Vault &amp; Persistent Study Notepad</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Embedded Authentication / Quick-Launch Portal (5 Cols) */}
+              <div id="landing-auth-portal" ref={authPortalRef} className="lg:col-span-5 w-full">
+                <div className="w-full bg-white dark:bg-[#0c1228] rounded-2xl border border-slate-200 dark:border-[#C9A84C]/40 shadow-2xl overflow-hidden">
+                  {/* Top Executive Navy Hero Strip */}
+                  <div className="bg-[#021027] px-6 py-5 border-b border-[#C9A84C]/30 relative">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#C9A84C] via-amber-300 to-blue-500" />
+                    <div className="flex items-center gap-3.5 text-left">
+                      <div className="p-2.5 rounded-xl bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[#C9A84C] shrink-0">
+                        {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
+                          <ShieldCheck size={24} />
+                        ) : (
+                          <Lock size={24} />
+                        )}
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#C9A84C]">
+                          <ShieldCheck size={11} />
+                          <span>
+                            {currentUser && !isPasswordRecovery && !isAuthErrorGate
+                              ? 'Active Student Session'
+                              : 'Student Portal Access'}
+                          </span>
+                        </span>
+                        <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                          {isPasswordRecovery
+                            ? 'Set a New practACE Password'
+                            : authMode === 'forgot'
+                              ? 'Reset Your practACE Password'
+                              : currentUser && !isAuthErrorGate
+                                ? `Welcome back, ${currentUser.displayName || currentUser.email.split('@')[0] || 'Student'}`
+                                : authMode === 'signup'
+                                  ? 'Create Your Free Student Account'
+                                  : 'Sign In to practACE'}
+                        </h2>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Body: Signed-In Quick Launcher OR Sign-In/Sign-Up/Recovery Form */}
+                  <div className="p-5 sm:p-6 space-y-4">
+                    {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
+                      <div className="space-y-4 text-left">
+                        <div className="p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                              {currentUser.email}
+                            </p>
+                            <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                              Cloud Sync Active • All Progress Backed Up
+                            </p>
+                          </div>
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Jump Directly Into a Study Workspace:
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchFromLanding('dashboard', 'setA')}
+                              className="p-3 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 hover:bg-blue-100/80 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800/60 text-left transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-blue-700 dark:text-blue-300">Set A • Laws</span>
+                                <Scale size={14} className="text-blue-600 dark:text-blue-400" />
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">
+                                Companies Act, SEBI, FEMA, FCRA &amp; IBC
+                              </p>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchFromLanding('dashboard', 'setB')}
+                              className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 hover:bg-amber-100/80 dark:hover:bg-amber-900/35 border border-amber-200 dark:border-[#C9A84C]/40 text-left transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-amber-800 dark:text-[#C9A84C]">Set B • SCMPE</span>
+                                <Calculator size={14} className="text-amber-700 dark:text-[#C9A84C]" />
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1">
+                                Strategic Costing, Lean, OEE &amp; Transfer Pricing
+                              </p>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleLaunchFromLanding('revision')}
+                            className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-[#111936] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <BookOpen size={14} className="text-[#C9A84C]" />
+                            <span>Revision Deck</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLaunchFromLanding('practice')}
+                            className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-[#111936] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <ClipboardList size={14} className="text-blue-500" />
+                            <span>Practice Cases</span>
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleLaunchFromLanding('dashboard')}
+                          className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                        >
+                          <LayoutDashboard size={16} />
+                          <span>Enter Full Study Dashboard</span>
+                          <ArrowRight size={15} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {!isSupabaseConfigured && (
+                          <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
+                            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                            <span>
+                              Supabase configuration is missing in this environment. Please set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY before signing in.
+                            </span>
+                          </div>
+                        )}
+
+                        {authMessage && (
+                          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-xs flex items-start gap-2.5">
+                            <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+                            <span>{authMessage}</span>
+                          </div>
+                        )}
+
+                        {authError && (
+                          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-700/60 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
+                            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                            <span>{authError}</span>
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                          <div className="rounded-xl bg-slate-50 dark:bg-[#111936] border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                            {isPasswordRecovery ? (
+                              <>
+                                <div className="space-y-1 text-left">
+                                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                                    Create a New Password
+                                  </h3>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                                    Enter a strong password (at least 8 characters with uppercase, lowercase, number &amp; special symbol) to secure your practACE account.
+                                  </p>
+                                </div>
+
+                                <form onSubmit={handleUpdatePassword} className="space-y-2.5 text-left">
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                      New Password
+                                    </label>
+                                    <input
+                                      type="password"
+                                      required
+                                      minLength={8}
+                                      autoComplete="new-password"
+                                      value={passwordInput}
+                                      onChange={(e) => setPasswordInput(e.target.value)}
+                                      placeholder="Min 8 chars (A-Z, a-z, 0-9 & symbol)"
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                      Confirm New Password
+                                    </label>
+                                    <input
+                                      type="password"
+                                      required
+                                      minLength={8}
+                                      autoComplete="new-password"
+                                      value={confirmPasswordInput}
+                                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                                      placeholder="Re-enter your new password"
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    disabled={isSigningIn || !isSupabaseConfigured}
+                                    className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                                  >
+                                    {isSigningIn ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                        <span>Updating password...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Lock size={16} />
+                                        <span>Update Password</span>
+                                        <ArrowRight size={15} />
+                                      </>
+                                    )}
+                                  </button>
+                                </form>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCancelPasswordRecovery}
+                                  disabled={isSigningIn}
+                                  className="w-full py-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                                >
+                                  {currentUser ? 'Cancel & Return to Dashboard' : 'Cancel & Back to Sign In'}
+                                </button>
+                              </>
+                            ) : authMode === 'forgot' ? (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAuthMode('signin');
+                                      setIsAuthErrorGate(false);
+                                      setAuthError(null);
+                                      setAuthMessage(null);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    <ChevronLeft size={14} />
+                                    <span>Back to Sign In</span>
+                                  </button>
+                                </div>
+
+                                <div className="space-y-1 text-left">
+                                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                                    Reset Your Password
+                                  </h3>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                                    Enter your registered student email address and we&apos;ll send you a link to set a new password.
+                                  </p>
+                                </div>
+
+                                <form onSubmit={handlePasswordResetRequest} className="space-y-2.5 text-left">
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                      Email Address
+                                    </label>
+                                    <input
+                                      type="email"
+                                      required
+                                      autoComplete="email"
+                                      value={emailInput}
+                                      onChange={(e) => setEmailInput(e.target.value)}
+                                      placeholder="student@example.com"
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    disabled={isSigningIn || !isSupabaseConfigured}
+                                    className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                                  >
+                                    {isSigningIn ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                        <span>Sending reset link...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Mail size={16} />
+                                        <span>Send Reset Link</span>
+                                        <ArrowRight size={15} />
+                                      </>
+                                    )}
+                                  </button>
+                                </form>
+
+                                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800 text-left space-y-2">
+                                  <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                    Link not opening on your device? Paste the email reset link or 6-digit recovery code here:
+                                  </p>
+                                  <form onSubmit={handleManualRecoveryVerify} className="flex flex-col sm:flex-row gap-2">
+                                    <input
+                                      type="text"
+                                      value={recoveryLinkOrCodeInput}
+                                      onChange={(e) => setRecoveryLinkOrCodeInput(e.target.value)}
+                                      placeholder="Paste email reset link URL or 6-digit code"
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                    <button
+                                      type="submit"
+                                      disabled={isSigningIn || !isSupabaseConfigured || !recoveryLinkOrCodeInput.trim()}
+                                      className="px-3.5 py-2 rounded-lg bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-[#C9A84C] border border-[#C9A84C]/40 text-xs font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors"
+                                    >
+                                      Verify Link / Code
+                                    </button>
+                                  </form>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 dark:bg-[#070b19] p-1 rounded-lg">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAuthMode('signin');
+                                      setAuthError(null);
+                                      setAuthMessage(null);
+                                    }}
+                                    className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
+                                      authMode === 'signin'
+                                        ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                  >
+                                    Sign In
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAuthMode('signup');
+                                      setAuthError(null);
+                                      setAuthMessage(null);
+                                    }}
+                                    className={`py-1.5 rounded-md text-xs font-black transition-all cursor-pointer ${
+                                      authMode === 'signup'
+                                        ? 'bg-white dark:bg-[#172142] text-slate-900 dark:text-white shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                  >
+                                    Create Account
+                                  </button>
+                                </div>
+
+                                <form onSubmit={handleEmailAuth} className="space-y-2.5 text-left">
+                                  {authMode === 'signup' && (
+                                    <div>
+                                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                        Full Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={fullNameInput}
+                                        onChange={(e) => setFullNameInput(e.target.value)}
+                                        placeholder="e.g. Ananya Sharma"
+                                        disabled={isSigningIn || !isSupabaseConfigured}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                      />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                                      Email Address
+                                    </label>
+                                    <input
+                                      type="email"
+                                      required
+                                      autoComplete="email"
+                                      value={emailInput}
+                                      onChange={(e) => setEmailInput(e.target.value)}
+                                      placeholder="student@example.com"
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                        Password
+                                      </label>
+                                      {authMode === 'signin' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAuthMode('forgot');
+                                            setAuthError(null);
+                                            setAuthMessage(null);
+                                            setPasswordInput('');
+                                          }}
+                                          className="text-[11px] font-bold text-[#9a7b24] dark:text-[#C9A84C] hover:underline cursor-pointer"
+                                        >
+                                          Forgot password?
+                                        </button>
+                                      )}
+                                    </div>
+                                    <input
+                                      type="password"
+                                      required
+                                      minLength={authMode === 'signup' ? 8 : 6}
+                                      autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
+                                      value={passwordInput}
+                                      onChange={(e) => setPasswordInput(e.target.value)}
+                                      placeholder={
+                                        authMode === 'signup'
+                                          ? 'Min 8 chars (A-Z, a-z, 0-9 & symbol)'
+                                          : 'Enter your password'
+                                      }
+                                      disabled={isSigningIn || !isSupabaseConfigured}
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#070b19] text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60"
+                                    />
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    disabled={isSigningIn || !isSupabaseConfigured}
+                                    className="w-full py-3.5 px-5 bg-[#C9A84C] hover:bg-[#b0913e] disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 rounded-xl text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/20 flex items-center justify-center gap-2.5 transition-all active:scale-98 cursor-pointer"
+                                  >
+                                    {isSigningIn ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                        <span>Signing in...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Mail size={16} />
+                                        <span>{authMode === 'signin' ? 'Sign In with Email' : 'Create Student Account'}</span>
+                                        <ArrowRight size={15} />
+                                      </>
+                                    )}
+                                  </button>
+                                </form>
+                              </>
+                            )}
+                          </div>
+
+                          {isGoogleProviderEnabled && !isPasswordRecovery && authMode !== 'forgot' && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                  or continue with
+                                </span>
+                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleGoogleSignIn}
+                                disabled={isSigningIn || !isSupabaseConfigured}
+                                aria-label="Sign in with Google to access practACE and save progress"
+                                className="w-full py-2.5 px-4 bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider border border-[#C9A84C]/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                              >
+                                <CloudLightning size={14} className="text-[#C9A84C]" />
+                                <span>Continue with Google</span>
+                              </button>
+                            </>
+                          )}
+
+                          <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 font-medium">
+                            100% free student registration • Cloud progress backup across all devices
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 1: THE P-R-A-C-T 5-PILLAR METHODOLOGY */}
+          <section id="pract-method" className="py-14 sm:py-18 px-4 sm:px-6 bg-white/70 dark:bg-[#0a1022]/80 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-7xl mx-auto space-y-10">
+              <div className="text-center max-w-3xl mx-auto space-y-2.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-[#C9A84C]/40 text-[11px] font-black uppercase tracking-widest text-[#9a7b24] dark:text-[#C9A84C]">
+                  <span>The practACE Framework</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Every feature in practACE is engineered around a five-stage preparation loop designed to help CA Final students clear ICAI SPOM Set A and Set B with 75%+ accuracy.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {practPillars.map((pillar) => {
+                  const PillarIcon = pillar.icon;
+                  return (
+                    <div
+                      key={pillar.word}
+                      className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 shadow-sm hover:border-[#C9A84C]/60 transition-all text-left group"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="w-10 h-10 rounded-xl bg-[#021027] border border-[#C9A84C]/40 flex items-center justify-center text-base font-black text-[#C9A84C] shadow-xs">
+                            {pillar.letter}
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#151e3d] text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                            {pillar.badge}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-widest text-[#9a7b24] dark:text-[#C9A84C]">
+                            {pillar.word}
+                          </div>
+                          <h3 className="text-sm font-black text-slate-900 dark:text-white mt-0.5 leading-snug">
+                            {pillar.title}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                          {pillar.desc}
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        <span>SPOM Set A &amp; Set B</span>
+                        <PillarIcon size={14} className="text-[#C9A84C]" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 2: DUAL-SUBJECT SPOM CURRICULUM EXPLORER (SET A & SET B) */}
+          <section id="spom-curriculum" className="py-14 sm:py-18 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-7xl mx-auto space-y-8">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 text-left">
+                <div className="space-y-2 max-w-2xl">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-[11px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                    <span>Complete ICAI SPOM Syllabus Coverage</span>
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Interactive Dual-Subject SPOM Curriculum
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Switch between Set A (Corporate &amp; Economic Laws) and Set B (Strategic Cost &amp; Performance Management) to preview the modules, statutory sections, and costing frameworks inside practACE.
+                  </p>
+                </div>
+
+                {/* Subject Switcher Pills */}
+                <div className="inline-flex items-center gap-1.5 bg-slate-200/80 dark:bg-[#0c1228] p-1.5 rounded-xl border border-slate-300/70 dark:border-slate-800 self-start">
+                  <button
+                    type="button"
+                    onClick={() => setLandingCurriculumTab('setA')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      landingCurriculumTab === 'setA'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Scale size={14} />
+                    <span>SPOM Set A: Corporate &amp; Economic Laws</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLandingCurriculumTab('setB')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      landingCurriculumTab === 'setB'
+                        ? 'bg-[#C9A84C] text-slate-950 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Calculator size={14} />
+                    <span>SPOM Set B: SCMPE</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Module Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+                {(landingCurriculumTab === 'setA' ? landingSetAModules : landingSetBModules).map((mod) => (
+                  <div
+                    key={mod.code + mod.title}
+                    className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200/90 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 shadow-xs hover:shadow-md hover:border-[#C9A84C]/60 transition-all"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                            landingCurriculumTab === 'setA'
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                              : 'bg-amber-500/10 text-amber-800 dark:text-[#C9A84C] border border-[#C9A84C]/30'
+                          }`}
+                        >
+                          {mod.code}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          Notes • Cases • MCQs
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white leading-snug">
+                        {mod.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        {mod.highlights}
+                      </p>
                     </div>
 
                     <button
                       type="button"
-                      onClick={handleGoogleSignIn}
-                      disabled={isSigningIn || !isSupabaseConfigured}
-                      aria-label="Sign in with Google to access practACE and save progress"
-                      className="w-full py-2.5 px-4 bg-[#021027] hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-black uppercase tracking-wider border border-[#C9A84C]/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      onClick={() => handleLaunchFromLanding('revision', landingCurriculumTab)}
+                      className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-black text-[#9a7b24] dark:text-[#C9A84C] hover:underline cursor-pointer"
                     >
-                      <CloudLightning size={14} className="text-[#C9A84C]" />
-                      <span>Continue with Google</span>
+                      <span>
+                        {currentUser && !isPasswordRecovery && !isAuthErrorGate
+                          ? `Open ${landingCurriculumTab === 'setA' ? 'Set A' : 'Set B'} Module`
+                          : 'Sign In to Unlock Module'}
+                      </span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 3: INTERACTIVE SIMULATORS & EXAM TOOLS SHOWCASE */}
+          <section id="live-simulators" className="py-14 sm:py-18 px-4 sm:px-6 bg-white/70 dark:bg-[#0a1022]/80 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-7xl mx-auto space-y-10">
+              <div className="text-center max-w-3xl mx-auto space-y-2.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-[11px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                  <span>Interactive Exam Workbenches</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Built for Application-Based SPOM Case Scenarios
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Go beyond passive PDF reading with interactive calculators, statutory threshold visualizers, 3D spaced-repetition flashcards, and a full CBT mock exam engine.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <ClipboardList size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    ICAI-Pattern Multi-MCQ Case Scenarios
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Practise full-length integrated case scenarios side-by-side with split-screen sticky annotations, instant option validation, detailed reconciliations, and Examiner Trap warnings.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-[#C9A84C]/40 text-[#9a7b24] dark:text-[#C9A84C] flex items-center justify-center">
+                    <Calculator size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    4 SCMPE Costing &amp; Operations Sandboxes
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Manipulate live parameters for Nakajima OEE &amp; 6 Big Losses, Pareto 80/20 Vital Few Defect Curves, National Airlines Relevant Costing, and Cellwell Target Costing &amp; Normal Wastage.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <Scale size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    5 Set A Legal Calculators &amp; Limit Charts
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Verify Independent &amp; Rotational Director counts, Board Quorum, Sec 186 Loan/Investment limits, FEMA LRS thresholds, and visual charts of every statutory time limit (days) and penalty (₹).
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <Timer size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    25-Minute Exam-Grade CBT Mock Simulator
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Test under real countdown conditions with configurable 15–30 question pools, question navigation palette, flag-for-review markers, and chapter-wise accuracy breakdown scorecards.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                    <Award size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    220+ 3D Flashcards &amp; Formula Quiz Engine
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Flip interactive 3D cards, rate each concept as Known or Still Learning, and challenge yourself with bidirectional quizzes matching statutory rules &amp; derivations to their exact provisions.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 p-6 space-y-3 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                    <Download size={20} />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Saved Questions Vault &amp; A4 PDF Exporter
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Bookmark tricky MCQs into your personal Saved Vault for last-day revision, jot formulas in the persistent Study Notepad, and download formatted A4 PDF study handouts anytime.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 4: FREQUENTLY ASKED QUESTIONS (FAQ) */}
+          <section id="landing-faq" className="py-14 sm:py-18 px-4 sm:px-6 border-b border-slate-200/80 dark:border-slate-800/80">
+            <div className="max-w-4xl mx-auto space-y-8">
+              <div className="text-center space-y-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-[#C9A84C]/40 text-[11px] font-black uppercase tracking-widest text-[#9a7b24] dark:text-[#C9A84C]">
+                  <span>Student FAQ</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  Frequently Asked Questions
+                </h2>
+              </div>
+
+              <div className="space-y-3 text-left">
+                {landingFaqs.map((faq, idx) => {
+                  const isOpen = openFaqIdx === idx;
+                  return (
+                    <div
+                      key={faq.q}
+                      className="rounded-xl bg-white dark:bg-[#0c1228] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenFaqIdx(isOpen ? null : idx)}
+                        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left cursor-pointer hover:bg-slate-50 dark:hover:bg-[#111936] transition-colors"
+                      >
+                        <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                          {faq.q}
+                        </span>
+                        <ChevronRight
+                          size={16}
+                          className={`text-[#C9A84C] shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="px-5 pb-4 pt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-slate-800/80">
+                          {faq.a}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 5: BOTTOM CTA BANNER */}
+          <section className="py-12 sm:py-16 px-4 sm:px-6 bg-[#021027] text-white border-b border-[#C9A84C]/30">
+            <div className="max-w-5xl mx-auto rounded-2xl bg-gradient-to-br from-[#07193a] via-[#021027] to-[#0c1738] border border-[#C9A84C]/40 p-6 sm:p-10 text-center space-y-5 shadow-2xl">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C9A84C]/15 border border-[#C9A84C]/40 text-[10px] font-black uppercase tracking-widest text-[#C9A84C]">
+                <Sparkles size={12} />
+                <span>Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track</span>
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight max-w-2xl mx-auto">
+                Ready to Master CA Final SPOM Set A &amp; Set B?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
+                Join CA Final students revising Corporate &amp; Economic Laws and Strategic Cost &amp; Performance Management with structured case scenarios, live simulators, and cloud progress sync.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                {currentUser && !isPasswordRecovery && !isAuthErrorGate ? (
+                  <button
+                    type="button"
+                    onClick={() => handleLaunchFromLanding('dashboard')}
+                    className="px-7 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
+                  >
+                    <LayoutDashboard size={16} />
+                    <span>Enter Study Dashboard</span>
+                    <ArrowRight size={15} />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => scrollToAuthPortal('signup')}
+                      className="px-7 py-3.5 rounded-xl bg-[#C9A84C] hover:bg-[#b0913e] text-slate-950 text-sm font-black uppercase tracking-wider shadow-lg shadow-[#C9A84C]/25 flex items-center gap-2 cursor-pointer transition-all"
+                    >
+                      <span>Create Free Student Account</span>
+                      <ArrowRight size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollToAuthPortal('signin')}
+                      className="px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-sm font-bold cursor-pointer transition-colors"
+                    >
+                      Sign In to Existing Account
                     </button>
                   </>
                 )}
-
-                <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 font-medium">
-                  Sign-in is required to open Revision Decks, Practice Cases, SPOM Mocks, and cloud progress backup.
-                </p>
               </div>
             </div>
-          </div>
+          </section>
         </main>
 
-        {/* Sign-In Gate Footer with Legal, Security & Compliance Links */}
-        <footer className="bg-[#021027] text-slate-400 text-xs py-5 px-6 border-t border-[#C9A84C]/30">
-          <div className="max-w-5xl mx-auto flex flex-col items-center gap-3 text-center">
+        {/* Landing Page Footer with Site Map, Legal, Security & Compliance Links */}
+        <footer className="bg-[#021027] text-slate-400 text-xs py-8 px-6 border-t border-[#C9A84C]/30">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:items-start items-center gap-1 text-center sm:text-left">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-100 font-black text-sm tracking-wide">
+                  pract<span className="text-[#C9A84C]">ACE</span>
+                </span>
+                <span className="text-slate-600">|</span>
+                <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#C9A84C]">
+                  Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                © {new Date().getFullYear()} practACE — Independent CA Final SPOM study suite (not affiliated with ICAI)
+              </span>
+            </div>
+
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] font-bold">
               {legalDocTabs.map((doc) => (
                 <button
@@ -3446,17 +4236,6 @@ export default function App() {
                   {doc.shortLabel}
                 </button>
               ))}
-            </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 text-center">
-              <span className="text-slate-100 font-black text-xs tracking-wide">
-                pract<span className="text-[#C9A84C]">ACE</span>
-              </span>
-              <span className="text-[10px] uppercase tracking-widest font-extrabold text-[#C9A84C]">
-                Plan &nbsp; Revise &nbsp; Analyse &nbsp; Correct &nbsp; Track
-              </span>
-              <span className="text-[11px] text-slate-400 mt-1">
-                © {new Date().getFullYear()} practACE — Independent CA Final SPOM study suite (not affiliated with ICAI)
-              </span>
             </div>
           </div>
         </footer>
@@ -3797,6 +4576,17 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLandingPage(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-[#171f3a] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 transition-colors cursor-pointer"
+                >
+                  <Sparkles size={12} className="text-[#C9A84C]" />
+                  <span>Landing Page</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowGlobalNotepad((prev) => !prev)}
